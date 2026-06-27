@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0b0f0d" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="BitTracker" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>Habbit Tracker</title>
+    <link rel="manifest" href="./manifest.webmanifest?v=20260627-mobile-01" />
+    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./icon.svg" />
+    <link rel="stylesheet" href="./styles.css?v=20260627-cloud-01" />
+    <script src="https://unpkg.com/lucide@latest" defer></script>
+    <script src="./app.js?v=20260627-cloud-01" defer></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">H</span>
+        <div>
+          <h1>Habbit Tracker</h1>
+          <p id="seasonLabel">local · privado · tuyo</p>
+        </div>
+      </div>
+
+      <nav class="view-tabs" aria-label="Vistas">
+        <button class="tab-button is-active" type="button" data-view="dashboard">
+          <i data-lucide="layout-dashboard"></i>
+          <span>Panel</span>
+        </button>
+        <button class="tab-button" type="button" data-view="habits">
+          <i data-lucide="flame"></i>
+          <span>Hábitos</span>
+        </button>
+        <button class="tab-button" type="button" data-view="training">
+          <i data-lucide="dumbbell"></i>
+          <span>Training</span>
+        </button>
+        <button class="tab-button" type="button" data-view="review">
+          <i data-lucide="radar"></i>
+          <span>Review</span>
+        </button>
+      </nav>
+
+      <div class="top-actions">
+        <button class="icon-button" id="openBackup" type="button" title="Backup" aria-label="Backup">
+          <i data-lucide="database"></i>
+        </button>
+        <button class="date-chip" id="todayChip" type="button"></button>
+      </div>
+    </header>
+
+    <main class="app-shell">
+      <section class="view is-active" id="view-dashboard" aria-label="Panel principal">
+        <div class="dashboard-grid">
+          <section class="panel hero-panel" aria-label="Estado de campaña">
+            <div id="heroPanel"></div>
+          </section>
+          <section class="panel quest-panel" aria-label="Misiones de hoy">
+            <div id="questPanel"></div>
+          </section>
+          <section class="panel day-panel" aria-label="Ritual diario">
+            <div id="dayPanel"></div>
+          </section>
+          <section class="panel calendar-panel" aria-label="Mapa mensual">
+            <div id="calendarPanel"></div>
+          </section>
+          <section class="panel training-card-panel" aria-label="Entrenamiento próximo">
+            <div id="trainingCardPanel"></div>
+          </section>
+        </div>
+      </section>
+
+      <section class="view" id="view-habits" aria-label="Hábitos">
+        <div class="habits-grid">
+          <section class="panel" aria-label="Editor de hábitos">
+            <div id="habitEditorPanel"></div>
+          </section>
+          <section class="panel" aria-label="Analítica de hábitos">
+            <div id="habitAnalyticsPanel"></div>
+          </section>
+        </div>
+      </section>
+
+      <section class="view" id="view-training" aria-label="Training">
+        <div class="training-grid">
+          <section class="panel" aria-label="Resumen de entrenamiento del día">
+            <div id="mesocyclePanel"></div>
+          </section>
+          <section class="panel training-wide-panel" aria-label="Registro DenseTraining">
+            <div id="denseTrainingPanel"></div>
+          </section>
+          <section class="panel training-wide-panel" aria-label="PRs y estimaciones Dense">
+            <div id="densePrPanel"></div>
+          </section>
+          <section class="panel training-wide-panel" aria-label="Diario de marcas Dense">
+            <div id="logbookPanel"></div>
+          </section>
+        </div>
+      </section>
+
+      <section class="view" id="view-review" aria-label="Review">
+        <div class="review-grid">
+          <section class="panel" aria-label="Revisión semanal">
+            <div id="reviewPanel"></div>
+          </section>
+          <section class="panel" aria-label="Data">
+            <div id="dataPanel"></div>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <dialog class="modal" id="appModal">
+      <div class="modal-card" id="modalCard">
+        <header class="modal-head">
+          <div>
+            <p class="eyebrow" id="modalEyebrow"></p>
+            <h2 id="modalTitle"></h2>
+          </div>
+          <button class="icon-button" type="button" data-action="close-modal" title="Cerrar" aria-label="Cerrar">
+            <i data-lucide="x"></i>
+          </button>
+        </header>
+        <div class="modal-body" id="modalBody"></div>
+      </div>
+    </dialog>
+  </body>
+</html>

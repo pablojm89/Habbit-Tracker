@@ -1,0 +1,3441 @@
+const STORE_KEY = "habbit-tracker-v2";
+const OLD_STORE_KEY = "habbit-tracker-v1";
+const CLOUD_CONFIG_KEY = "bittracker-cloud-sync-config-v1";
+const DEFAULT_CLOUD_ENDPOINT_URL = "https://script.google.com/macros/s/AKfycbxbs5_ucjo9cf_iSsxYEEfXl75m8gUvb5EbyRh86cwWbdaMXAa7h4Bkr4OG6NBqlzjJ/exec";
+const DEFAULT_CLOUD_SYNC_TOKEN = "bt_2026_mi_token_largo_cambialo";
+const today = startOfDay(new Date());
+let cloudConfig = loadCloudConfig();
+let cloudSyncTimer = null;
+let cloudSyncStatus = {
+  state: "idle",
+  text: cloudConfig.enabled && cloudConfig.endpointUrl && cloudConfig.token ? "Cloud sync listo." : "Cloud sync sin configurar.",
+};
+
+const statCatalog = [
+  { id: "soul", name: "Soul", icon: "sparkles", color: "#bd8bff", hint: "presencia, calma, familia, móvil fuera" },
+  { id: "mind", name: "Mind", icon: "brain", color: "#79aaff", hint: "foco, sueño, lectura, planificación" },
+  { id: "body", name: "Body", icon: "heart-pulse", color: "#8bd9eb", hint: "entreno, movilidad, salud física" },
+  { id: "strg", name: "Strg", icon: "sword", color: "#57c6a1", hint: "tareas duras, disciplina, carácter" },
+  { id: "coin", name: "Coin", icon: "coins", color: "#ffd166", hint: "trabajo, dinero, output profesional" },
+];
+
+const habitIconOptions = [
+  { icon: "sunrise", label: "Despertar", hint: "mañana, 07:00, rutina AM" },
+  { icon: "dumbbell", label: "Entreno", hint: "fuerza, gimnasio, calistenia" },
+  { icon: "briefcase-business", label: "Trabajo", hint: "deep work, dinero, proyectos" },
+  { icon: "moon", label: "Noche", hint: "sin móvil, descanso, cierre" },
+  { icon: "target", label: "Foco", hint: "FROG, tarea dura, prioridad" },
+  { icon: "heart-handshake", label: "Familia", hint: "quality time, presencia" },
+  { icon: "activity", label: "Movilidad", hint: "cadera, respiración, reset" },
+  { icon: "bed", label: "Sueño", hint: "sleep log, descanso" },
+  { icon: "book-open-check", label: "Estudio", hint: "lectura, curso, aprendizaje" },
+  { icon: "flame", label: "Racha", hint: "hábito intenso, streak" },
+  { icon: "shield-check", label: "Defensa", hint: "no negociable, protección" },
+  { icon: "zap", label: "Energía", hint: "activación, acción rápida" },
+];
+
+const habitColorOptions = [
+  { color: "#79aaff", label: "Azul focus", hint: "mente, mañana, claridad" },
+  { color: "#68d66f", label: "Verde win", hint: "cumplimiento, salud, avance" },
+  { color: "#e4af54", label: "Oro work", hint: "trabajo, recompensa, output" },
+  { color: "#bd8bff", label: "Violeta soul", hint: "calma, noche, presencia" },
+  { color: "#57c6a1", label: "Teal discipline", hint: "FROG, fuerza mental" },
+  { color: "#ffd166", label: "Amarillo family", hint: "familia, calidad, calor" },
+  { color: "#8bd9eb", label: "Cian body", hint: "movilidad, cardio, recovery" },
+  { color: "#ff7c9e", label: "Rosa recovery", hint: "sueño, cuidado, energía" },
+  { color: "#f87171", label: "Rojo danger", hint: "reto duro, límite, urgencia" },
+  { color: "#a3e635", label: "Lima cyber", hint: "neón, win, gamificado" },
+];
+
+const qualityCatalog = [
+  { id: "min", label: "mínimo", mult: 0.75 },
+  { id: "base", label: "base", mult: 1 },
+  { id: "heroic", label: "heroico", mult: 1.25 },
+];
+
+const denseNatureOptions = [
+  ["weighted", "Weighted · carga externa"],
+  ["weighted_calisthenics", "Weighted calisthenics · BW + lastre"],
+  ["bodyweight", "Bodyweight · reps/min"],
+  ["banded", "Banded · asistencia/resistencia"],
+  ["conditioning", "Conditioning · motor"],
+  ["plyometrics", "Plyometrics · potencia"],
+  ["skill", "Skill · técnica/hold"],
+  ["active_recovery", "Active recovery · restaurativo"],
+];
+
+const denseEffortOptions = [
+  ["VE", "VE · muy fácil"],
+  ["E", "E · fácil"],
+  ["N", "N · normal"],
+  ["H", "H · duro"],
+  ["VH", "VH · muy duro"],
+  ["fallo", "fallo/no llego"],
+];
+
+const denseEffortFactors = {
+  VE: 1.08,
+  E: 1.04,
+  N: 1,
+  H: 0.97,
+  VH: 0.94,
+  fallo: 0.9,
+  no_llego: 0.9,
+};
+
+const denseEffortValues = {
+  VE: 2,
+  E: 3,
+  N: 5,
+  H: 7,
+  VH: 9,
+  fallo: 10,
+  no_llego: 10,
+};
+
+const bodyweightMultipliers = {
+  "2D": 0.9,
+  "5D": 0.6,
+  "10D": 0.33,
+  "20D": 0.27,
+};
+
+const denseWorkingPct = {
+  "2D5": 0.778,
+  "2D10": 0.535,
+  "2D20": 0.404,
+  "5D1": 0.893,
+  "5D3": 0.794,
+  "5D5": 0.688,
+  "5D10": 0.445,
+  "5D20": 0.314,
+  "10D1": 0.864,
+  "10D3": 0.767,
+  "10D5": 0.665,
+  "10D10": 0.431,
+  "10D20": 0.304,
+  "10D1-2-3": 0.803,
+  "10D2-3-5": 0.753,
+  "20D1": 0.834,
+  "20D3": 0.741,
+  "20D5": 0.643,
+  "20D10": 0.416,
+  "20D20": 0.294,
+};
+
+const bodyweightSchemes = ["2D", "5D", "10D", "20D"];
+const weightedSchemes = Object.keys(denseWorkingPct);
+const allDenseSchemes = [...bodyweightSchemes, ...weightedSchemes];
+
+const denseExerciseCategories = [
+  ["all", "Todos"],
+  ["push", "Empujón"],
+  ["pull", "Tirón"],
+  ["legs", "Piernas"],
+  ["skills", "Skills"],
+  ["mobility", "Movilidad"],
+];
+
+const denseExerciseSortOptions = [
+  ["recent", "Recientes"],
+  ["used", "Más usados"],
+  ["abandoned", "Abandonados"],
+  ["favorite", "Favoritos"],
+  ["az", "A-Z"],
+];
+
+const denseExerciseCatalog = [
+  {
+    id: "pull_up",
+    name: "Dominadas",
+    category: "pull",
+    family: "strict_pull",
+    nature: "bodyweight",
+    allowedNatures: ["bodyweight", "weighted_calisthenics"],
+    bodyweightContributionPct: 100,
+    tonnageFactor: 1,
+    alpha: 0.15,
+    icon: "arrow-up-to-line",
+  },
+  {
+    id: "weighted_pull_up",
+    name: "Dominadas con lastre",
+    category: "pull",
+    family: "strict_pull",
+    nature: "weighted_calisthenics",
+    allowedNatures: ["weighted_calisthenics", "bodyweight"],
+    bodyweightContributionPct: 100,
+    tonnageFactor: 1,
+    alpha: 0.16,
+    icon: "arrow-up-to-line",
+  },
+  {
+    id: "ring_dip",
+    name: "Dips en anillas",
+    category: "push",
+    family: "strict_dip",
+    nature: "bodyweight",
+    allowedNatures: ["bodyweight", "weighted_calisthenics"],
+    bodyweightContributionPct: 95,
+    tonnageFactor: 1,
+    alpha: 0.14,
+    icon: "circle-dot",
+  },
+  {
+    id: "weighted_ring_dip",
+    name: "Dips en anillas con lastre",
+    category: "push",
+    family: "strict_dip",
+    nature: "weighted_calisthenics",
+    allowedNatures: ["weighted_calisthenics", "bodyweight"],
+    bodyweightContributionPct: 95,
+    tonnageFactor: 1,
+    alpha: 0.14,
+    icon: "circle-dot",
+  },
+  {
+    id: "ring_push_up",
+    name: "Flexiones en anillas",
+    category: "push",
+    family: "ring_push",
+    nature: "bodyweight",
+    allowedNatures: ["bodyweight", "weighted_calisthenics"],
+    bodyweightContributionPct: 74,
+    tonnageFactor: 1,
+    alpha: 0.14,
+    icon: "circle",
+  },
+  {
+    id: "ring_row",
+    name: "Remo horizontal en anillas",
+    category: "pull",
+    family: "horizontal_pull",
+    nature: "bodyweight",
+    allowedNatures: ["bodyweight", "banded"],
+    bodyweightContributionPct: 70,
+    tonnageFactor: 1,
+    alpha: 0.13,
+    icon: "move-horizontal",
+  },
+  {
+    id: "floor_push_up",
+    name: "Flexiones en suelo",
+    category: "push",
+    family: "pushup",
+    nature: "bodyweight",
+    allowedNatures: ["bodyweight", "weighted_calisthenics"],
+    bodyweightContributionPct: 64,
+    tonnageFactor: 1,
+    alpha: 0.12,
+    icon: "move-down",
+  },
+  {
+    id: "bodyweight_squat",
+    name: "Sentadilla normal",
+    category: "legs",
+    family: "squat_bodyweight",
+    nature: "bodyweight",
+    allowedNatures: ["bodyweight", "weighted"],
+    bodyweightContributionPct: 75,
+    tonnageFactor: 1,
+    alpha: 0.1,
+    icon: "chevrons-down",
+  },
+  {
+    id: "tiptoe_squat",
+    name: "Sentadilla en puntillas",
+    category: "legs",
+    family: "mobility_strength",
+    nature: "bodyweight",
+    allowedNatures: ["bodyweight", "weighted"],
+    bodyweightContributionPct: 75,
+    tonnageFactor: 0.8,
+    alpha: 0.1,
+    icon: "footprints",
+  },
+  {
+    id: "pistol_squat",
+    name: "Pistol squat",
+    category: "legs",
+    family: "single_leg_squat",
+    nature: "bodyweight",
+    allowedNatures: ["bodyweight", "weighted_calisthenics"],
+    bodyweightContributionPct: 85,
+    tonnageFactor: 1,
+    repsPerSide: true,
+    alpha: 0.13,
+    icon: "person-standing",
+  },
+  {
+    id: "seated_bent_leg_good_morning",
+    name: "Good morning sentado pierna flexionada",
+    category: "mobility",
+    family: "mobility_strength",
+    nature: "bodyweight",
+    allowedNatures: ["bodyweight", "weighted"],
+    bodyweightContributionPct: 45,
+    tonnageFactor: 0.75,
+    alpha: 0.1,
+    icon: "fold-horizontal",
+  },
+  {
+    id: "single_leg_good_morning",
+    name: "Good morning a una pierna",
+    category: "legs",
+    family: "hinge_bodyweight",
+    nature: "bodyweight",
+    allowedNatures: ["bodyweight", "weighted"],
+    bodyweightContributionPct: 55,
+    tonnageFactor: 0.85,
+    repsPerSide: true,
+    alpha: 0.11,
+    icon: "fold-horizontal",
+  },
+  {
+    id: "headstand_push_up",
+    name: "HeSPU nariz al suelo",
+    category: "skills",
+    family: "hspu",
+    nature: "bodyweight",
+    allowedNatures: ["bodyweight", "weighted_calisthenics", "skill"],
+    bodyweightContributionPct: 92,
+    tonnageFactor: 1,
+    alpha: 0.16,
+    icon: "arrow-up",
+  },
+  {
+    id: "full_rom_hspu",
+    name: "HSPU full ROM",
+    category: "skills",
+    family: "hspu",
+    nature: "bodyweight",
+    allowedNatures: ["bodyweight", "weighted_calisthenics", "skill"],
+    bodyweightContributionPct: 95,
+    tonnageFactor: 1,
+    alpha: 0.17,
+    icon: "arrow-up-from-line",
+  },
+  {
+    id: "seated_db_overhead_press",
+    name: "Press militar sentado mancuernas",
+    category: "push",
+    family: "accessory",
+    nature: "weighted",
+    allowedNatures: ["weighted"],
+    bodyweightContributionPct: 0,
+    tonnageFactor: 1,
+    loadPattern: "dumbbell_pair",
+    alpha: 0.11,
+    icon: "dumbbell",
+  },
+];
+
+const habitDefaults = [
+  {
+    id: "wake",
+    name: "07:00",
+    detail: "Despertar pronto en verano",
+    icon: "sunrise",
+    color: "#79aaff",
+    stat: "mind",
+    tolerance: 88,
+    target: "Antes de 07:10",
+    xp: 18,
+    core: true,
+  },
+  {
+    id: "train-am",
+    name: "Entrenar AM",
+    detail: "Entreno antes de que el día se coma la agenda",
+    icon: "dumbbell",
+    color: "#68d66f",
+    stat: "body",
+    tolerance: 76,
+    target: "Primer bloque físico",
+    xp: 26,
+    core: true,
+  },
+  {
+    id: "work-am",
+    name: "Trabajo AM",
+    detail: "Bloque de trabajo profundo si no toca entrenar primero",
+    icon: "briefcase-business",
+    color: "#e4af54",
+    stat: "coin",
+    tolerance: 74,
+    target: "Primer bloque serio",
+    xp: 22,
+    core: true,
+  },
+  {
+    id: "nophone",
+    name: "NOPHONE",
+    detail: "Sin móvil una vez cae el sol",
+    icon: "moon",
+    color: "#bd8bff",
+    stat: "soul",
+    tolerance: 72,
+    target: "Sunset en adelante",
+    xp: 24,
+    core: true,
+  },
+  {
+    id: "frog",
+    name: "FROG",
+    detail: "La tarea dura del día hecha sin procrastinar",
+    icon: "target",
+    color: "#57c6a1",
+    stat: "strg",
+    tolerance: 82,
+    target: "Antes de negociar contigo",
+    xp: 30,
+    core: true,
+  },
+  {
+    id: "family",
+    name: "Familia",
+    detail: "2h de calidad con el móvil lejos",
+    icon: "heart-handshake",
+    color: "#ffd166",
+    stat: "soul",
+    tolerance: 92,
+    target: "2h presente",
+    xp: 28,
+    core: true,
+  },
+  {
+    id: "mobility",
+    name: "Movilidad",
+    detail: "Cadera, tobillo, T-spine y respiración",
+    icon: "activity",
+    color: "#8bd9eb",
+    stat: "body",
+    tolerance: 70,
+    target: "10-15 min",
+    xp: 12,
+    core: false,
+  },
+  {
+    id: "sleep-log",
+    name: "Sleep log",
+    detail: "Apuntar hora de sueño y energía",
+    icon: "bed",
+    color: "#ff7c9e",
+    stat: "mind",
+    tolerance: 62,
+    target: "30s de honestidad",
+    xp: 10,
+    core: false,
+  },
+];
+
+const mesocycleDefault = {
+  id: "summer-base-1",
+  name: "Verano Base 07:00",
+  startDate: dateKey(today),
+  goal: "Rutina AM sólida, fuerza sin grindear y energía familiar al final del día.",
+  weeks: [
+    {
+      id: "w1",
+      label: "Semana 1",
+      focus: "Base técnica",
+      intent: "Repeticiones limpias, sueño estable, cero ego.",
+      load: 68,
+      sessions: [
+        {
+          id: "w1-a",
+          title: "Lower Foundation",
+          slot: "AM",
+          type: "Fuerza base",
+          readiness: "RIR 3",
+          exercises: [
+            ex("sq", "Sentadilla", "4", "6", "72.5 kg", "RIR 3", "+2.5 kg si vuela", "Bracing antes de bajar"),
+            ex("rdl", "Peso muerto rumano", "3", "8", "70 kg", "RIR 3", "+1 rep total", "Bisagra larga"),
+            ex("split", "Split squat", "3", "10", "18 kg", "RIR 2", "Mantener", "Rodilla viaja"),
+            ex("calves", "Gemelo", "4", "12", "BW", "RIR 2", "+2 reps", "Pausa arriba"),
+          ],
+        },
+        {
+          id: "w1-b",
+          title: "Upper Foundation",
+          slot: "AM",
+          type: "Fuerza base",
+          readiness: "RIR 3",
+          exercises: [
+            ex("bench", "Press banca", "4", "6", "62.5 kg", "RIR 3", "+1 rep total", "Escápulas fijas"),
+            ex("row", "Remo barra", "3", "8", "55 kg", "RIR 2", "Pausa 1s", "Tirar con codos"),
+            ex("ohp", "Press militar", "3", "6", "37.5 kg", "RIR 3", "+1.25 kg", "Costillas abajo"),
+            ex("pull", "Dominadas", "4", "5", "BW", "RIR 2", "+1 rep", "Mentón claro"),
+          ],
+        },
+        {
+          id: "w1-c",
+          title: "Zone 2 + Mobility",
+          slot: "PM",
+          type: "Recuperación",
+          readiness: "Suave",
+          exercises: [
+            ex("z2", "Zona 2", "1", "25 min", "135-145 ppm", "Fácil", "+5 min", "Respirar nasal"),
+            ex("hips", "Movilidad cadera", "2", "8 min", "BW", "Libre", "Mantener", "Sin prisa"),
+            ex("tspine", "T-spine", "2", "8/8", "BW", "Libre", "Mantener", "Abrir costillas"),
+          ],
+        },
+      ],
+    },
+    {
+      id: "w2",
+      label: "Semana 2",
+      focus: "Volumen útil",
+      intent: "Añadir trabajo sin perder la mañana.",
+      load: 76,
+      sessions: [
+        {
+          id: "w2-a",
+          title: "Lower Volume",
+          slot: "AM",
+          type: "Acumulación",
+          readiness: "RIR 2",
+          exercises: [
+            ex("sq", "Sentadilla", "5", "5", "75 kg", "RIR 2", "+1 serie", "Misma técnica"),
+            ex("dead", "Peso muerto", "3", "4", "100 kg", "RIR 2", "+2.5 kg", "Velocidad"),
+            ex("lunge", "Zancadas", "3", "10", "22 kg", "RIR 2", "+2 reps", "Control"),
+            ex("carry", "Farmer walk", "4", "30 m", "30 kg", "Duro", "+5 m", "Postura alta"),
+          ],
+        },
+        {
+          id: "w2-b",
+          title: "Upper Volume",
+          slot: "AM",
+          type: "Acumulación",
+          readiness: "RIR 2",
+          exercises: [
+            ex("bench", "Press banca", "5", "5", "65 kg", "RIR 2", "+1 serie", "Bar path igual"),
+            ex("pull", "Dominadas", "4", "6", "BW", "RIR 2", "Lastre si sobra", "Rango completo"),
+            ex("incline", "Press inclinado", "3", "8", "24 kg", "RIR 2", "+1 rep", "Pecho arriba"),
+            ex("face", "Face pull", "3", "15", "Banda", "RIR 2", "Mantener", "Hombros felices"),
+          ],
+        },
+        {
+          id: "w2-c",
+          title: "Engine",
+          slot: "Flexible",
+          type: "Condición",
+          readiness: "RPE 6",
+          exercises: [
+            ex("z2", "Zona 2", "1", "35 min", "135-145 ppm", "Fácil", "+5 min", "Conversacional"),
+            ex("sled", "Trineo / bici", "6", "40s", "Moderado", "RPE 7", "+1 ronda", "No morir"),
+            ex("mob", "Reset movilidad", "1", "12 min", "BW", "Libre", "Mantener", "Cerrar bien"),
+          ],
+        },
+      ],
+    },
+    {
+      id: "w3",
+      label: "Semana 3",
+      focus: "Intensidad",
+      intent: "Top sets honestos; si hay grind, se baja.",
+      load: 86,
+      sessions: [
+        {
+          id: "w3-a",
+          title: "Strength Lower",
+          slot: "AM",
+          type: "Realización",
+          readiness: "RIR 1",
+          exercises: [
+            ex("sq", "Sentadilla", "1+3", "4/5", "82.5 kg", "RIR 1", "Top set", "Cortar si se tuerce"),
+            ex("dead", "Peso muerto", "3", "3", "110 kg", "RIR 2", "+2.5 kg", "Salida rápida"),
+            ex("front", "Front squat", "3", "5", "62.5 kg", "RIR 2", "Mantener", "Torso alto"),
+            ex("core", "Anti-rotación", "3", "12/12", "Cable", "RIR 2", "+control", "Costillas quietas"),
+          ],
+        },
+        {
+          id: "w3-b",
+          title: "Strength Upper",
+          slot: "AM",
+          type: "Realización",
+          readiness: "RIR 1",
+          exercises: [
+            ex("bench", "Press banca", "1+3", "4/5", "70 kg", "RIR 1", "Top set", "Sin grind"),
+            ex("row", "Remo pecho apoyado", "4", "8", "30 kg", "RIR 2", "+2 reps", "Escápulas"),
+            ex("ohp", "Press militar", "3", "5", "42.5 kg", "RIR 2", "+1.25 kg", "Glúteo firme"),
+            ex("curl", "Curl + tríceps", "3", "12", "Ligero", "RIR 2", "Bombeo", "Codos sanos"),
+          ],
+        },
+        {
+          id: "w3-c",
+          title: "Capacity Check",
+          slot: "Flexible",
+          type: "Test suave",
+          readiness: "RPE 7",
+          exercises: [
+            ex("z2", "Zona 2", "1", "40 min", "135-145 ppm", "Fácil", "Sostener", "Sin mirar móvil"),
+            ex("walk", "Caminata", "1", "45 min", "Libre", "Fácil", "Familia", "Si encaja"),
+            ex("breath", "Respiración", "1", "8 min", "BW", "Libre", "Mantener", "Bajar revoluciones"),
+          ],
+        },
+      ],
+    },
+    {
+      id: "w4",
+      label: "Semana 4",
+      focus: "Descarga",
+      intent: "Salir con hambre del próximo bloque.",
+      load: 52,
+      sessions: [
+        {
+          id: "w4-a",
+          title: "Deload Lower",
+          slot: "AM",
+          type: "Resensibilización",
+          readiness: "RIR 4",
+          exercises: [
+            ex("sq", "Sentadilla", "3", "5", "60 kg", "RIR 4", "Reset", "Explosiva"),
+            ex("rdl", "RDL", "2", "8", "55 kg", "RIR 4", "Reset", "Suave"),
+            ex("mob", "Movilidad", "1", "15 min", "BW", "Libre", "Mantener", "Calidad"),
+          ],
+        },
+        {
+          id: "w4-b",
+          title: "Deload Upper",
+          slot: "AM",
+          type: "Resensibilización",
+          readiness: "RIR 4",
+          exercises: [
+            ex("bench", "Press banca", "3", "5", "50 kg", "RIR 4", "Reset", "Rápida"),
+            ex("pull", "Dominadas", "3", "5", "BW", "RIR 4", "Perfectas", "Sin lastre"),
+            ex("row", "Remo", "2", "10", "Ligero", "RIR 4", "Reset", "Sangre"),
+          ],
+        },
+        {
+          id: "w4-c",
+          title: "Review + Next Block",
+          slot: "Libre",
+          type: "Revisión",
+          readiness: "Honesto",
+          exercises: [
+            ex("review", "Review mesociclo", "1", "20 min", "Diario", "Honesto", "Decidir", "Qué repetir"),
+            ex("z2", "Zona 2", "1", "30 min", "Suave", "Fácil", "Reset", "Soltar"),
+            ex("plan", "Plan siguiente", "1", "15 min", "Notas", "Claro", "Bloque nuevo", "Una prioridad"),
+          ],
+        },
+      ],
+    },
+  ],
+};
+
+let state = loadState();
+let selectedDate = parseDate(state.settings.selectedDate || dateKey(today));
+cleanAccidentalFormUrl();
+
+const nodes = {
+  seasonLabel: document.querySelector("#seasonLabel"),
+  todayChip: document.querySelector("#todayChip"),
+  openBackup: document.querySelector("#openBackup"),
+  heroPanel: document.querySelector("#heroPanel"),
+  questPanel: document.querySelector("#questPanel"),
+  dayPanel: document.querySelector("#dayPanel"),
+  calendarPanel: document.querySelector("#calendarPanel"),
+  trainingCardPanel: document.querySelector("#trainingCardPanel"),
+  habitEditorPanel: document.querySelector("#habitEditorPanel"),
+  habitAnalyticsPanel: document.querySelector("#habitAnalyticsPanel"),
+  mesocyclePanel: document.querySelector("#mesocyclePanel"),
+  sessionPanel: document.querySelector("#sessionPanel"),
+  denseTrainingPanel: document.querySelector("#denseTrainingPanel"),
+  densePrPanel: document.querySelector("#densePrPanel"),
+  logbookPanel: document.querySelector("#logbookPanel"),
+  reviewPanel: document.querySelector("#reviewPanel"),
+  dataPanel: document.querySelector("#dataPanel"),
+  modal: document.querySelector("#appModal"),
+  modalCard: document.querySelector("#modalCard"),
+  modalEyebrow: document.querySelector("#modalEyebrow"),
+  modalTitle: document.querySelector("#modalTitle"),
+  modalBody: document.querySelector("#modalBody"),
+};
+
+document.addEventListener("click", handleClick);
+document.addEventListener("change", handleChange);
+document.addEventListener("input", handleInput);
+document.addEventListener("submit", handleSubmit);
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").catch(() => {});
+  });
+}
+nodes.todayChip.addEventListener("click", () => {
+  selectedDate = startOfDay(new Date());
+  state.settings.selectedDate = dateKey(selectedDate);
+  saveAndRender("Hoy");
+});
+nodes.openBackup.addEventListener("click", () => switchView("review"));
+
+render();
+
+function render() {
+  const activeView = state.settings.view || "dashboard";
+  document.querySelectorAll(".view").forEach((view) => {
+    view.classList.toggle("is-active", view.id === `view-${activeView}`);
+  });
+  document.querySelectorAll("[data-view]").forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.view === activeView);
+  });
+
+  nodes.seasonLabel.textContent = `BitTracker · ${activeHabits().length} hábitos activos`;
+  nodes.todayChip.textContent = formatShortDate(selectedDate);
+
+  renderHero();
+  renderQuests();
+  renderDay();
+  renderCalendar();
+  renderTrainingCard();
+  renderHabitEditor();
+  renderHabitAnalytics();
+  renderMesocycle();
+  renderDenseTraining();
+  renderDensePrs();
+  renderLogbook();
+  renderReview();
+  renderData();
+  refreshIcons();
+}
+
+function renderHero() {
+  const weekDays = rangeDays(addDays(selectedDate, -6), selectedDate);
+  const monthDays = rangeDays(addDays(selectedDate, -29), selectedDate);
+  const cycleDays = rangeDays(parseDate(state.mesocycle.startDate), addDays(parseDate(state.mesocycle.startDate), 27));
+  const xp = totalXp();
+  const level = levelFromXp(xp);
+  const nextXp = xpForLevel(level + 1);
+  const prevXp = xpForLevel(level);
+  const xpPct = pct(xp - prevXp, nextXp - prevXp);
+  const rank = rankFor(level);
+  const avatar = avatarForLevel(level);
+  const dailyForm = dailyAvatarForm(selectedDate);
+  const streak = currentStreak();
+
+  nodes.heroPanel.innerHTML = `
+    <div class="hero-layout">
+      <div
+        class="avatar-stage avatar-tier-${avatar.tier} daily-form-${dailyForm.id}"
+        style="--avatar-primary:${avatar.primary}; --avatar-secondary:${avatar.secondary}; --avatar-glow:${dailyForm.glow}; --daily-color:${dailyForm.color}"
+      >
+        <span class="rank-badge">${rank} · Lv ${level}</span>
+        <span class="daily-form-badge">${escapeHtml(dailyForm.label)}</span>
+        <div class="pullup-rig" aria-hidden="true"></div>
+        <div class="pixel-aura" aria-hidden="true"></div>
+        <div class="daily-pixel-buff" aria-hidden="true"></div>
+        <div class="pixel-ranger tier-${avatar.tier}" aria-hidden="true"></div>
+        <div class="avatar-plate">
+          <strong>${escapeHtml(avatar.title)}</strong>
+          <span>${escapeHtml(dailyForm.subtitle)}</span>
+        </div>
+      </div>
+      <div class="hero-stats">
+        <div class="score-row">
+          ${scoreBox("Ayer", `${scoreForDate(addDays(selectedDate, -1))}%`, "history")}
+          ${scoreBox("Semana", `${averageScore(weekDays)}%`, "calendar-days")}
+          ${scoreBox("Mes", `${averageScore(monthDays)}%`, "calendar-range")}
+          ${scoreBox("Racha", `${streak}d`, "flame")}
+        </div>
+        <div class="xp-meter">
+          <div class="xp-label"><span>${xp} XP acumulado</span><span>${nextXp - xp} XP para Lv ${level + 1}</span></div>
+          <div class="meter"><span style="--value:${xpPct}%; --meter-color: var(--green)"></span></div>
+        </div>
+        <div class="stat-bars">
+          ${statCatalog.map((stat) => statRow(stat, monthDays)).join("")}
+        </div>
+        <div class="evolution-track">
+          ${avatarEvolution(level)
+            .map(
+              (stage) => `
+                <div class="evolution-node ${stage.current ? "is-current" : ""} ${stage.unlocked ? "is-unlocked" : ""}">
+                  <span>${stage.level}</span>
+                  <strong>${escapeHtml(stage.name)}</strong>
+                </div>
+              `,
+            )
+            .join("")}
+        </div>
+        <div class="section-meta">BitTracker local · hábitos, marcas reales y progresión por ejercicio.</div>
+      </div>
+    </div>
+  `;
+}
+
+function renderQuests() {
+  const key = dateKey(selectedDate);
+  const day = state.dayNotes[key] || {};
+  const amDone = habitDone(key, "train-am") || habitDone(key, "work-am");
+  const quests = [
+    {
+      label: "Arranque 07:00",
+      detail: habitDone(key, "wake") ? "El día empezó con ventaja." : "Levantar el ancla de verano.",
+      icon: "sunrise",
+      color: "#79aaff",
+      done: habitDone(key, "wake"),
+      reward: "+18",
+    },
+    {
+      label: "Primer bloque",
+      detail: amDone ? "Entreno o trabajo pronto: cumplido." : "Elegir: hierro primero o deep work.",
+      icon: "route",
+      color: "#e4af54",
+      done: amDone,
+      reward: "+24",
+    },
+    {
+      label: "FROG",
+      detail: day.frogTask ? day.frogTask : "La tarea dura todavía necesita nombre.",
+      icon: "target",
+      color: "#57c6a1",
+      done: habitDone(key, "frog"),
+      reward: "+30",
+    },
+    {
+      label: "Casa sin pantalla",
+      detail: habitDone(key, "family") ? "2h presentes, móvil fuera." : "Calidad familiar como cierre del día.",
+      icon: "heart-handshake",
+      color: "#ffd166",
+      done: habitDone(key, "family"),
+      reward: "+28",
+    },
+  ];
+
+  nodes.questPanel.innerHTML = `
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Misiones</p>
+        <h2>${formatLongDate(selectedDate)}</h2>
+      </div>
+      <button class="icon-button" type="button" data-action="open-day-note" title="Notas del día" aria-label="Notas del día">
+        <i data-lucide="notebook-pen"></i>
+      </button>
+    </div>
+    <div class="quest-stack">
+      ${quests
+        .map(
+          (quest) => `
+            <article class="quest-box" style="--item-color:${quest.color}">
+              <div class="quest-icon"><i data-lucide="${quest.icon}"></i></div>
+              <div>
+                <h3>${escapeHtml(quest.label)}</h3>
+                <p>${escapeHtml(quest.detail)}</p>
+              </div>
+              <span class="mini-tag ${quest.done ? "is-green" : "is-amber"}">
+                <i data-lucide="${quest.done ? "check" : "sparkles"}"></i>${quest.done ? "done" : quest.reward}
+              </span>
+            </article>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function renderDay() {
+  const key = dateKey(selectedDate);
+  const day = state.dayNotes[key] || {};
+
+  nodes.dayPanel.innerHTML = `
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Ritual diario</p>
+        <h2>${formatShortDate(selectedDate)}</h2>
+        <span class="section-meta">${day.energy ? `Energía ${day.energy}/5` : "Sin energía registrada"} · ${scoreForDate(selectedDate)}% del día</span>
+      </div>
+      <div class="date-nav">
+        <button class="icon-button" type="button" data-action="shift-day" data-shift="-1" title="Día anterior" aria-label="Día anterior"><i data-lucide="chevron-left"></i></button>
+        <button class="date-chip" type="button" data-action="go-today">Hoy</button>
+        <button class="icon-button" type="button" data-action="shift-day" data-shift="1" title="Día siguiente" aria-label="Día siguiente"><i data-lucide="chevron-right"></i></button>
+        <button class="icon-button is-danger" type="button" data-action="reset-day" title="Reiniciar día" aria-label="Reiniciar día"><i data-lucide="rotate-ccw"></i></button>
+      </div>
+    </div>
+    <div class="ritual-grid">
+      ${activeHabits()
+        .map((habit) => {
+          const entry = getHabitEntry(key, habit.id);
+          const done = Boolean(entry.done);
+          return `
+            <article class="ritual-card ${done ? "is-done" : ""}" style="--item-color:${habit.color}">
+              <div class="habit-icon"><i data-lucide="${habit.icon}"></i></div>
+              <div>
+                <h3>${escapeHtml(habit.name)}</h3>
+                <p>${escapeHtml(done ? doneCopy(entry.quality) : habit.target)}</p>
+                <div class="quality-row">
+                  ${qualityCatalog
+                    .map(
+                      (quality) => `
+                        <button
+                          class="quality-button ${entry.quality === quality.id ? "is-active" : ""}"
+                          type="button"
+                          data-action="set-quality"
+                          data-habit="${habit.id}"
+                          data-quality="${quality.id}"
+                          style="--item-color:${habit.color}"
+                        >${quality.label}</button>
+                      `,
+                    )
+                    .join("")}
+                </div>
+              </div>
+              <button
+                class="check-button"
+                type="button"
+                data-action="toggle-habit"
+                data-habit="${habit.id}"
+                aria-pressed="${done}"
+                style="--item-color:${habit.color}"
+                title="${done ? "Quitar" : "Completar"} ${escapeAttr(habit.name)}"
+                aria-label="${done ? "Quitar" : "Completar"} ${escapeAttr(habit.name)}"
+              >
+                <i data-lucide="${done ? "check" : "plus"}"></i>
+              </button>
+            </article>
+          `;
+        })
+        .join("")}
+    </div>
+  `;
+}
+
+function renderCalendar() {
+  const anchor = parseDate(state.settings.calendarAnchor || monthKey(selectedDate));
+  const days = monthGridDays(anchor);
+  const key = dateKey(selectedDate);
+  const monthHabits = activeHabits();
+  const monthDates = rangeDays(monthStart(anchor), monthEnd(anchor));
+  const monthScore = averageScore(monthDates);
+
+  nodes.calendarPanel.innerHTML = `
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Mapa de campaña</p>
+        <h2>${formatMonth(anchor)} · ${monthScore}% mes</h2>
+        <span class="section-meta">${formatLongDate(selectedDate)} · ${scoreForDate(selectedDate)}% seleccionado</span>
+      </div>
+      <div class="inline-actions">
+        <button class="icon-button" type="button" data-action="shift-calendar-month" data-shift="-1" title="Mes anterior" aria-label="Mes anterior"><i data-lucide="chevron-left"></i></button>
+        <button class="date-chip" type="button" data-action="calendar-today">Hoy</button>
+        <button class="icon-button" type="button" data-action="shift-calendar-month" data-shift="1" title="Mes siguiente" aria-label="Mes siguiente"><i data-lucide="chevron-right"></i></button>
+      </div>
+    </div>
+    <div class="calendar-scroll">
+      <div class="calendar-grid">
+        <div class="cal-head"></div>
+        ${days
+          .map(
+            (day) => `
+              <button
+                class="cal-head cal-day-button ${sameMonth(day, anchor) ? "" : "is-outside"} ${dateKey(day) === key ? "is-selected" : ""}"
+                type="button"
+                data-action="select-calendar-date"
+                data-date="${dateKey(day)}"
+                title="${escapeAttr(formatLongDate(day))}"
+              >${day.getDate()}</button>
+            `,
+          )
+          .join("")}
+        ${monthHabits
+          .map(
+            (habit) => `
+              <div class="cal-label" style="--item-color:${habit.color}">
+                <i data-lucide="${habit.icon}"></i><span>${escapeHtml(habit.name)}</span>
+              </div>
+              ${days.map((day) => calendarCell(day, habit, anchor)).join("")}
+            `,
+          )
+          .join("")}
+      </div>
+    </div>
+    <div class="calendar-legend">
+      <span><i class="legend-dot done"></i>hecho</span>
+      <span><i class="legend-dot heroic"></i>heroico</span>
+      <span><i class="legend-dot missed"></i>fallo</span>
+      <span><i class="legend-dot selected"></i>${key}</span>
+    </div>
+  `;
+}
+
+function renderTrainingCard() {
+  const summary = denseDaySummary(dateKey(selectedDate));
+  const latest = latestDenseEntry();
+  const prCount = densePrRows().length;
+  const latestLine = latest
+    ? `${latest.exercise_name} · ${latest.scheme} · ${denseEntryValue(latest)}`
+    : "Elige ejercicio, esquema y guarda la primera marca real.";
+
+  nodes.trainingCardPanel.innerHTML = `
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Training</p>
+        <h2>Marcas reales</h2>
+        <span class="section-meta">${escapeHtml(latestLine)}</span>
+      </div>
+      <button class="text-button is-hot" type="button" data-action="switch-view" data-view="training">
+        <i data-lucide="arrow-right"></i>Entrar
+      </button>
+    </div>
+    <div class="training-card">
+      <div class="training-split">
+        ${trainingMetric("Hoy", `${summary.count}`, "clipboard-check")}
+        ${trainingMetric("PRs", `${prCount}`, "trophy")}
+        ${trainingMetric("Reps", `${summary.totalReps}`, "activity")}
+      </div>
+      <div class="xp-meter">
+        <div class="xp-label"><span>${summary.count ? "Día registrado en entrenamiento" : "Sin marcas Dense en el día seleccionado"}</span><span>${summary.count ? `${Math.min(100, summary.count * 25)}%` : "0%"}</span></div>
+        <div class="meter"><span style="--value:${Math.min(100, summary.count * 25)}%; --meter-color: var(--cyan)"></span></div>
+      </div>
+    </div>
+  `;
+}
+
+function renderHabitEditor() {
+  nodes.habitEditorPanel.innerHTML = `
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Habit cockpit</p>
+        <h2>Reglas del sistema</h2>
+      </div>
+      <button class="text-button is-hot" type="button" data-action="open-habit-modal" data-id="new">
+        <i data-lucide="plus"></i>Hábito
+      </button>
+    </div>
+    <div class="habit-editor-list">
+      ${state.habits
+        .map((habit) => {
+          const month = rangeDays(addDays(selectedDate, -29), selectedDate);
+          const completed = countHabit(habit.id, month);
+          const active = month.filter((day) => state.records[dateKey(day)]).length || 1;
+          return `
+            <article class="habit-editor-card" style="--item-color:${habit.color}; opacity:${habit.archived ? 0.48 : 1}">
+              <div class="tiny-icon"><i data-lucide="${habit.icon}"></i></div>
+              <div class="habit-title">
+                <div>
+                  <strong>${escapeHtml(habit.name)}</strong>
+                  <span>${escapeHtml(habit.detail)}</span>
+                </div>
+              </div>
+              <div class="habit-state">
+                <span class="mini-tag ${habit.core ? "is-green" : ""}">${habit.core ? "core" : "extra"}</span>
+                <span class="mini-tag">${Math.round((completed / active) * 100)}%</span>
+                <button class="icon-button" type="button" data-action="open-habit-modal" data-id="${habit.id}" title="Editar" aria-label="Editar ${escapeAttr(habit.name)}"><i data-lucide="settings-2"></i></button>
+              </div>
+            </article>
+          `;
+        })
+        .join("")}
+    </div>
+  `;
+}
+
+function renderHabitAnalytics() {
+  const month = rangeDays(addDays(selectedDate, -29), selectedDate);
+  const hardest = [...activeHabits()].sort((a, b) => countHabit(a.id, month) - countHabit(b.id, month))[0];
+  const strongest = [...activeHabits()].sort((a, b) => countHabit(b.id, month) - countHabit(a.id, month))[0];
+  const coreScore = averageCoreScore(month);
+
+  nodes.habitAnalyticsPanel.innerHTML = `
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Analítica</p>
+        <h2>Señales del mes</h2>
+      </div>
+    </div>
+    <div class="analytics-grid">
+      ${reviewCard("Core", `${coreScore}%`, "shield-check", "Promedio de hábitos no negociables")}
+      ${reviewCard("Más sólido", strongest?.name || "n/a", strongest?.icon || "star", strongest ? `${countHabit(strongest.id, month)} checks` : "")}
+      ${reviewCard("Cuello", hardest?.name || "n/a", hardest?.icon || "wrench", hardest ? `${countHabit(hardest.id, month)} checks` : "")}
+      ${reviewCard("AM", amScore(month) + "%", "sunrise", "07:00 + primer bloque")}
+    </div>
+  `;
+}
+
+function renderMesocycle() {
+  const entries = denseEntriesForDate(dateKey(selectedDate)).sort((a, b) => (a.created_at || "").localeCompare(b.created_at || ""));
+  nodes.mesocyclePanel.innerHTML = `
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Entreno de hoy</p>
+        <h2>${formatShortDate(selectedDate)}</h2>
+        <span class="section-meta">${entries.length ? `${entries.length} ejercicios registrados` : "Aún no has logueado ningún ejercicio"}</span>
+      </div>
+    </div>
+    <div class="today-workout-list">
+      ${
+        entries.length
+          ? entries.map((entry) => todayWorkoutCard(entry)).join("")
+          : `<article class="today-workout-empty">
+              <span class="tiny-icon" style="--item-color:var(--green)"><i data-lucide="plus"></i></span>
+              <div>
+                <strong>Empieza el día de entreno</strong>
+                <span>Selecciona un ejercicio, elige esquema Dense y guarda tu marca.</span>
+              </div>
+            </article>`
+      }
+    </div>
+  `;
+}
+
+function renderSession() {
+  if (!nodes.sessionPanel) return;
+  const selected = denseExerciseById(state.settings.denseSelectedExerciseId || "pull_up");
+  const schemes = denseAllowedSchemes(selected);
+  const stats = denseExerciseStats(selected.id);
+
+  nodes.sessionPanel.innerHTML = `
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Siguiente registro</p>
+        <h2>${escapeHtml(selected.name)}</h2>
+        <span class="section-meta">${escapeHtml(denseCategoryLabel(selected.category))} · ${stats.count ? `${stats.count} marcas previas` : "sin histórico todavía"}</span>
+      </div>
+    </div>
+    <div class="selected-exercise-panel" style="--item-color:${denseCategoryColor(selected.category)}">
+      <span class="tiny-icon"><i data-lucide="${selected.icon || "dumbbell"}"></i></span>
+      <div>
+        <strong>${escapeHtml(selected.name)}</strong>
+        <span>${escapeHtml(denseNatureLabel(selected.nature))} · ${schemes.length} esquemas disponibles</span>
+      </div>
+      <button class="text-button" type="button" data-action="focus-dense-register"><i data-lucide="edit-3"></i>Registrar</button>
+    </div>
+  `;
+}
+
+function renderDenseTraining() {
+  const defaults = denseFormDefaults();
+  const exercise = denseExerciseById(defaults.exerciseId);
+  const allowedSchemes = denseAllowedSchemes(exercise);
+
+  nodes.denseTrainingPanel.innerHTML = `
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Registrar marca</p>
+        <h2>${escapeHtml(exercise.name)}</h2>
+        <span class="section-meta">Elige esquema Dense y guarda sólo lo necesario para este ejercicio.</span>
+      </div>
+      <span class="mini-tag is-green"><i data-lucide="cloud"></i>${cloudConfig.enabled ? "cloud ready" : "local"}</span>
+    </div>
+    <form id="denseTrainingForm" class="dense-training-form">
+      ${denseExercisePicker(defaults)}
+      <div class="dense-form-grid">
+        ${field("Peso corporal kg", "bodyweightKg", defaults.bodyweightKg, "number")}
+        <input type="hidden" name="exerciseId" value="${escapeAttr(defaults.exerciseId)}" />
+        <input type="hidden" name="nature" value="${escapeAttr(exercise.nature)}" />
+        <fieldset class="scheme-picker-field is-full">
+          <legend>Esquema Dense</legend>
+          <div class="scheme-option-grid">
+            ${allowedSchemes.map((scheme) => denseSchemeOption(scheme, defaults.scheme)).join("")}
+          </div>
+        </fieldset>
+        ${denseRepPerSetFields(exercise, defaults)}
+        ${field("Reps totales", "totalReps", defaults.totalReps, "number")}
+        ${denseLoadFields(exercise)}
+        <fieldset class="effort-picker-field is-full">
+          <legend>Esfuerzo</legend>
+          <div class="effort-option-grid">
+            ${denseEffortOptions.map(([value, label]) => denseEffortOption(value, label, defaults.effort)).join("")}
+          </div>
+        </fieldset>
+        <label class="field is-full">
+          <span>Notas</span>
+          <textarea name="notes" placeholder="ROM, tempo, anillas altas, pies elevados, molestias, si las reps son por lado..."></textarea>
+        </label>
+      </div>
+      <div class="dense-actions">
+        <div class="dense-form-hint">
+          <strong>${escapeHtml(denseNatureLabel(exercise.nature))}</strong>
+          <span>${escapeHtml(denseExerciseHint(exercise))}</span>
+        </div>
+        <button class="text-button is-hot" type="submit"><i data-lucide="save"></i>Guardar marca Dense</button>
+      </div>
+    </form>
+  `;
+}
+
+function renderDensePrs() {
+  if (!nodes.densePrPanel) return;
+  const entries = [...getDenseEntries()];
+  const prs = densePrRows();
+  const latest = entries.sort((a, b) => (b.created_at || b.date || "").localeCompare(a.created_at || a.date || ""))[0];
+  const estimateCards = latest ? renderDenseEstimateCards(latest) : "";
+
+  nodes.densePrPanel.innerHTML = `
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">PR lab</p>
+        <h2>PRs y estimaciones cruzadas</h2>
+        <span class="section-meta">Cada ejercicio aprende por esfuerzo: 70% histórico + 30% observación ajustada.</span>
+      </div>
+      <span class="mini-tag ${entries.length ? "is-green" : "is-amber"}">${entries.length ? `${entries.length} marks` : "esperando datos"}</span>
+    </div>
+    <div class="dense-pr-layout">
+      <div class="dense-pr-table">
+        <div class="table-head dense-pr-row">
+          <span>Ejercicio</span>
+          <span>Esquema</span>
+          <span>PR</span>
+          <span>Rel.</span>
+          <span>Fecha</span>
+        </div>
+        ${
+          prs.length
+            ? prs
+                .slice(0, 12)
+                .map(
+                  (row) => `
+                    <article class="dense-pr-row">
+                      <span>${escapeHtml(row.exerciseName)}</span>
+                      <span>${escapeHtml(row.scheme)}</span>
+                      <strong>${escapeHtml(row.value)}</strong>
+                      <span>${escapeHtml(row.relative)}</span>
+                      <span>${escapeHtml(row.date)}</span>
+                    </article>
+                  `,
+                )
+                .join("")
+            : `<article class="dense-pr-row is-empty"><span>Sin PRs todavía</span><span>Guarda una marca real</span><strong>-</strong><span>-</span><span>-</span></article>`
+        }
+      </div>
+      <div class="dense-estimate-panel">
+        <div class="section-subhead">
+          <strong>${latest ? escapeHtml(latest.exercise_name) : "Estimador"}</strong>
+          <span>${latest ? `${escapeHtml(latest.scheme)} · ${escapeHtml(latest.nature)}` : "sin entrada base"}</span>
+        </div>
+        <div class="dense-estimate-grid">
+          ${estimateCards || `<article class="dense-estimate-card"><strong>Esperando señal</strong><span>Las equivalencias aparecerán al guardar la primera marca.</span></article>`}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderLogbook() {
+  if (!nodes.logbookPanel) return;
+  const entries = [...getDenseEntries()]
+    .sort((a, b) => (b.created_at || b.date || "").localeCompare(a.created_at || a.date || ""))
+    .slice(0, 8);
+
+  nodes.logbookPanel.innerHTML = `
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Logbook</p>
+        <h2>Últimas marcas reales</h2>
+      </div>
+    </div>
+    <div class="logbook-list">
+      ${
+        entries.length
+          ? entries
+              .map(
+                (entry) => `
+                  <article class="log-entry">
+                    <strong>${escapeHtml(entry.exercise_name)}</strong>
+                    <span>${escapeHtml(entry.date)} · ${escapeHtml(entry.scheme)} · ${denseEntryValue(entry)}</span>
+                    <p class="tiny-copy">${escapeHtml(entry.notes || `${entry.reps_per_min ? `${entry.reps_per_min} rpm` : ""}${entry.relative_strength ? ` · ${entry.relative_strength}x BW` : ""}` || "Sin nota")}</p>
+                  </article>
+                `,
+              )
+              .join("")
+          : `<article class="log-entry"><strong>Sin marcas todavía</strong><span>El historial empieza cuando guardas una marca Dense.</span></article>`
+      }
+    </div>
+  `;
+}
+
+function renderReview() {
+  const week = rangeDays(addDays(selectedDate, -6), selectedDate);
+  const dayNote = state.dayNotes[dateKey(selectedDate)] || {};
+  const reviewItems = [
+    { title: "Score semanal", value: `${averageScore(week)}%`, icon: "gauge", detail: "Promedio total de los últimos 7 días" },
+    { title: "Core semanal", value: `${averageCoreScore(week)}%`, icon: "shield", detail: "07:00, primer bloque, NOPHONE, FROG y familia" },
+    { title: "Entreno", value: `${denseTrainingWeekScore()}%`, icon: "dumbbell", detail: "Días con marcas reales en los últimos 7 días" },
+    { title: "FROG de hoy", value: dayNote.frogTask || "pendiente", icon: "target", detail: "Tarea dura declarada" },
+  ];
+
+  nodes.reviewPanel.innerHTML = `
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Review</p>
+        <h2>Lectura honesta</h2>
+      </div>
+      <button class="text-button" type="button" data-action="open-day-note"><i data-lucide="notebook-pen"></i>Día</button>
+    </div>
+    <div class="review-stack">
+      ${reviewItems.map((item) => reviewCard(item.title, item.value, item.icon, item.detail)).join("")}
+      <article class="review-card">
+        <strong>Nota</strong>
+        <span>${escapeHtml(dayNote.note || "Sin nota del día seleccionado")}</span>
+      </article>
+    </div>
+  `;
+}
+
+function renderData() {
+  const syncEnabled = Boolean(cloudConfig.enabled && cloudConfig.endpointUrl);
+  nodes.dataPanel.innerHTML = `
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Data</p>
+        <h2>Control privado</h2>
+      </div>
+    </div>
+    <div class="backup-grid">
+      <article class="backup-box">
+        <strong>Backup</strong>
+        <p class="tiny-copy">${Object.keys(state.records).length} días · ${totalXp()} XP · ${getDenseEntries().length} marcas Dense</p>
+        <div class="inline-actions" style="justify-content:flex-start; margin-top:10px">
+          <button class="text-button" type="button" data-action="export-json"><i data-lucide="download"></i>JSON</button>
+          <button class="text-button" type="button" data-action="copy-json"><i data-lucide="copy"></i>Copiar</button>
+        </div>
+      </article>
+      <article class="backup-box">
+        <strong>Import</strong>
+        <p class="tiny-copy">Acepta backups generados por esta app.</p>
+        <div class="import-row">
+          <input id="importFile" type="file" accept="application/json" />
+        </div>
+      </article>
+      <article class="backup-box">
+        <strong>Reset</strong>
+        <p class="tiny-copy">Reinicia datos locales y vuelve al sistema base.</p>
+        <div class="inline-actions" style="justify-content:flex-start; margin-top:10px">
+          <button class="text-button is-danger" type="button" data-action="factory-reset"><i data-lucide="trash-2"></i>Reset</button>
+        </div>
+      </article>
+      <article class="backup-box">
+        <strong>Storage</strong>
+        <p class="tiny-copy">${new Blob([JSON.stringify(state)]).size} bytes en este navegador. ${syncEnabled ? "La nube queda como fuente de verdad configurada." : "Activa Cloud para sacar los datos de local."}</p>
+      </article>
+      <article class="backup-box is-wide">
+        <strong>Cloud / Google Sheets</strong>
+        <p class="tiny-copy">Pega aqui la URL del Web App de Apps Script. La app enviara cada cambio como snapshot y tablas normalizadas.</p>
+        <form id="cloudSyncForm" class="cloud-sync-form">
+          <label class="field">
+            <span>Endpoint URL</span>
+            <input name="endpointUrl" type="url" value="${escapeAttr(cloudConfig.endpointUrl || "")}" placeholder="https://script.google.com/macros/s/.../exec" />
+          </label>
+          <label class="field">
+            <span>Token privado</span>
+            <input name="token" type="password" value="${escapeAttr(cloudConfig.token || "")}" placeholder="Mismo token que en Apps Script" />
+          </label>
+          <label class="check-line">
+            <input name="enabled" type="checkbox" ${cloudConfig.enabled ? "checked" : ""} />
+            <span>Sincronizar automaticamente al guardar</span>
+          </label>
+          <div class="inline-actions" style="justify-content:flex-start; margin-top:10px">
+            <button class="text-button is-hot" type="submit"><i data-lucide="save"></i>Guardar cloud</button>
+            <button class="text-button" type="button" data-action="sync-now"><i data-lucide="refresh-cw"></i>Sync ahora</button>
+          </div>
+          <p class="tiny-copy" id="cloudSyncStatus">${escapeHtml(cloudSyncStatus.text)}</p>
+        </form>
+      </article>
+    </div>
+  `;
+}
+
+function handleClick(event) {
+  const viewTarget = event.target.closest(".tab-button[data-view]");
+  if (viewTarget) {
+    switchView(viewTarget.dataset.view);
+    return;
+  }
+
+  const target = event.target.closest("[data-action]");
+  if (!target) {
+    if (!event.target.closest(".choice-field")) closeChoicePopovers();
+    return;
+  }
+
+  const { action } = target.dataset;
+  if (action === "close-modal") closeModal();
+  if (action === "toggle-choice-popover") toggleChoicePopover(target);
+  if (action === "set-choice-value") setChoiceValue(target);
+  if (action === "switch-view") switchView(target.dataset.view);
+  if (action === "shift-day") shiftDay(Number(target.dataset.shift));
+  if (action === "go-today") goToday();
+  if (action === "shift-calendar-month") shiftCalendarMonth(Number(target.dataset.shift));
+  if (action === "calendar-today") goToday();
+  if (action === "select-calendar-date") selectDate(target.dataset.date);
+  if (action === "reset-day") resetDay();
+  if (action === "toggle-habit") toggleHabit(target.dataset.habit);
+  if (action === "set-quality") setQuality(target.dataset.habit, target.dataset.quality);
+  if (action === "open-habit-modal") openHabitModal(target.dataset.id);
+  if (action === "open-day-note") openDayModal();
+  if (action === "select-week") selectWeek(target.dataset.week);
+  if (action === "select-session") selectSession(target.dataset.session);
+  if (action === "toggle-exercise") toggleExercise(target.dataset.session, target.dataset.exercise);
+  if (action === "pick-dense-exercise") pickDenseExercise(target.dataset.exercise);
+  if (action === "toggle-dense-favorite") toggleDenseFavorite(target.dataset.exercise);
+  if (action === "focus-dense-register") document.querySelector("#denseTrainingPanel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  if (action === "export-json") exportJson();
+  if (action === "copy-json") copyJson();
+  if (action === "sync-now") syncCloudState("manual");
+  if (action === "factory-reset") factoryReset();
+}
+
+function handleChange(event) {
+  if (event.target.matches("#importFile")) importJson(event.target.files?.[0]);
+  if (event.target.matches("#denseTrainingForm input[name='scheme']")) updateDenseSchemeSelection(event.target);
+  if (event.target.matches("[data-action-input='session-note']")) {
+    const sessionId = event.target.dataset.session;
+    const log = getSessionLog(sessionId);
+    log.note = event.target.value;
+    log.updatedAt = new Date().toISOString();
+    saveAndRender("Nota guardada");
+  }
+  if (event.target.matches("[data-action-input='dense-exercise-category']")) {
+    state.settings.denseExerciseCategory = event.target.value;
+    renderDenseTraining();
+    refreshIcons();
+  }
+  if (event.target.matches("[data-action-input='dense-exercise-sort']")) {
+    state.settings.denseExerciseSort = event.target.value;
+    renderDenseTraining();
+    refreshIcons();
+  }
+}
+
+function handleInput(event) {
+  if (event.target.matches("[data-action-input='dense-exercise-search']")) {
+    state.settings.denseExerciseSearch = event.target.value;
+    applyDenseExerciseSearch(event.target.value);
+  }
+  if (event.target.matches("#denseTrainingForm [name='repsPerSet']")) {
+    updateDenseTotalFromRepsPerSet(event.target);
+  }
+}
+
+function handleSubmit(event) {
+  if (event.target.id === "habitForm") {
+    event.preventDefault();
+    saveHabitForm(event.target);
+  }
+  if (event.target.id === "dayForm") {
+    event.preventDefault();
+    saveDayForm(event.target);
+  }
+  if (event.target.id === "cloudSyncForm") {
+    event.preventDefault();
+    saveCloudSyncForm(event.target);
+  }
+  if (event.target.id === "denseTrainingForm") {
+    event.preventDefault();
+    saveDenseTrainingForm(event.target);
+  }
+}
+
+function switchView(view) {
+  state.settings.view = view;
+  saveAndRender();
+}
+
+function shiftDay(amount) {
+  selectedDate = addDays(selectedDate, amount);
+  state.settings.selectedDate = dateKey(selectedDate);
+  state.settings.calendarAnchor = monthKey(selectedDate);
+  saveAndRender();
+}
+
+function goToday() {
+  selectedDate = startOfDay(new Date());
+  state.settings.selectedDate = dateKey(selectedDate);
+  state.settings.calendarAnchor = monthKey(selectedDate);
+  saveAndRender();
+}
+
+function selectDate(key) {
+  selectedDate = parseDate(key);
+  state.settings.selectedDate = dateKey(selectedDate);
+  state.settings.calendarAnchor = monthKey(selectedDate);
+  saveAndRender("Fecha seleccionada");
+}
+
+function shiftCalendarMonth(amount) {
+  const anchor = parseDate(state.settings.calendarAnchor || monthKey(selectedDate));
+  state.settings.calendarAnchor = monthKey(addMonths(anchor, amount));
+  saveAndRender();
+}
+
+function resetDay() {
+  state.records[dateKey(selectedDate)] = {};
+  saveAndRender("Día reiniciado");
+}
+
+function toggleHabit(habitId) {
+  const key = dateKey(selectedDate);
+  state.records[key] ||= {};
+  const entry = getHabitEntry(key, habitId);
+  state.records[key][habitId] = {
+    done: !entry.done,
+    quality: entry.done ? entry.quality : entry.quality || "base",
+    completedAt: entry.done ? null : new Date().toISOString(),
+  };
+  saveAndRender(entry.done ? "Quitado" : "+XP");
+}
+
+function setQuality(habitId, quality) {
+  const key = dateKey(selectedDate);
+  state.records[key] ||= {};
+  const entry = getHabitEntry(key, habitId);
+  state.records[key][habitId] = {
+    ...entry,
+    done: true,
+    quality,
+    completedAt: entry.completedAt || new Date().toISOString(),
+  };
+  saveAndRender("Calidad actualizada");
+}
+
+function openHabitModal(id) {
+  const habit = id === "new" ? defaultNewHabit() : state.habits.find((item) => item.id === id);
+  if (!habit) return;
+
+  nodes.modalEyebrow.textContent = id === "new" ? "Nuevo hábito" : "Editar hábito";
+  nodes.modalTitle.textContent = habit.name;
+  nodes.modalBody.innerHTML = `
+    <form id="habitForm" method="dialog">
+      <input type="hidden" name="id" value="${escapeAttr(habit.id)}" />
+      <div class="field-grid">
+        ${field("Nombre (cómo lo verás en la tarjeta)", "name", habit.name)}
+        ${field("Objetivo corto (lo que cuenta como hecho)", "target", habit.target)}
+        ${habitChoiceField("icon", "Icono (pulsa para elegir uno visual)", habit.icon)}
+        ${habitChoiceField("color", "Color (pulsa para elegir tono)", habit.color)}
+        ${habitChoiceField("stat", "Stat (qué atributo sube)", habit.stat)}
+        ${field("XP base (recompensa; 10 fácil, 30 duro)", "xp", habit.xp, "number")}
+        ${field("Tolerancia (0-100; margen del hábito)", "tolerance", habit.tolerance, "number")}
+        <label class="field">
+          <span>Tipo (core suma al score serio; extra es opcional)</span>
+          <select name="core">
+            <option value="true" ${habit.core ? "selected" : ""}>Core - no negociable</option>
+            <option value="false" ${!habit.core ? "selected" : ""}>Extra - bonus/hábito de apoyo</option>
+          </select>
+        </label>
+        <label class="field is-full">
+          <span>Descripción (contexto personal, regla o intención)</span>
+          <textarea name="detail">${escapeHtml(habit.detail)}</textarea>
+        </label>
+      </div>
+      <div class="modal-actions">
+        ${id !== "new" ? `<button class="text-button is-danger" type="button" data-action="archive-habit-inline" data-id="${habit.id}"><i data-lucide="archive"></i>${habit.archived ? "Activar" : "Archivar"}</button>` : ""}
+        <button class="text-button is-hot" type="submit"><i data-lucide="save"></i>Guardar</button>
+      </div>
+    </form>
+  `;
+  nodes.modalBody.querySelector("[data-action='archive-habit-inline']")?.addEventListener("click", () => {
+    const item = state.habits.find((entry) => entry.id === habit.id);
+    item.archived = !item.archived;
+    closeModal();
+    saveAndRender(item.archived ? "Archivado" : "Activado");
+  });
+  openModal();
+}
+
+function openDayModal() {
+  const key = dateKey(selectedDate);
+  const note = state.dayNotes[key] || {};
+
+  nodes.modalEyebrow.textContent = "Día";
+  nodes.modalTitle.textContent = formatLongDate(selectedDate);
+  nodes.modalBody.innerHTML = `
+    <form id="dayForm">
+      <div class="field-grid">
+        ${field("Energía 1-5", "energy", note.energy || "", "number")}
+        ${field("Sueño", "sleep", note.sleep || "")}
+        <label class="field is-full">
+          <span>FROG</span>
+          <textarea name="frogTask">${escapeHtml(note.frogTask || "")}</textarea>
+        </label>
+        <label class="field is-full">
+          <span>Familia</span>
+          <textarea name="familyNote">${escapeHtml(note.familyNote || "")}</textarea>
+        </label>
+        <label class="field is-full">
+          <span>Nota</span>
+          <textarea name="note">${escapeHtml(note.note || "")}</textarea>
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button class="text-button is-hot" type="submit"><i data-lucide="save"></i>Guardar</button>
+      </div>
+    </form>
+  `;
+  openModal();
+}
+
+function saveHabitForm(form) {
+  const data = Object.fromEntries(new FormData(form).entries());
+  const id = data.id === "new" ? slugify(data.name) : data.id;
+  const habit = {
+    id,
+    name: data.name.trim() || "Hábito",
+    detail: data.detail.trim(),
+    icon: data.icon.trim() || "circle",
+    color: data.color || "#68d66f",
+    stat: data.stat,
+    target: data.target.trim(),
+    xp: clamp(Number(data.xp) || 10, 1, 100),
+    tolerance: clamp(Number(data.tolerance) || 70, 0, 100),
+    core: data.core === "true",
+    archived: false,
+  };
+
+  const index = state.habits.findIndex((item) => item.id === data.id || item.id === id);
+  if (index >= 0) state.habits[index] = { ...state.habits[index], ...habit };
+  else state.habits.push(habit);
+
+  closeModal();
+  saveAndRender("Hábito guardado");
+}
+
+function saveDayForm(form) {
+  const data = Object.fromEntries(new FormData(form).entries());
+  const key = dateKey(selectedDate);
+  state.dayNotes[key] = {
+    energy: data.energy ? clamp(Number(data.energy), 1, 5) : "",
+    sleep: data.sleep.trim(),
+    frogTask: data.frogTask.trim(),
+    familyNote: data.familyNote.trim(),
+    note: data.note.trim(),
+  };
+  closeModal();
+  saveAndRender("Día guardado");
+}
+
+function saveDenseTrainingForm(form) {
+  const data = Object.fromEntries(new FormData(form).entries());
+  const exercise = findDenseExerciseById(data.exerciseId);
+  if (!exercise) {
+    toast("Ejercicio Dense no válido");
+    return;
+  }
+
+  const bodyweightKg = positiveNumber(data.bodyweightKg);
+  const weightPerDumbbellKg = positiveNumber(data.weightPerDumbbellKg);
+  const externalLoadFromPair = exercise.loadPattern === "dumbbell_pair" && weightPerDumbbellKg ? weightPerDumbbellKg * 2 : 0;
+  const scheme = data.scheme || (exercise.nature === "bodyweight" ? "10D" : "10D5");
+  const durationMinutes = denseSchemeMinutes(scheme) || 0;
+  const targetRepsPerMin = positiveNumber(data.repsPerSet) || denseSchemePrescriptionAverage(scheme) || 0;
+  const targetTotalReps = denseTotalFromRepsPerSet(targetRepsPerMin, scheme) || 0;
+  const totalReps = positiveNumber(data.totalReps);
+  const failed = data.effort === "fallo" || (targetTotalReps > 0 && totalReps > 0 && totalReps < targetTotalReps);
+  const raw = {
+    id: `dense-${Date.now()}`,
+    version: 1,
+    date: data.date || dateKey(selectedDate),
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    exercise_id: exercise.id,
+    exercise_name: exercise.name,
+    exercise_family_id: exercise.family,
+    family: exercise.family,
+    variant_id: exercise.id,
+    nature: exercise.nature,
+    movement_pattern: exercise.category,
+    load_pattern: exercise.loadPattern || "",
+    scheme,
+    scheme_base: denseSchemeBase(scheme),
+    scheme_target: denseSchemeTarget(scheme),
+    scheme_type: denseSchemeType(exercise, scheme),
+    duration_minutes: durationMinutes,
+    target_reps_per_min: targetRepsPerMin,
+    target_total_reps: targetTotalReps,
+    reps_per_set: targetRepsPerMin,
+    total_reps: totalReps,
+    total_reps_is_manual: true,
+    ladder_sequence_planned: denseLadderSequence(scheme),
+    ladder_sequence_actual: null,
+    rounds: null,
+    external_load_kg: positiveNumber(data.externalLoadKg) || externalLoadFromPair,
+    added_load_kg: positiveNumber(data.addedLoadKg),
+    weight_per_dumbbell_kg: weightPerDumbbellKg,
+    dumbbell_count: exercise.loadPattern === "dumbbell_pair" && weightPerDumbbellKg ? 2 : null,
+    bodyweight_kg: bodyweightKg,
+    bodyweight_source: state.bodyweightLogs?.[dateKey(selectedDate)] ? "daily_snapshot" : bodyweightKg ? "manual" : "default",
+    effort: data.effort || "N",
+    effort_value: denseEffortValues[data.effort] || 5,
+    failed,
+    missed_reps: Math.max(0, targetTotalReps - totalReps),
+    notes: (data.notes || "").trim(),
+    bodyweight_contribution_pct: exercise.bodyweightContributionPct ?? 0,
+    tonnage_factor: exercise.tonnageFactor ?? 1,
+    reps_per_side: Boolean(exercise.repsPerSide),
+    source: "manual",
+    deleted_at: null,
+  };
+
+  const entry = computeDenseEntry(raw);
+  state.denseTrainingEntries ||= [];
+  state.denseTrainingEntries.push(entry);
+  if (entry.bodyweight_kg) state.bodyweightLogs[entry.date] = entry.bodyweight_kg;
+  updateDenseEstimate(entry);
+  form.reset();
+  saveAndRender("Marca Dense guardada");
+}
+
+function selectWeek(weekId) {
+  state.settings.selectedWeekId = weekId;
+  const week = state.mesocycle.weeks.find((item) => item.id === weekId);
+  state.settings.selectedSessionId = week?.sessions[0]?.id || state.settings.selectedSessionId;
+  saveAndRender();
+}
+
+function selectSession(sessionId) {
+  state.settings.selectedSessionId = sessionId;
+  saveAndRender();
+}
+
+function toggleExercise(sessionId, exerciseId) {
+  const log = getSessionLog(sessionId);
+  log.exercises ||= {};
+  log.exercises[exerciseId] = !log.exercises[exerciseId];
+  log.updatedAt = new Date().toISOString();
+  saveAndRender(log.exercises[exerciseId] ? "+training" : "Ajustado");
+}
+
+function pickDenseExercise(exerciseId) {
+  const exercise = findDenseExerciseById(exerciseId);
+  if (!exercise) return;
+  state.settings.denseSelectedExerciseId = exercise.id;
+  renderSession();
+  renderDenseTraining();
+  renderDensePrs();
+  refreshIcons();
+  document.querySelector("#denseTrainingPanel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function toggleDenseFavorite(exerciseId) {
+  state.denseExerciseFavorites ||= [];
+  const index = state.denseExerciseFavorites.indexOf(exerciseId);
+  if (index >= 0) state.denseExerciseFavorites.splice(index, 1);
+  else state.denseExerciseFavorites.push(exerciseId);
+  saveState();
+  renderDenseTraining();
+  refreshIcons();
+  toast(index >= 0 ? "Favorito quitado" : "Favorito guardado");
+}
+
+function exportJson() {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `habbit-tracker-${dateKey(today)}.json`;
+  link.click();
+  URL.revokeObjectURL(url);
+  toast("Backup descargado");
+}
+
+async function copyJson() {
+  await navigator.clipboard.writeText(JSON.stringify(state, null, 2));
+  toast("Backup copiado");
+}
+
+function importJson(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.addEventListener("load", () => {
+    try {
+      const parsed = JSON.parse(reader.result);
+      state = normalizeState(parsed);
+      selectedDate = parseDate(state.settings.selectedDate || dateKey(today));
+      saveAndRender("Backup importado");
+    } catch {
+      toast("Backup no válido");
+    }
+  });
+  reader.readAsText(file);
+}
+
+function factoryReset() {
+  state = createInitialState();
+  selectedDate = today;
+  saveAndRender("Reset completo");
+}
+
+function loadState() {
+  const saved = localStorage.getItem(STORE_KEY);
+  if (saved) {
+    try {
+      return normalizeState(JSON.parse(saved));
+    } catch {
+      localStorage.removeItem(STORE_KEY);
+    }
+  }
+
+  const old = localStorage.getItem(OLD_STORE_KEY);
+  if (old) {
+    try {
+      return migrateV1(JSON.parse(old));
+    } catch {
+      localStorage.removeItem(OLD_STORE_KEY);
+    }
+  }
+
+  return createInitialState();
+}
+
+function createInitialState() {
+  const records = {};
+  rangeDays(addDays(today, -31), addDays(today, -1)).forEach((day, index) => {
+    const key = dateKey(day);
+    records[key] = {};
+    habitDefaults.forEach((habit, habitIndex) => {
+      const rhythm = (index + habitIndex * 3) % 10;
+      const done = rhythm !== 0 && rhythm !== 6 && !(habit.id === "nophone" && rhythm === 4);
+      if (done) records[key][habit.id] = { done: true, quality: rhythm === 2 ? "heroic" : rhythm === 8 ? "min" : "base" };
+    });
+  });
+  records[dateKey(today)] = {};
+
+  return normalizeState({
+    version: 2,
+    settings: {
+      view: "dashboard",
+      selectedDate: dateKey(today),
+      calendarAnchor: monthKey(today),
+      selectedWeekId: mesocycleDefault.weeks[getCurrentCycleWeek()].id,
+      selectedSessionId: mesocycleDefault.weeks[getCurrentCycleWeek()].sessions[0].id,
+    },
+    habits: habitDefaults,
+    records,
+    dayNotes: {
+      [dateKey(today)]: {
+        frogTask: "Definir la tarea incómoda antes de abrir el móvil.",
+        familyNote: "",
+        note: "",
+        energy: "",
+        sleep: "",
+      },
+    },
+    mesocycle: mesocycleDefault,
+    trainingLogs: {},
+    denseTrainingEntries: [],
+    bodyweightLogs: {},
+    denseEstimates: {},
+    denseExerciseFavorites: [],
+  });
+}
+
+function normalizeState(input) {
+  const base = {
+    version: 2,
+    settings: {},
+    habits: habitDefaults,
+    records: {},
+    dayNotes: {},
+    mesocycle: mesocycleDefault,
+    trainingLogs: {},
+    denseTrainingEntries: [],
+    bodyweightLogs: {},
+    denseEstimates: {},
+    denseExerciseFavorites: [],
+  };
+  const merged = { ...base, ...input };
+  merged.settings = {
+    view: "dashboard",
+    selectedDate: dateKey(today),
+    calendarAnchor: monthKey(today),
+    selectedWeekId: mesocycleDefault.weeks[getCurrentCycleWeek()].id,
+    selectedSessionId: mesocycleDefault.weeks[getCurrentCycleWeek()].sessions[0].id,
+    denseExerciseCategory: "all",
+    denseExerciseSort: "recent",
+    denseExerciseSearch: "",
+    denseSelectedExerciseId: "pull_up",
+    ...(input.settings || {}),
+  };
+  merged.habits = (merged.habits?.length ? merged.habits : habitDefaults).map((habit) => ({ ...habit, id: habit.id || slugify(habit.name) }));
+  merged.mesocycle = merged.mesocycle?.weeks ? merged.mesocycle : mesocycleDefault;
+  merged.records ||= {};
+  merged.dayNotes ||= {};
+  merged.trainingLogs ||= {};
+  merged.denseTrainingEntries = Array.isArray(merged.denseTrainingEntries || merged.trainingEntries) ? merged.denseTrainingEntries || merged.trainingEntries : [];
+  merged.bodyweightLogs ||= {};
+  merged.denseEstimates ||= {};
+  merged.denseExerciseFavorites = Array.isArray(merged.denseExerciseFavorites) ? merged.denseExerciseFavorites : [];
+  return merged;
+}
+
+function migrateV1(old) {
+  const fresh = createInitialState();
+  if (old.records) {
+    Object.entries(old.records).forEach(([day, record]) => {
+      fresh.records[day] = {};
+      Object.entries(record || {}).forEach(([habitId, value]) => {
+        fresh.records[day][habitId] = typeof value === "object" ? value : { done: Boolean(value), quality: "base" };
+      });
+    });
+  }
+  if (old.trainingNotes) {
+    Object.entries(old.trainingNotes).forEach(([weekId, note]) => {
+      const firstSession = fresh.mesocycle.weeks.find((week) => week.id === weekId)?.sessions[0]?.id;
+      if (firstSession) fresh.trainingLogs[firstSession] = { exercises: {}, note, updatedAt: new Date().toISOString() };
+    });
+  }
+  return fresh;
+}
+
+function saveAndRender(message) {
+  saveState();
+  render();
+  if (message) toast(message);
+}
+
+function saveState() {
+  state.settings.selectedDate = dateKey(selectedDate);
+  localStorage.setItem(STORE_KEY, JSON.stringify(state));
+  scheduleCloudSync("auto");
+}
+
+function loadCloudConfig() {
+  const defaults = { enabled: true, endpointUrl: DEFAULT_CLOUD_ENDPOINT_URL, token: DEFAULT_CLOUD_SYNC_TOKEN };
+  try {
+    const saved = JSON.parse(localStorage.getItem(CLOUD_CONFIG_KEY));
+    const savedComplete = Boolean(saved?.endpointUrl && saved?.token);
+    return saved
+      ? {
+          ...defaults,
+          ...saved,
+          enabled: savedComplete ? saved.enabled ?? true : true,
+          endpointUrl: saved.endpointUrl || DEFAULT_CLOUD_ENDPOINT_URL,
+          token: saved.token || DEFAULT_CLOUD_SYNC_TOKEN,
+        }
+      : defaults;
+  } catch {
+    return defaults;
+  }
+}
+
+function saveCloudSyncForm(form) {
+  const data = Object.fromEntries(new FormData(form).entries());
+  cloudConfig = {
+    enabled: data.enabled === "on",
+    endpointUrl: (data.endpointUrl || "").trim(),
+    token: (data.token || "").trim(),
+  };
+  localStorage.setItem(CLOUD_CONFIG_KEY, JSON.stringify(cloudConfig));
+  cloudSyncStatus = cloudConfig.enabled && cloudConfig.endpointUrl ? { state: "idle", text: "Cloud sync configurado." } : { state: "idle", text: "Cloud sync desactivado." };
+  saveAndRender("Cloud actualizado");
+  if (cloudConfig.enabled && cloudConfig.endpointUrl) {
+    clearTimeout(cloudSyncTimer);
+    syncCloudState("config-save");
+  }
+}
+
+function scheduleCloudSync(reason) {
+  if (!cloudConfig.enabled || !cloudConfig.endpointUrl) return;
+  clearTimeout(cloudSyncTimer);
+  cloudSyncTimer = setTimeout(() => syncCloudState(reason), 900);
+}
+
+async function syncCloudState(reason = "manual") {
+  if (!cloudConfig.endpointUrl) {
+    cloudSyncStatus = { state: "error", text: "Falta endpoint de Cloud." };
+    updateCloudSyncStatus();
+    toast("Falta endpoint Cloud");
+    return;
+  }
+
+  cloudSyncStatus = { state: "syncing", text: "Sincronizando con Cloud..." };
+  updateCloudSyncStatus();
+
+  const payload = {
+    token: cloudConfig.token,
+    source: "bittracker-static",
+    reason,
+    syncedAt: new Date().toISOString(),
+    state,
+  };
+
+  try {
+    const response = await fetch(cloudConfig.endpointUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(payload),
+    });
+    const text = await response.text();
+    let result = {};
+    try {
+      result = JSON.parse(text);
+    } catch {
+      result = { ok: response.ok, raw: text };
+    }
+    if (!response.ok || result.ok === false) throw new Error(result.error || `HTTP ${response.status}`);
+    cloudSyncStatus = { state: "ok", text: `Cloud sync OK · ${formatLogDate(payload.syncedAt)}` };
+    updateCloudSyncStatus();
+    if (reason === "manual") toast("Cloud sync OK");
+  } catch (error) {
+    const corsLike = error instanceof TypeError || /failed to fetch|networkerror|cors/i.test(error.message || "");
+    if (!corsLike) {
+      cloudSyncStatus = { state: "error", text: `Cloud sync fallo: ${error.message}` };
+      updateCloudSyncStatus();
+      toast("Cloud sync falló");
+      return;
+    }
+
+    try {
+      await fetch(cloudConfig.endpointUrl, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify(payload),
+      });
+      cloudSyncStatus = { state: "ok", text: `Cloud sync enviado · verifica Sheets · ${formatLogDate(payload.syncedAt)}` };
+      updateCloudSyncStatus();
+      if (reason === "manual") toast("Cloud sync enviado");
+    } catch (fallbackError) {
+      cloudSyncStatus = { state: "error", text: `Cloud sync fallo: ${fallbackError.message}` };
+      updateCloudSyncStatus();
+      toast("Cloud sync falló");
+    }
+  }
+}
+
+function updateCloudSyncStatus() {
+  const node = document.querySelector("#cloudSyncStatus");
+  if (node) node.textContent = cloudSyncStatus.text;
+}
+
+function scoreBox(label, value, icon) {
+  return `
+    <div class="score-box">
+      <span class="small-label"><i data-lucide="${icon}"></i> ${label}</span>
+      <strong>${value}</strong>
+    </div>
+  `;
+}
+
+function statRow(stat, days) {
+  const statHabits = activeHabits().filter((habit) => habit.stat === stat.id);
+  const total = days.length * statHabits.length || 1;
+  const done = days.reduce((sum, day) => {
+    const key = dateKey(day);
+    return sum + statHabits.filter((habit) => habitDone(key, habit.id)).length;
+  }, 0);
+  const value = Math.round((done / total) * 100);
+
+  return `
+    <div class="stat-row" style="--stat-color:${stat.color}">
+      <div class="stat-name"><i data-lucide="${stat.icon}"></i><span>${stat.name}</span></div>
+      <div class="meter"><span style="--value:${value}%; --meter-color:${stat.color}"></span></div>
+      <div class="stat-value">${value}</div>
+    </div>
+  `;
+}
+
+function trainingMetric(label, value, icon) {
+  return `
+    <div class="training-metric">
+      <span class="small-label"><i data-lucide="${icon}"></i> ${label}</span>
+      <strong>${escapeHtml(String(value))}</strong>
+    </div>
+  `;
+}
+
+function denseExercisePicker(defaults) {
+  const category = state.settings.denseExerciseCategory || "all";
+  const sort = state.settings.denseExerciseSort || "recent";
+  const search = state.settings.denseExerciseSearch || "";
+  const selected = denseExerciseById(defaults.exerciseId);
+  const exercises = denseExerciseLibrary({ category, sort, search });
+
+  return `
+    <section class="dense-exercise-picker">
+      <div class="section-subhead">
+        <strong>Ejercicio seleccionado</strong>
+        <span>${escapeHtml(selected.name)} · ${escapeHtml(denseCategoryLabel(selected.category))}</span>
+      </div>
+      <div class="exercise-picker-controls">
+        <label class="field">
+          <span>Grupo</span>
+          <select data-action-input="dense-exercise-category">
+            ${denseExerciseCategories.map(([value, label]) => `<option value="${value}" ${category === value ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}
+          </select>
+        </label>
+        <label class="field exercise-search-field">
+          <span>Buscar</span>
+          <input data-action-input="dense-exercise-search" type="search" value="${escapeAttr(search)}" placeholder="dominadas, hspu, anillas..." />
+        </label>
+        <label class="field">
+          <span>Orden</span>
+          <select data-action-input="dense-exercise-sort">
+            ${denseExerciseSortOptions.map(([value, label]) => `<option value="${value}" ${sort === value ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}
+          </select>
+        </label>
+      </div>
+      <div class="exercise-picker-list">
+        ${
+          exercises.length
+            ? exercises.map((exercise) => denseExercisePickCard(exercise, defaults.exerciseId)).join("")
+            : `<article class="exercise-pick-empty">No hay ejercicios con ese filtro.</article>`
+        }
+      </div>
+    </section>
+  `;
+}
+
+function denseExercisePickCard(exercise, selectedId) {
+  const stats = denseExerciseStats(exercise.id);
+  const favorite = denseExerciseFavorites().includes(exercise.id);
+  const selected = exercise.id === selectedId;
+  const last = stats.lastEntry ? `${stats.daysSince === 0 ? "hoy" : `hace ${stats.daysSince}d`}` : "sin marcas";
+  return `
+    <article
+      class="exercise-pick-card ${selected ? "is-selected" : ""}"
+      data-exercise-card
+      data-search="${escapeAttr(`${exercise.name} ${exercise.family} ${denseCategoryLabel(exercise.category)}`.toLowerCase())}"
+      data-exercise="${escapeAttr(exercise.id)}"
+    >
+      <button class="exercise-pick-main" type="button" data-action="pick-dense-exercise" data-exercise="${escapeAttr(exercise.id)}">
+        <span class="tiny-icon" style="--item-color:${denseCategoryColor(exercise.category)}"><i data-lucide="${exercise.icon || "dumbbell"}"></i></span>
+        <span>
+          <strong>${escapeHtml(exercise.name)}</strong>
+          <small>${escapeHtml(denseCategoryLabel(exercise.category))} · ${stats.count} marcas · ${last}</small>
+        </span>
+      </button>
+      <button
+        class="icon-button exercise-fav ${favorite ? "is-hot" : ""}"
+        type="button"
+        data-action="toggle-dense-favorite"
+        data-exercise="${escapeAttr(exercise.id)}"
+        title="${favorite ? "Quitar favorito" : "Marcar favorito"}"
+        aria-label="${favorite ? "Quitar favorito" : "Marcar favorito"} ${escapeAttr(exercise.name)}"
+      ><i data-lucide="star"></i></button>
+    </article>
+  `;
+}
+
+function denseSchemeOption(scheme, currentScheme) {
+  const selected = scheme === currentScheme;
+  const minutes = denseSchemeMinutes(scheme);
+  const suffix = scheme.replace(/^\d+D/, "");
+  const detail = suffix ? `${minutes}m · ${suffix.replaceAll("-", "-")}/m` : `${minutes}m`;
+  return `
+    <label class="scheme-option ${selected ? "is-selected" : ""}" style="--scheme-color:${denseSchemeColor(scheme)}">
+      <input type="radio" name="scheme" value="${escapeAttr(scheme)}" ${selected ? "checked" : ""} />
+      <span>
+        <strong>${escapeHtml(scheme)}</strong>
+        <small>${escapeHtml(detail)}</small>
+      </span>
+    </label>
+  `;
+}
+
+function denseEffortOption(value, label, currentValue) {
+  const selected = value === currentValue;
+  return `
+    <label class="effort-option ${selected ? "is-selected" : ""}" style="--effort-color:${denseEffortColor(value)}">
+      <input type="radio" name="effort" value="${escapeAttr(value)}" ${selected ? "checked" : ""} />
+      <span>${escapeHtml(value)}</span>
+      <small>${escapeHtml(label.split("·")[1]?.trim() || label)}</small>
+    </label>
+  `;
+}
+
+function updateDenseSchemeSelection(input) {
+  const form = input.closest("#denseTrainingForm");
+  if (!form) return;
+  form.querySelectorAll(".scheme-option").forEach((option) => option.classList.toggle("is-selected", option.contains(input)));
+  const exercise = denseExerciseById(form.querySelector("[name='exerciseId']")?.value);
+  const repsPerSetInput = form.querySelector("[name='repsPerSet']");
+  if (repsPerSetInput) repsPerSetInput.value = denseDefaultRepsPerSet(exercise, input.value) || "";
+  const reps = repsPerSetInput ? denseTotalFromRepsPerSet(repsPerSetInput.value, input.value) : denseDefaultTotalReps(exercise, input.value);
+  const repsInput = form.querySelector("[name='totalReps']");
+  if (repsInput) repsInput.value = reps || "";
+}
+
+function updateDenseTotalFromRepsPerSet(input) {
+  const form = input.closest("#denseTrainingForm");
+  if (!form) return;
+  const scheme = form.querySelector("input[name='scheme']:checked")?.value;
+  const totalInput = form.querySelector("[name='totalReps']");
+  if (totalInput) totalInput.value = denseTotalFromRepsPerSet(input.value, scheme) || "";
+}
+
+function denseRepPerSetFields(exercise, defaults) {
+  if (!denseUsesRepsPerSet(exercise)) return "";
+  return field("Reps por set/min", "repsPerSet", defaults.repsPerSet, "number");
+}
+
+function denseLoadFields(exercise) {
+  if (exercise.loadPattern === "dumbbell_pair") {
+    return field("Peso por mancuerna kg", "weightPerDumbbellKg", "", "number");
+  }
+  if (exercise.nature === "weighted_calisthenics") {
+    return field("Lastre añadido kg", "addedLoadKg", "", "number");
+  }
+  if (exercise.nature === "weighted") {
+    return field("Carga usada kg", "externalLoadKg", "", "number");
+  }
+  return "";
+}
+
+function denseExerciseHint(exercise) {
+  if (exercise.loadPattern === "dumbbell_pair") return "Guarda el peso por mancuerna; BitTracker calcula el total externo.";
+  if (exercise.nature === "weighted_calisthenics") return "Guarda el lastre; BitTracker suma tu peso corporal para la carga total del sistema.";
+  if (exercise.nature === "weighted") return "Guarda la carga externa usada en el esquema elegido.";
+  return "Guarda reps totales y esfuerzo; BitTracker calcula reps/min y capacidad entre esquemas.";
+}
+
+function metric(label, value) {
+  return `
+    <div class="metric">
+      <span class="metric-label">${label}</span>
+      <strong>${escapeHtml(String(value))}</strong>
+    </div>
+  `;
+}
+
+function reviewCard(title, value, icon, detail) {
+  return `
+    <article class="review-card">
+      <span class="small-label"><i data-lucide="${icon}"></i> ${escapeHtml(title)}</span>
+      <strong>${escapeHtml(String(value))}</strong>
+      <span>${escapeHtml(detail)}</span>
+    </article>
+  `;
+}
+
+function habitChoiceField(kind, label, value) {
+  const options = choiceOptions(kind, value);
+  return `
+    <div class="field choice-field" data-choice-kind="${kind}">
+      <span>${escapeHtml(label)}</span>
+      <input class="choice-hidden" type="hidden" name="${kind}" value="${escapeAttr(value)}" />
+      <button class="choice-trigger" type="button" data-action="toggle-choice-popover" data-kind="${kind}">
+        ${choiceTriggerContent(kind, value)}
+      </button>
+      <div class="choice-popover" role="listbox">
+        <div class="choice-popover-grid ${kind}-popover-grid">
+          ${options.map((option) => choiceOption(kind, option, value)).join("")}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function choiceOptions(kind, value) {
+  if (kind === "icon") {
+    return ensureOption(habitIconOptions, "icon", value, {
+      icon: value || "circle",
+      label: "Personalizado",
+      hint: "icono actual",
+    });
+  }
+  if (kind === "color") {
+    return ensureOption(habitColorOptions, "color", value, {
+      color: value || "#68d66f",
+      label: "Actual",
+      hint: "color personalizado",
+    });
+  }
+  return statCatalog;
+}
+
+function choiceOption(kind, option, currentValue) {
+  const value = option[kind] || option.id;
+  const selected = value === currentValue;
+  const color = option.color || "var(--green)";
+  return `
+    <button
+      class="choice-option ${selected ? "is-selected" : ""}"
+      type="button"
+      data-action="set-choice-value"
+      data-kind="${kind}"
+      data-value="${escapeAttr(value)}"
+      style="--option-color:${color}"
+      role="option"
+      aria-selected="${selected}"
+    >
+      ${choiceVisual(kind, option)}
+      <span>
+        <strong>${escapeHtml(option.label || option.name)}</strong>
+        <small>${escapeHtml(option.hint || "")}</small>
+      </span>
+    </button>
+  `;
+}
+
+function choiceTriggerContent(kind, value) {
+  const option = choiceOptions(kind, value).find((item) => (item[kind] || item.id) === value) || choiceOptions(kind, value)[0];
+  const color = option.color || "var(--green)";
+  return `
+    <span class="choice-current" style="--option-color:${color}">
+      ${choiceVisual(kind, option)}
+      <span>
+        <strong>${escapeHtml(option.label || option.name)}</strong>
+        <small>${escapeHtml(option.hint || "Pulsa para cambiar")}</small>
+      </span>
+    </span>
+    <i data-lucide="chevron-down"></i>
+  `;
+}
+
+function choiceVisual(kind, option) {
+  if (kind === "color") return `<span class="color-swatch"></span>`;
+  return `<span class="option-icon"><i data-lucide="${option.icon}"></i></span>`;
+}
+
+function toggleChoicePopover(trigger) {
+  const field = trigger.closest(".choice-field");
+  const wasOpen = field.classList.contains("is-open");
+  closeChoicePopovers();
+  field.classList.toggle("is-open", !wasOpen);
+}
+
+function setChoiceValue(optionButton) {
+  const field = optionButton.closest(".choice-field");
+  const kind = optionButton.dataset.kind;
+  const value = optionButton.dataset.value;
+  field.querySelector(".choice-hidden").value = value;
+  field.querySelector(".choice-trigger").innerHTML = choiceTriggerContent(kind, value);
+  field.querySelectorAll(".choice-option").forEach((option) => {
+    const selected = option.dataset.value === value;
+    option.classList.toggle("is-selected", selected);
+    option.setAttribute("aria-selected", String(selected));
+  });
+  closeChoicePopovers();
+  refreshIcons();
+}
+
+function closeChoicePopovers() {
+  document.querySelectorAll(".choice-field.is-open").forEach((field) => field.classList.remove("is-open"));
+}
+
+function habitModalSection(title, summary, body, open = false) {
+  return `
+    <details class="habit-config-section" ${open ? "open" : ""}>
+      <summary>
+        <span>
+          <strong>${escapeHtml(title)}</strong>
+          <small>${escapeHtml(summary)}</small>
+        </span>
+        <i data-lucide="chevron-down"></i>
+      </summary>
+      <div class="habit-config-body">
+        ${body}
+      </div>
+    </details>
+  `;
+}
+
+function habitIconPicker(value) {
+  const options = ensureOption(habitIconOptions, "icon", value, {
+    icon: value || "circle",
+    label: "Personalizado",
+    hint: "icono actual",
+  });
+
+  return `
+    <fieldset class="field picker-field is-full">
+      <legend>Icono (identidad visual del hábito)</legend>
+      <div class="option-grid icon-option-grid">
+        ${options
+          .map(
+            (option) => `
+              <label class="option-card ${option.icon === value ? "is-selected" : ""}">
+                <input type="radio" name="icon" value="${escapeAttr(option.icon)}" ${option.icon === value ? "checked" : ""} />
+                <span class="option-icon"><i data-lucide="${option.icon}"></i></span>
+                <span>
+                  <strong>${escapeHtml(option.label)}</strong>
+                  <small>${escapeHtml(option.hint)}</small>
+                </span>
+              </label>
+            `,
+          )
+          .join("")}
+      </div>
+    </fieldset>
+  `;
+}
+
+function habitColorPicker(value) {
+  const options = ensureOption(habitColorOptions, "color", value, {
+    color: value || "#68d66f",
+    label: "Actual",
+    hint: "color personalizado",
+  });
+
+  return `
+    <fieldset class="field picker-field is-full">
+      <legend>Color (tono emocional y categoría visual)</legend>
+      <div class="option-grid color-option-grid">
+        ${options
+          .map(
+            (option) => `
+              <label class="option-card color-option ${option.color === value ? "is-selected" : ""}" style="--option-color:${option.color}">
+                <input type="radio" name="color" value="${escapeAttr(option.color)}" ${option.color === value ? "checked" : ""} />
+                <span class="color-swatch"></span>
+                <span>
+                  <strong>${escapeHtml(option.label)}</strong>
+                  <small>${escapeHtml(option.hint)}</small>
+                </span>
+              </label>
+            `,
+          )
+          .join("")}
+      </div>
+    </fieldset>
+  `;
+}
+
+function habitStatPicker(value) {
+  return `
+    <fieldset class="field picker-field is-full">
+      <legend>Stat (qué atributo sube cuando lo cumples)</legend>
+      <div class="option-grid stat-option-grid">
+        ${statCatalog
+          .map(
+            (stat) => `
+              <label class="option-card stat-option ${stat.id === value ? "is-selected" : ""}" style="--option-color:${stat.color}">
+                <input type="radio" name="stat" value="${stat.id}" ${stat.id === value ? "checked" : ""} />
+                <span class="option-icon"><i data-lucide="${stat.icon}"></i></span>
+                <span>
+                  <strong>${stat.name}</strong>
+                  <small>${escapeHtml(stat.hint)}</small>
+                </span>
+              </label>
+            `,
+          )
+          .join("")}
+      </div>
+    </fieldset>
+  `;
+}
+
+function field(label, name, value, type = "text", options = []) {
+  if (type === "select") {
+    return `
+      <label class="field">
+        <span>${label}</span>
+        <select name="${name}">
+          ${options.map(([optionValue, optionLabel]) => `<option value="${optionValue}" ${value === optionValue ? "selected" : ""}>${optionLabel}</option>`).join("")}
+        </select>
+      </label>
+    `;
+  }
+
+  return `
+    <label class="field">
+      <span>${label}</span>
+      <input type="${type}" name="${name}" value="${escapeAttr(String(value ?? ""))}" ${type === "number" ? "step=\"any\" min=\"0\"" : ""} />
+    </label>
+  `;
+}
+
+function ensureOption(options, key, value, fallback) {
+  if (!value || options.some((option) => option[key] === value)) return options;
+  return [fallback, ...options];
+}
+
+function optionLabel(options, key, value, fallback) {
+  return options.find((option) => option[key] === value)?.label || fallback;
+}
+
+function calendarCell(day, habit, anchor) {
+  const key = dateKey(day);
+  const entry = getHabitEntry(key, habit.id);
+  const isSelected = key === dateKey(selectedDate);
+  const hasRecord = Boolean(state.records[key]);
+  const classes = [
+    entry.done ? (entry.quality === "heroic" ? "heroic" : "done") : hasRecord && day <= today ? "missed" : "",
+    isSelected ? "today" : "",
+    sameMonth(day, anchor) ? "" : "is-outside",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return `
+    <button
+      class="cal-cell ${classes}"
+      type="button"
+      data-action="select-calendar-date"
+      data-date="${key}"
+      title="${escapeAttr(`${habit.name} · ${formatLongDate(day)}`)}"
+      aria-label="${escapeAttr(`${habit.name} · ${formatLongDate(day)}`)}"
+    ></button>
+  `;
+}
+
+function openModal() {
+  nodes.modal.showModal();
+  refreshIcons();
+}
+
+function closeModal() {
+  nodes.modal.close();
+}
+
+function toast(message) {
+  document.querySelector(".toast")?.remove();
+  const el = document.createElement("div");
+  el.className = "toast";
+  el.textContent = message;
+  document.body.append(el);
+  setTimeout(() => el.remove(), 1800);
+}
+
+function refreshIcons() {
+  if (window.lucide) window.lucide.createIcons();
+}
+
+function activeHabits() {
+  return state.habits.filter((habit) => !habit.archived);
+}
+
+function getHabitEntry(dayKey, habitId) {
+  const raw = state.records[dayKey]?.[habitId];
+  if (typeof raw === "boolean") return { done: raw, quality: "base" };
+  return { done: false, quality: "base", ...(raw || {}) };
+}
+
+function habitDone(dayKey, habitId) {
+  return Boolean(getHabitEntry(dayKey, habitId).done);
+}
+
+function doneCopy(quality) {
+  const found = qualityCatalog.find((item) => item.id === quality);
+  return found ? `completo · ${found.label}` : "completo";
+}
+
+function scoreForDate(date) {
+  const key = dateKey(date);
+  const habits = activeHabits();
+  if (!state.records[key] || !habits.length) return 0;
+  const done = habits.filter((habit) => habitDone(key, habit.id)).length;
+  return Math.round((done / habits.length) * 100);
+}
+
+function averageScore(days) {
+  const active = days.filter((day) => state.records[dateKey(day)]);
+  if (!active.length) return 0;
+  return Math.round(active.reduce((sum, day) => sum + scoreForDate(day), 0) / active.length);
+}
+
+function averageCoreScore(days) {
+  const core = activeHabits().filter((habit) => habit.core);
+  if (!core.length) return 0;
+  const active = days.filter((day) => state.records[dateKey(day)]);
+  if (!active.length) return 0;
+  const done = active.reduce((sum, day) => {
+    const key = dateKey(day);
+    return sum + core.filter((habit) => habitDone(key, habit.id)).length;
+  }, 0);
+  return Math.round((done / (active.length * core.length)) * 100);
+}
+
+function amScore(days) {
+  const active = days.filter((day) => state.records[dateKey(day)]);
+  if (!active.length) return 0;
+  const done = active.filter((day) => {
+    const key = dateKey(day);
+    return habitDone(key, "wake") && (habitDone(key, "train-am") || habitDone(key, "work-am"));
+  }).length;
+  return Math.round((done / active.length) * 100);
+}
+
+function countHabit(habitId, days) {
+  return days.reduce((sum, day) => sum + Number(habitDone(dateKey(day), habitId)), 0);
+}
+
+function currentStreak() {
+  let streak = 0;
+  let cursor = today;
+  while (scoreForDate(cursor) >= 70) {
+    streak += 1;
+    cursor = addDays(cursor, -1);
+  }
+  return streak;
+}
+
+function totalXp() {
+  const habitXp = Object.entries(state.records).reduce((sum, [dayKey, record]) => {
+    return (
+      sum +
+      activeHabits().reduce((habitSum, habit) => {
+        const entry = typeof record?.[habit.id] === "object" ? record[habit.id] : { done: Boolean(record?.[habit.id]), quality: "base" };
+        if (!entry.done) return habitSum;
+        const quality = qualityCatalog.find((item) => item.id === entry.quality) || qualityCatalog[1];
+        const recency = dayKey === dateKey(today) ? 1.1 : 1;
+        return habitSum + Math.round(habit.xp * quality.mult * recency);
+      }, 0)
+    );
+  }, 0);
+
+  const trainingXp = Object.values(state.trainingLogs).reduce((sum, log) => {
+    return sum + Object.values(log.exercises || {}).filter(Boolean).length * 8;
+  }, 0);
+
+  const denseXp = getDenseEntries().reduce((sum, entry) => {
+    const effortBonus = entry.effort === "VE" || entry.effort === "E" ? 1 : entry.effort === "VH" || entry.effort === "fallo" ? 1.2 : 1.1;
+    return sum + Math.round(10 * effortBonus);
+  }, 0);
+
+  return habitXp + trainingXp + denseXp;
+}
+
+function levelFromXp(xp) {
+  let level = 1;
+  while (xp >= xpForLevel(level + 1)) level += 1;
+  return level;
+}
+
+function xpForLevel(level) {
+  return Math.round(120 * Math.pow(level - 1, 1.55));
+}
+
+function rankFor(level) {
+  if (level >= 18) return "Mythic";
+  if (level >= 12) return "Diamond";
+  if (level >= 8) return "Gold";
+  if (level >= 4) return "Silver";
+  return "Bronze";
+}
+
+function dailyAvatarForm(date) {
+  const key = dateKey(date);
+  const score = scoreForDate(date);
+  const coreDone = ["wake", "frog", "nophone", "family"].filter((habitId) => habitDone(key, habitId)).length;
+  const firstBlock = habitDone(key, "train-am") || habitDone(key, "work-am");
+
+  if (score >= 92 && coreDone >= 4 && firstBlock) {
+    return {
+      id: "ascended",
+      label: "Ascenso diario",
+      subtitle: "día perfecto · aura neon",
+      color: "#ffd166",
+      glow: "rgba(255, 209, 102, 0.62)",
+      tierBoost: 2,
+    };
+  }
+  if (score >= 78 && firstBlock) {
+    return {
+      id: "charged",
+      label: "Cargado",
+      subtitle: "misiones clave activas",
+      color: "#68d66f",
+      glow: "rgba(104, 214, 111, 0.5)",
+      tierBoost: 1,
+    };
+  }
+  if (score >= 48) {
+    return {
+      id: "awake",
+      label: "Despierto",
+      subtitle: "base encendida · queda combo",
+      color: "#79aaff",
+      glow: "rgba(121, 170, 255, 0.38)",
+      tierBoost: 0,
+    };
+  }
+  if (state.records[key]) {
+    return {
+      id: "low",
+      label: "Batería baja",
+      subtitle: "modo recuperación · salvar mínimo",
+      color: "#e4af54",
+      glow: "rgba(228, 175, 84, 0.32)",
+      tierBoost: 0,
+    };
+  }
+  return {
+    id: "sleeping",
+    label: "Sin activar",
+    subtitle: "el día espera input",
+    color: "#706d64",
+    glow: "rgba(112, 109, 100, 0.28)",
+    tierBoost: 0,
+  };
+}
+
+function avatarForLevel(level) {
+  const tiers = [
+    {
+      min: 1,
+      tier: 1,
+      title: "Street Novice",
+      subtitle: "primeras barras · base humana",
+      primary: "#79aaff",
+      secondary: "#57c6a1",
+      glow: "rgba(121, 170, 255, 0.34)",
+    },
+    {
+      min: 4,
+      tier: 2,
+      title: "Bar Apprentice",
+      subtitle: "rutina AM · aura verde",
+      primary: "#68d66f",
+      secondary: "#8bd9eb",
+      glow: "rgba(104, 214, 111, 0.42)",
+    },
+    {
+      min: 8,
+      tier: 3,
+      title: "Neon Striker",
+      subtitle: "fuerza + foco · modo anime",
+      primary: "#bd8bff",
+      secondary: "#ff7c9e",
+      glow: "rgba(189, 139, 255, 0.46)",
+    },
+    {
+      min: 12,
+      tier: 4,
+      title: "Cyber Senpai",
+      subtitle: "calistenia densa · cero ruido",
+      primary: "#8bd9eb",
+      secondary: "#ffd166",
+      glow: "rgba(139, 217, 235, 0.5)",
+    },
+    {
+      min: 18,
+      tier: 5,
+      title: "Mythic Ascendant",
+      subtitle: "mesociclo dominado · leyenda local",
+      primary: "#ffd166",
+      secondary: "#68d66f",
+      glow: "rgba(255, 209, 102, 0.58)",
+    },
+  ];
+
+  return [...tiers].reverse().find((tier) => level >= tier.min) || tiers[0];
+}
+
+function avatarEvolution(level) {
+  return [
+    { level: "Lv 1", min: 1, name: "Novice" },
+    { level: "Lv 4", min: 4, name: "Bars" },
+    { level: "Lv 8", min: 8, name: "Neon" },
+    { level: "Lv 12", min: 12, name: "Cyber" },
+    { level: "Lv 18", min: 18, name: "Mythic" },
+  ].map((stage) => {
+    const next = [1, 4, 8, 12, 18].filter((min) => min > stage.min).sort((a, b) => a - b)[0] || Infinity;
+    return {
+      ...stage,
+      unlocked: level >= stage.min,
+      current: level >= stage.min && level < next,
+    };
+  });
+}
+
+function getDenseEntries() {
+  return Array.isArray(state.denseTrainingEntries) ? state.denseTrainingEntries : [];
+}
+
+function denseEntriesForDate(key) {
+  return getDenseEntries().filter((entry) => entry.date === key);
+}
+
+function denseDaySummary(key) {
+  const entries = denseEntriesForDate(key);
+  return {
+    count: entries.length,
+    totalReps: entries.reduce((sum, entry) => sum + Number(entry.total_reps || 0), 0),
+    tonnage: entries.reduce((sum, entry) => sum + Number(entry.tonnage_kg || 0), 0),
+    uniqueExercises: new Set(entries.map((entry) => entry.exercise_id)).size,
+  };
+}
+
+function latestDenseEntry() {
+  return [...getDenseEntries()].sort((a, b) => (b.created_at || b.date || "").localeCompare(a.created_at || a.date || ""))[0] || null;
+}
+
+function denseQuickExercises() {
+  const favorites = denseExerciseFavorites()
+    .map((id) => denseExerciseById(id))
+    .filter(Boolean);
+  const recent = denseExerciseLibrary({ sort: "recent" }).filter((exercise) => denseExerciseStats(exercise.id).count > 0);
+  const fallback = denseExerciseLibrary({ sort: "az" }).slice(0, 6);
+  const unique = new Map();
+  [...favorites, ...recent, ...fallback].forEach((exercise) => {
+    if (exercise?.id && !unique.has(exercise.id)) unique.set(exercise.id, exercise);
+  });
+  return [...unique.values()].slice(0, 6);
+}
+
+function todayWorkoutCard(entry) {
+  const exercise = denseExerciseById(entry.exercise_id);
+  return `
+    <article class="today-workout-card" style="--item-color:${denseCategoryColor(exercise.category)}">
+      <span class="tiny-icon"><i data-lucide="${exercise.icon || "dumbbell"}"></i></span>
+      <div>
+        <strong>${escapeHtml(entry.exercise_name)}</strong>
+        <span>${escapeHtml(entry.scheme)} · ${escapeHtml(denseEntryValue(entry))}</span>
+      </div>
+      <button class="icon-button" type="button" data-action="pick-dense-exercise" data-exercise="${escapeAttr(entry.exercise_id)}" title="Repetir ejercicio" aria-label="Repetir ${escapeAttr(entry.exercise_name)}">
+        <i data-lucide="repeat-2"></i>
+      </button>
+    </article>
+  `;
+}
+
+function denseExerciseById(id) {
+  return denseExerciseCatalog.find((exercise) => exercise.id === id) || denseExerciseCatalog[0];
+}
+
+function findDenseExerciseById(id) {
+  return denseExerciseCatalog.find((exercise) => exercise.id === id) || null;
+}
+
+function denseExerciseFavorites() {
+  return Array.isArray(state.denseExerciseFavorites) ? state.denseExerciseFavorites : [];
+}
+
+function denseExerciseLibrary({ category = "all", sort = "recent", search = "" } = {}) {
+  const query = search.trim().toLowerCase();
+  return denseExerciseCatalog
+    .map((exercise) => ({ ...exercise, stats: denseExerciseStats(exercise.id), favorite: denseExerciseFavorites().includes(exercise.id) }))
+    .filter((exercise) => category === "all" || exercise.category === category)
+    .filter((exercise) => {
+      if (!query) return true;
+      return `${exercise.name} ${exercise.family} ${denseCategoryLabel(exercise.category)}`.toLowerCase().includes(query);
+    })
+    .sort((a, b) => denseExerciseSortValue(a, b, sort));
+}
+
+function denseExerciseSortValue(a, b, sort) {
+  if (sort === "favorite") {
+    if (Number(b.favorite) !== Number(a.favorite)) return Number(b.favorite) - Number(a.favorite);
+    return (b.stats.lastTime || 0) - (a.stats.lastTime || 0);
+  }
+  if (sort === "used") {
+    if (b.stats.count !== a.stats.count) return b.stats.count - a.stats.count;
+    return a.name.localeCompare(b.name);
+  }
+  if (sort === "abandoned") {
+    if (b.stats.daysSince !== a.stats.daysSince) return b.stats.daysSince - a.stats.daysSince;
+    return a.name.localeCompare(b.name);
+  }
+  if (sort === "az") return a.name.localeCompare(b.name);
+  return (b.stats.lastTime || 0) - (a.stats.lastTime || 0) || a.name.localeCompare(b.name);
+}
+
+function denseExerciseStats(exerciseId) {
+  const entries = getDenseEntries().filter((entry) => entry.exercise_id === exerciseId);
+  const lastEntry = [...entries].sort((a, b) => (b.created_at || b.date || "").localeCompare(a.created_at || a.date || ""))[0];
+  const lastTime = lastEntry ? parseDate(lastEntry.date).getTime() : 0;
+  const daysSince = lastEntry ? Math.max(0, Math.round((today.getTime() - parseDate(lastEntry.date).getTime()) / 86400000)) : 9999;
+  return {
+    count: entries.length,
+    lastEntry,
+    lastTime,
+    daysSince,
+  };
+}
+
+function denseCategoryLabel(category) {
+  return denseExerciseCategories.find(([value]) => value === category)?.[1] || "Otros";
+}
+
+function denseCategoryColor(category) {
+  if (category === "push") return "var(--rose)";
+  if (category === "pull") return "var(--blue)";
+  if (category === "legs") return "var(--green)";
+  if (category === "skills") return "var(--purple)";
+  if (category === "mobility") return "var(--cyan)";
+  return "var(--teal)";
+}
+
+function denseNatureLabel(nature) {
+  return denseNatureOptions.find(([value]) => value === nature)?.[1] || nature;
+}
+
+function denseSchemeColor(scheme) {
+  const base = denseSchemeBase(scheme);
+  if (base === "2D") return "#ff7c9e";
+  if (base === "5D") return "#ffd166";
+  if (base === "10D") return "#79aaff";
+  if (base === "20D") return "#68d66f";
+  return "#57c6a1";
+}
+
+function denseEffortColor(effort) {
+  if (effort === "VE") return "#8bd9eb";
+  if (effort === "E") return "#68d66f";
+  if (effort === "N") return "#ffd166";
+  if (effort === "H") return "#e4af54";
+  if (effort === "VH") return "#ff7c9e";
+  return "#d8574f";
+}
+
+function denseAllowedSchemes(exercise) {
+  if (exercise.allowedSchemes?.length) return exercise.allowedSchemes;
+  if (exercise.nature === "weighted") {
+    if (exercise.loadPattern === "dumbbell_pair") return ["2D5", "2D10", "5D3", "5D5", "5D10", "10D3", "10D5", "10D10", "20D3", "20D5"];
+    return ["2D5", "2D10", "5D3", "5D5", "10D3", "10D5", "20D3", "20D5"];
+  }
+  if (exercise.nature === "weighted_calisthenics") {
+    return ["2D5", "5D1", "5D3", "5D5", "10D1", "10D3", "10D5", "10D1-2-3", "20D1", "20D3", "20D5"];
+  }
+  return bodyweightSchemes;
+}
+
+function denseDefaultTotalReps(exercise, scheme) {
+  const minutes = denseSchemeMinutes(scheme);
+  const prescription = scheme.replace(/^\d+D/, "");
+  if (!minutes) return "";
+  if (denseUsesRepsPerSet(exercise)) return denseTotalFromRepsPerSet(denseDefaultRepsPerSet(exercise, scheme), scheme);
+  if (prescription) {
+    const values = prescription
+      .split("-")
+      .map(Number)
+      .filter((value) => Number.isFinite(value) && value > 0);
+    if (values.length) {
+      const average = values.reduce((sum, value) => sum + value, 0) / values.length;
+      return Math.round(minutes * average);
+    }
+  }
+
+  const estimate = state.denseEstimates?.[exercise.id]?.bodyweight_capacity;
+  const multiplier = bodyweightMultipliers[denseSchemeBase(scheme)];
+  if (estimate && multiplier) return Math.max(1, Math.floor(estimate * multiplier) * minutes);
+
+  const latestSameScheme = [...getDenseEntries()]
+    .filter((entry) => entry.exercise_id === exercise.id && entry.scheme === scheme && entry.total_reps)
+    .sort((a, b) => (b.created_at || b.date || "").localeCompare(a.created_at || a.date || ""))[0];
+  if (latestSameScheme) return latestSameScheme.total_reps;
+
+  const baseRpm = denseDefaultRpm(exercise, denseSchemeBase(scheme));
+  return Math.max(1, Math.round(baseRpm * minutes));
+}
+
+function denseDefaultRepsPerSet(exercise, scheme) {
+  if (!denseUsesRepsPerSet(exercise)) return "";
+  const minutes = denseSchemeMinutes(scheme);
+  if (!minutes) return "";
+  if (exercise.nature === "weighted" || exercise.nature === "weighted_calisthenics") {
+    return denseSchemePrescriptionAverage(scheme) || Math.max(1, Math.round(denseDefaultRpm(exercise, denseSchemeBase(scheme))));
+  }
+  const latestSameScheme = [...getDenseEntries()]
+    .filter((entry) => entry.exercise_id === exercise.id && entry.scheme === scheme && entry.total_reps)
+    .sort((a, b) => (b.created_at || b.date || "").localeCompare(a.created_at || a.date || ""))[0];
+  if (latestSameScheme) return Math.max(1, Math.round(Number(latestSameScheme.total_reps) / minutes));
+
+  const estimate = state.denseEstimates?.[exercise.id]?.bodyweight_capacity;
+  const multiplier = bodyweightMultipliers[denseSchemeBase(scheme)];
+  if (estimate && multiplier) return Math.max(1, Math.floor(estimate * multiplier));
+
+  return Math.max(1, Math.round(denseDefaultRpm(exercise, denseSchemeBase(scheme))));
+}
+
+function denseUsesRepsPerSet(exercise) {
+  return ["bodyweight", "weighted", "weighted_calisthenics"].includes(exercise.nature);
+}
+
+function denseSchemePrescriptionAverage(scheme) {
+  const values = String(scheme || "")
+    .replace(/^\d+D/, "")
+    .split("-")
+    .map(Number)
+    .filter((value) => Number.isFinite(value) && value > 0);
+  if (!values.length) return "";
+  return Math.max(1, Math.round(values.reduce((sum, value) => sum + value, 0) / values.length));
+}
+
+function denseSchemeTarget(scheme) {
+  return String(scheme || "").replace(/^\d+D/, "") || "";
+}
+
+function denseLadderSequence(scheme) {
+  const values = denseSchemeTarget(scheme)
+    .split("-")
+    .map(Number)
+    .filter((value) => Number.isFinite(value) && value > 0);
+  return values.length > 1 ? values : null;
+}
+
+function denseSchemeType(exercise, scheme) {
+  if (denseLadderSequence(scheme)) return "ladder";
+  if (exercise.nature === "weighted" || exercise.nature === "weighted_calisthenics") return "dense_load";
+  if (exercise.nature === "conditioning") return "conditioning";
+  if (exercise.nature === "skill") return "skill";
+  return "dense_reps";
+}
+
+function denseTotalFromRepsPerSet(repsPerSet, scheme) {
+  const reps = Number(repsPerSet);
+  const minutes = denseSchemeMinutes(scheme);
+  if (!Number.isFinite(reps) || reps <= 0 || !minutes) return "";
+  return Math.round(reps * minutes);
+}
+
+function denseDefaultRpm(exercise, base) {
+  const categoryBase = {
+    pull: 7,
+    push: 9,
+    legs: 14,
+    skills: 4,
+    mobility: 8,
+  }[exercise.category] || 8;
+  const factor = { "2D": 1.25, "5D": 1, "10D": 0.75, "20D": 0.6 }[base] || 1;
+  return categoryBase * factor;
+}
+
+function applyDenseExerciseSearch(value) {
+  const query = value.trim().toLowerCase();
+  document.querySelectorAll("[data-exercise-card]").forEach((card) => {
+    const match = !query || (card.dataset.search || "").includes(query);
+    card.classList.toggle("is-hidden", !match);
+  });
+}
+
+function denseFormDefaults() {
+  const latest = [...getDenseEntries()].sort((a, b) => (b.created_at || b.date || "").localeCompare(a.created_at || a.date || ""))[0];
+  const selectedId = state.settings.denseSelectedExerciseId;
+  const exercise = denseExerciseById(selectedId || latest?.exercise_id || "pull_up");
+  const shouldUseLatest = !selectedId || selectedId === latest?.exercise_id;
+  const allowedSchemes = denseAllowedSchemes(exercise);
+  const preferredScheme = shouldUseLatest && latest?.scheme ? latest.scheme : exercise.nature === "weighted" || exercise.nature === "weighted_calisthenics" ? "10D5" : "10D";
+  const scheme = allowedSchemes.includes(preferredScheme) ? preferredScheme : allowedSchemes[0];
+  const repsPerSet = denseDefaultRepsPerSet(exercise, scheme);
+  return {
+    date: dateKey(selectedDate),
+    bodyweightKg: latestKnownBodyweight(dateKey(selectedDate)) || 80,
+    exerciseId: exercise.id,
+    nature: shouldUseLatest && latest?.nature ? latest.nature : exercise.nature,
+    scheme,
+    repsPerSet,
+    totalReps: repsPerSet ? denseTotalFromRepsPerSet(repsPerSet, scheme) : denseDefaultTotalReps(exercise, scheme),
+    effort: "N",
+  };
+}
+
+function latestKnownBodyweight(beforeKey = dateKey(selectedDate)) {
+  const logs = state.bodyweightLogs || {};
+  const direct = logs[beforeKey];
+  if (direct) return direct;
+  const latest = Object.entries(logs)
+    .filter(([day]) => day <= beforeKey)
+    .sort(([a], [b]) => b.localeCompare(a))[0];
+  if (latest) return latest[1];
+  const entry = [...getDenseEntries()]
+    .filter((item) => item.bodyweight_kg && item.date <= beforeKey)
+    .sort((a, b) => b.date.localeCompare(a.date))[0];
+  return entry?.bodyweight_kg || "";
+}
+
+function computeDenseEntry(raw) {
+  const scheme = raw.scheme || "";
+  const base = denseSchemeBase(scheme);
+  const duration = raw.duration_minutes || denseSchemeMinutes(scheme) || 0;
+  const totalReps = raw.total_reps || 0;
+  const repsPerMin = duration && totalReps ? totalReps / duration : 0;
+  const workingPct = denseWorkingPct[scheme] || 0;
+  const bw = raw.bodyweight_kg || 0;
+  const load = raw.external_load_kg || 0;
+  const added = raw.added_load_kg || 0;
+  const multiplier = bodyweightMultipliers[base] || 0;
+
+  let totalSystemLoad = raw.nature === "weighted_calisthenics" ? bw + added : load;
+  if (raw.nature === "bodyweight" || raw.nature === "banded" || raw.nature === "plyometrics" || raw.nature === "conditioning") {
+    totalSystemLoad = 0;
+  }
+
+  const e1rmKg = workingPct && totalSystemLoad ? totalSystemLoad / workingPct : 0;
+  const relativeStrength = bw && totalSystemLoad ? totalSystemLoad / bw : 0;
+  const visibleAddedLoad = raw.nature === "weighted_calisthenics" && bw ? totalSystemLoad - bw : 0;
+  const capacity = repsPerMin && multiplier ? repsPerMin / multiplier : 0;
+  const effectiveLoad =
+    raw.nature === "weighted_calisthenics"
+      ? totalSystemLoad
+      : load + (bw * (raw.bodyweight_contribution_pct || 0)) / 100;
+  const tonnage = totalReps && effectiveLoad ? effectiveLoad * totalReps * (raw.tonnage_factor || 1) : 0;
+
+  return {
+    ...raw,
+    scheme_base: base,
+    duration_minutes: duration,
+    total_reps: totalReps,
+    reps_per_min: roundTo(repsPerMin, 2),
+    working_pct: workingPct,
+    total_system_load_kg: roundTo(totalSystemLoad, 2),
+    visible_added_load_kg: roundTo(visibleAddedLoad, 2),
+    e1rm_kg: roundTo(e1rmKg, 2),
+    relative_strength: roundTo(relativeStrength, 3),
+    bodyweight_capacity: roundTo(capacity, 3),
+    effective_load_kg: roundTo(effectiveLoad, 2),
+    tonnage_kg: roundTo(tonnage, 1),
+    computed: {
+      e1rm: roundTo(e1rmKg, 2) || null,
+      relative_strength: roundTo(relativeStrength, 3) || null,
+      effective_load_kg: roundTo(effectiveLoad, 2) || null,
+      tonnage: roundTo(tonnage, 1) || null,
+      capacity: roundTo(capacity, 3) || null,
+      pr_score: roundTo(denseEntryScore({ ...raw, e1rm_kg: e1rmKg, bodyweight_capacity: capacity, reps_per_min: repsPerMin }), 3) || null,
+    },
+  };
+}
+
+function updateDenseEstimate(entry) {
+  state.denseEstimates ||= {};
+  const effortFactor = denseEffortFactors[entry.effort] || 1;
+  const key = entry.exercise_id;
+  const current = state.denseEstimates[key] || {};
+  const next = { ...current, exercise_id: key, exercise_name: entry.exercise_name, updated_at: entry.created_at };
+
+  if (entry.bodyweight_capacity) {
+    const observed = entry.bodyweight_capacity * effortFactor;
+    next.bodyweight_capacity = roundTo(current.bodyweight_capacity ? current.bodyweight_capacity * 0.7 + observed * 0.3 : observed, 3);
+  }
+
+  if (entry.e1rm_kg) {
+    const observed = entry.e1rm_kg * effortFactor;
+    next.e1rm_kg = roundTo(current.e1rm_kg ? current.e1rm_kg * 0.7 + observed * 0.3 : observed, 2);
+  }
+
+  state.denseEstimates[key] = next;
+}
+
+function densePrRows() {
+  const best = new Map();
+  getDenseEntries().forEach((entry) => {
+    const key = `${entry.exercise_id}:${entry.scheme}`;
+    const score = denseEntryScore(entry);
+    if (!score) return;
+    const current = best.get(key);
+    if (!current || score > current.score) best.set(key, { entry, score });
+  });
+
+  return [...best.values()]
+    .sort((a, b) => b.score - a.score)
+    .map(({ entry }) => ({
+      exerciseName: entry.exercise_name,
+      scheme: entry.scheme,
+      value: denseEntryValue(entry),
+      relative: entry.relative_strength ? `${entry.relative_strength}x BW` : entry.reps_per_min ? `${entry.reps_per_min} rpm` : "-",
+      date: entry.date,
+    }));
+}
+
+function denseEntryCard(entry) {
+  const metrics = [];
+  if (entry.reps_per_min) metrics.push(`${entry.reps_per_min} rpm`);
+  if (entry.e1rm_kg) metrics.push(`e1RM ${formatKg(entry.e1rm_kg)}`);
+  if (entry.relative_strength) metrics.push(`${entry.relative_strength}x BW`);
+  if (entry.tonnage_kg) metrics.push(`${Math.round(entry.tonnage_kg)} kg tonnage`);
+
+  return `
+    <article class="dense-entry-card">
+      <div class="dense-entry-main">
+        <span class="tiny-icon" style="--item-color:${denseNatureColor(entry.nature)}"><i data-lucide="${denseExerciseById(entry.exercise_id)?.icon || "dumbbell"}"></i></span>
+        <div>
+          <strong>${escapeHtml(entry.exercise_name)}</strong>
+          <span>${escapeHtml(entry.date)} · ${escapeHtml(entry.scheme)} · ${escapeHtml(entry.effort)}</span>
+        </div>
+      </div>
+      <div class="dense-entry-stats">
+        ${metrics.slice(0, 4).map((item) => `<span class="mini-tag">${escapeHtml(item)}</span>`).join("")}
+      </div>
+      <p class="tiny-copy">${escapeHtml(entry.notes || "Sin nota")}</p>
+    </article>
+  `;
+}
+
+function renderDenseEstimateCards(entry) {
+  const estimate = state.denseEstimates?.[entry.exercise_id] || {};
+  if (entry.nature === "weighted" || entry.nature === "weighted_calisthenics") {
+    const e1rm = estimate.e1rm_kg || entry.e1rm_kg;
+    if (!e1rm) return "";
+    const bw = entry.bodyweight_kg || latestKnownBodyweight(entry.date) || 0;
+    const targets = ["2D5", "5D3", "5D5", "10D3", "10D5", "10D1-2-3", "20D3", "20D5"];
+    return targets
+      .map((scheme) => {
+        const totalLoad = e1rm * denseWorkingPct[scheme];
+        const displayLoad =
+          entry.nature === "weighted_calisthenics" && bw ? `${formatKg(Math.max(0, totalLoad - bw))} lastre` : formatKg(totalLoad);
+        const sub = entry.nature === "weighted_calisthenics" && bw ? `${formatKg(totalLoad)} sistema` : `desde e1RM ${formatKg(e1rm)}`;
+        return `
+          <article class="dense-estimate-card">
+            <span>${scheme}</span>
+            <strong>${displayLoad}</strong>
+            <small>${sub}</small>
+          </article>
+        `;
+      })
+      .join("");
+  }
+
+  const capacity = estimate.bodyweight_capacity || entry.bodyweight_capacity;
+  if (!capacity) return "";
+  return bodyweightSchemes
+    .map((scheme) => {
+      const minutes = denseSchemeMinutes(scheme);
+      const rpm = Math.floor(capacity * bodyweightMultipliers[scheme]);
+      return `
+        <article class="dense-estimate-card">
+          <span>${scheme}</span>
+          <strong>${rpm} rpm</strong>
+          <small>${rpm * minutes} reps totales</small>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function denseEntryScore(entry) {
+  if (entry.e1rm_kg) return entry.e1rm_kg;
+  if (entry.bodyweight_capacity) return entry.bodyweight_capacity;
+  if (entry.reps_per_min) return entry.reps_per_min;
+  return entry.total_reps || 0;
+}
+
+function denseEntryValue(entry) {
+  if (entry.nature === "weighted_calisthenics") {
+    return `${formatKg(entry.visible_added_load_kg)} lastre · e1RM ${formatKg(entry.e1rm_kg)}`;
+  }
+  if (entry.nature === "weighted") {
+    const db = entry.weight_per_dumbbell_kg ? `${formatKg(entry.weight_per_dumbbell_kg)} x2 · ` : "";
+    return `${db}${formatKg(entry.external_load_kg)} · e1RM ${formatKg(entry.e1rm_kg)}`;
+  }
+  if (entry.reps_per_min) return `${entry.reps_per_min} rpm · ${entry.total_reps} reps`;
+  return `${entry.total_reps || 0} reps`;
+}
+
+function denseSchemeBase(scheme) {
+  const match = String(scheme || "").match(/^(\d+D)/);
+  return match ? match[1] : "";
+}
+
+function denseSchemeMinutes(scheme) {
+  const match = String(scheme || "").match(/^(\d+)D/);
+  return match ? Number(match[1]) : 0;
+}
+
+function denseNatureColor(nature) {
+  if (nature === "weighted" || nature === "weighted_calisthenics") return "var(--green)";
+  if (nature === "bodyweight") return "var(--cyan)";
+  if (nature === "skill") return "var(--purple)";
+  if (nature === "conditioning") return "var(--amber)";
+  return "var(--teal)";
+}
+
+function positiveNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : 0;
+}
+
+function roundTo(value, decimals = 2) {
+  if (!Number.isFinite(value)) return 0;
+  const factor = Math.pow(10, decimals);
+  return Math.round(value * factor) / factor;
+}
+
+function formatKg(value) {
+  if (!value) return "0kg";
+  return `${roundTo(value, 1)}kg`;
+}
+
+function getSelectedTraining() {
+  let week = state.mesocycle.weeks.find((item) => item.id === state.settings.selectedWeekId) || state.mesocycle.weeks[0];
+  let session = week.sessions.find((item) => item.id === state.settings.selectedSessionId) || week.sessions[0];
+  if (!week.sessions.some((item) => item.id === session.id)) {
+    session = week.sessions[0];
+    state.settings.selectedSessionId = session.id;
+  }
+  return { week, session };
+}
+
+function getSessionLog(sessionId) {
+  state.trainingLogs[sessionId] ||= { exercises: {}, note: "", updatedAt: new Date().toISOString() };
+  return state.trainingLogs[sessionId];
+}
+
+function exerciseDone(sessionId, exerciseId) {
+  return Boolean(state.trainingLogs[sessionId]?.exercises?.[exerciseId]);
+}
+
+function sessionDoneCount(sessionId) {
+  const session = findSession(sessionId);
+  if (!session) return 0;
+  return session.exercises.filter((exercise) => exerciseDone(sessionId, exercise.id)).length;
+}
+
+function weekProgress(weekId) {
+  const week = state.mesocycle.weeks.find((item) => item.id === weekId);
+  if (!week) return 0;
+  const total = week.sessions.reduce((sum, session) => sum + session.exercises.length, 0);
+  const done = week.sessions.reduce((sum, session) => sum + sessionDoneCount(session.id), 0);
+  return total ? Math.round((done / total) * 100) : 0;
+}
+
+function trainingWeekScore() {
+  const total = state.mesocycle.weeks.reduce((weekSum, week) => weekSum + week.sessions.reduce((sum, session) => sum + session.exercises.length, 0), 0);
+  const done = state.mesocycle.weeks.reduce((weekSum, week) => weekSum + week.sessions.reduce((sum, session) => sum + sessionDoneCount(session.id), 0), 0);
+  return total ? Math.round((done / total) * 100) : 0;
+}
+
+function denseTrainingWeekScore() {
+  const days = rangeDays(addDays(selectedDate, -6), selectedDate);
+  const activeDays = days.filter((day) => denseEntriesForDate(dateKey(day)).length > 0).length;
+  return Math.round((activeDays / days.length) * 100);
+}
+
+function findSession(sessionId) {
+  for (const week of state.mesocycle.weeks) {
+    const session = week.sessions.find((item) => item.id === sessionId);
+    if (session) return session;
+  }
+  return null;
+}
+
+function ex(id, name, sets, reps, load, rir, progression, cue) {
+  return { id, name, sets, reps, load, rir, progression, cue };
+}
+
+function defaultNewHabit() {
+  return {
+    id: "new",
+    name: "Nuevo hábito",
+    detail: "",
+    icon: "circle",
+    color: "#68d66f",
+    stat: "mind",
+    tolerance: 70,
+    target: "",
+    xp: 10,
+    core: false,
+    archived: false,
+  };
+}
+
+function cleanAccidentalFormUrl() {
+  if (!window.location.search) return;
+  const params = new URLSearchParams(window.location.search);
+  const looksLikeHabitSubmit = params.has("id") && params.has("name") && params.has("target");
+  if (!looksLikeHabitSubmit) return;
+  window.history.replaceState({}, "", window.location.pathname);
+}
+
+function getCurrentCycleWeek() {
+  const day = today.getDate();
+  return Math.min(3, Math.max(0, Math.floor((day - 1) / 7)));
+}
+
+function rangeDays(from, to) {
+  const days = [];
+  let cursor = startOfDay(from);
+  const end = startOfDay(to);
+  while (cursor <= end) {
+    days.push(new Date(cursor));
+    cursor = addDays(cursor, 1);
+  }
+  return days;
+}
+
+function startOfDay(date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function addDays(date, amount) {
+  const copy = new Date(date);
+  copy.setDate(copy.getDate() + amount);
+  return startOfDay(copy);
+}
+
+function addMonths(date, amount) {
+  return new Date(date.getFullYear(), date.getMonth() + amount, 1);
+}
+
+function monthStart(date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function monthEnd(date) {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0);
+}
+
+function monthGridDays(date) {
+  const start = monthStart(date);
+  const mondayOffset = (start.getDay() + 6) % 7;
+  return rangeDays(addDays(start, -mondayOffset), addDays(addDays(start, -mondayOffset), 41));
+}
+
+function sameMonth(a, b) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
+}
+
+function parseDate(key) {
+  const [year, month, day] = key.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function dateKey(date) {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function monthKey(date) {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  return `${year}-${month}-01`;
+}
+
+function formatShortDate(date) {
+  return new Intl.DateTimeFormat("es", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  }).format(date);
+}
+
+function formatLongDate(date) {
+  return new Intl.DateTimeFormat("es", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  }).format(date);
+}
+
+function formatMonth(date) {
+  return new Intl.DateTimeFormat("es", {
+    month: "long",
+    year: "numeric",
+  }).format(date);
+}
+
+function formatLogDate(value) {
+  if (!value) return "";
+  return new Intl.DateTimeFormat("es", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function pct(value, total) {
+  if (!total) return 0;
+  return clamp(Math.round((value / total) * 100), 0, 100);
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function slugify(value) {
+  const slug = value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+  let candidate = slug || `habit-${Date.now()}`;
+  let index = 2;
+  while (state.habits.some((habit) => habit.id === candidate)) {
+    candidate = `${slug}-${index}`;
+    index += 1;
+  }
+  return candidate;
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function escapeAttr(value) {
+  return escapeHtml(value);
+}
