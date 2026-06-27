@@ -2130,6 +2130,18 @@ i[data-lucide] {
   margin-top: 16px;
 }
 
+.dense-selected-log {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid rgba(104, 214, 111, 0.2);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(180deg, rgba(104, 214, 111, 0.07), transparent 64%),
+    #131510;
+}
+
 .section-subhead {
   display: flex;
   align-items: end;
@@ -2158,7 +2170,7 @@ i[data-lucide] {
 
 .dense-entry-main {
   display: grid;
-  grid-template-columns: 34px minmax(0, 1fr);
+  grid-template-columns: 34px minmax(0, 1fr) 38px;
   gap: 9px;
   align-items: center;
 }
@@ -2181,6 +2193,80 @@ i[data-lucide] {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.dense-selected-log-list {
+  display: grid;
+  gap: 7px;
+}
+
+.dense-selected-log-row,
+.dense-selected-log-empty {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 38px;
+  gap: 9px;
+  align-items: center;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+}
+
+.dense-selected-log-empty {
+  grid-template-columns: 34px minmax(0, 1fr);
+  min-height: 58px;
+}
+
+.dense-selected-log-main {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 9px;
+  align-items: center;
+  min-width: 0;
+}
+
+.dense-log-date {
+  display: inline-flex;
+  min-width: 0;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.035);
+  font-size: 0.65rem;
+  font-weight: 900;
+  text-align: center;
+  text-transform: lowercase;
+}
+
+.dense-selected-log-main strong,
+.dense-selected-log-main span,
+.dense-selected-log-empty strong,
+.dense-selected-log-empty span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dense-selected-log-main strong,
+.dense-selected-log-empty strong {
+  color: var(--text);
+  font-size: 0.82rem;
+  line-height: 1.15;
+}
+
+.dense-selected-log-main span,
+.dense-selected-log-empty span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 780;
 }
 
 .dense-pr-layout {
@@ -3053,6 +3139,10 @@ button:focus-visible {
     grid-column: span 1;
   }
 
+  .dense-selected-log-main {
+    grid-template-columns: 66px minmax(0, 1fr);
+  }
+
   .hero-panel,
   .day-panel,
   .calendar-panel,
@@ -3383,7 +3473,8 @@ button:focus-visible {
   body[data-density="compact"] .panel > div,
   body[data-density="compact"] .analytics-card,
   body[data-density="compact"] .dense-exercise-picker,
-  body[data-density="compact"] .dense-actions {
+  body[data-density="compact"] .dense-actions,
+  body[data-density="compact"] .dense-selected-log {
     padding: 8px;
   }
 
@@ -3394,8 +3485,17 @@ button:focus-visible {
   body[data-density="compact"] .section-meta,
   body[data-density="compact"] .tiny-copy,
   body[data-density="compact"] .exercise-pick-main small,
-  body[data-density="compact"] .dense-form-hint span {
+  body[data-density="compact"] .dense-form-hint span,
+  body[data-density="compact"] .dense-selected-log-main span {
     font-size: 0.68rem;
+  }
+
+  body[data-density="compact"] .dense-selected-log-row {
+    padding: 6px;
+  }
+
+  body[data-density="compact"] .dense-selected-log-main {
+    grid-template-columns: 58px minmax(0, 1fr);
   }
 
   body[data-density="compact"] input,

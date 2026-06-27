@@ -1299,6 +1299,7 @@ function renderDenseTraining() {
         <button class="text-button is-hot" type="submit"><i data-lucide="save"></i>${isEditingDenseEntry ? "Actualizar marca Dense" : "Guardar marca Dense"}</button>
       </div>
     </form>
+    ${renderSelectedExerciseLog(exercise.id)}
   `;
   updateDenseHoldEstimate(nodes.denseTrainingPanel.querySelector("#denseTrainingForm"));
 }
@@ -4037,6 +4038,64 @@ function denseEntryCard(entry) {
         ${metrics.slice(0, 4).map((item) => `<span class="mini-tag">${escapeHtml(item)}</span>`).join("")}
       </div>
       <p class="tiny-copy">${escapeHtml(entry.notes || "Sin nota")}</p>
+    </article>
+  `;
+}
+
+function selectedExerciseLogEntries(exerciseId, limit = 5) {
+  return [...getDenseEntries()]
+    .filter((entry) => entry.exercise_id === exerciseId && !entry.deleted_at)
+    .sort((a, b) => (b.created_at || b.date || "").localeCompare(a.created_at || a.date || ""))
+    .slice(0, limit);
+}
+
+function renderSelectedExerciseLog(exerciseId) {
+  const exercise = denseExerciseById(exerciseId);
+  const entries = selectedExerciseLogEntries(exerciseId, 5);
+  return `
+    <section class="dense-selected-log" aria-label="Últimos entrenos de ${escapeAttr(exercise.name)}">
+      <div class="section-subhead">
+        <strong>Últimos entrenos</strong>
+        <span>${entries.length ? `${entries.length} de ${denseExerciseStats(exerciseId).count} marcas` : "sin marcas todavía"}</span>
+      </div>
+      <div class="dense-selected-log-list">
+        ${
+          entries.length
+            ? entries.map((entry) => selectedExerciseLogRow(entry)).join("")
+            : `<article class="dense-selected-log-empty">
+                <span class="tiny-icon" style="--item-color:${denseCategoryColor(exercise.category)}"><i data-lucide="${exercise.icon || "dumbbell"}"></i></span>
+                <div>
+                  <strong>Primer registro pendiente</strong>
+                  <span>Cuando guardes ${escapeHtml(exercise.name)}, sus últimas marcas aparecerán aquí.</span>
+                </div>
+              </article>`
+        }
+      </div>
+    </section>
+  `;
+}
+
+function selectedExerciseLogRow(entry) {
+  const dateLabel = entry.date ? formatShortDate(parseDate(entry.date)) : "";
+  const score = entry.e1rm_kg
+    ? `e1RM ${formatKg(entry.e1rm_kg)}`
+    : entry.total_hold_seconds
+      ? `${entry.total_hold_seconds}s TUT`
+      : entry.reps_per_min
+        ? `${entry.reps_per_min} rpm`
+        : `${entry.total_reps || 0} reps`;
+  return `
+    <article class="dense-selected-log-row">
+      <div class="dense-selected-log-main">
+        <span class="dense-log-date">${escapeHtml(dateLabel)}</span>
+        <div>
+          <strong>${escapeHtml(entry.scheme)} · ${escapeHtml(denseEntryValue(entry))}</strong>
+          <span>${escapeHtml(score)} · ${escapeHtml(entry.effort || "N")}${entry.notes ? ` · ${escapeHtml(entry.notes)}` : ""}</span>
+        </div>
+      </div>
+      <button class="icon-button" type="button" data-action="load-dense-entry" data-entry="${escapeAttr(entry.id)}" title="Editar marca" aria-label="Editar ${escapeAttr(entry.exercise_name)} ${escapeAttr(entry.scheme)}">
+        <i data-lucide="edit-3"></i>
+      </button>
     </article>
   `;
 }
