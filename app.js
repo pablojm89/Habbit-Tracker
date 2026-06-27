@@ -160,8 +160,10 @@ const trainingAnalyticsTabs = [
   ["progress", "Progreso", "trending-up"],
   ["volume", "Volumen", "bar-chart-3"],
   ["strength", "Fuerza", "trophy"],
+  ["conditioning", "Conditioning", "zap"],
   ["recovery", "Recovery", "heart-pulse"],
   ["balance", "Balance", "scale"],
+  ["consistency", "Consistency", "calendar-check"],
 ];
 
 const trainingAnalyticsWindows = [
@@ -1354,7 +1356,9 @@ function renderTrainingAnalyticsTab(tab, entries) {
   if (tab === "progress") return renderProgressAnalytics(entries);
   if (tab === "volume") return renderVolumeAnalytics(entries);
   if (tab === "strength") return renderStrengthAnalytics(entries);
+  if (tab === "conditioning") return renderConditioningAnalytics(entries);
   if (tab === "recovery") return renderRecoveryAnalytics(entries);
+  if (tab === "consistency") return renderConsistencyAnalytics(entries);
   return renderBalanceAnalytics(entries);
 }
 
@@ -1395,6 +1399,11 @@ function renderProgressAnalytics(entries) {
           ${recent.map((entry) => `<span title="${escapeAttr(entry.exercise_name)}">${escapeHtml(entry.scheme)}</span>`).join("")}
         </div>
       </article>
+    </div>
+    <div class="analytics-detail-list">
+      ${analyticsDetailRow("Personal records", `${prs.length}`, "tap to view", "trophy")}
+      ${analyticsDetailRow("Effort - easier than before", effortImprovementCount(entries), "mismo o más pesado, menos esfuerzo", "zap")}
+      ${analyticsDetailRow("Level-ups", denseLevelUpCount(entries), "nueva mejor señal por ejercicio/esquema", "badge-check")}
     </div>
   `;
 }
@@ -1446,6 +1455,42 @@ function renderStrengthAnalytics(entries) {
   `;
 }
 
+function renderConditioningAnalytics(entries) {
+  const conditioning = entries.filter((entry) => entry.nature === "conditioning" || entry.movement_pattern === "conditioning");
+  const timed = entries.filter((entry) => entry.total_hold_seconds || entry.duration_minutes);
+  const totalMinutes = entries.reduce((sum, entry) => sum + (entry.duration_minutes || 0), 0);
+  const cnsLoad = entries.reduce((sum, entry) => sum + denseEquivalentSets(entry) * (entry.effort_value || 5), 0);
+  const recent = (conditioning.length ? conditioning : timed).slice(-5).reverse();
+  const loadByDay = denseLoadByDay(entries);
+  const maxLoad = Math.max(...loadByDay.map((row) => row.load), 1);
+  return `
+    <div class="analytics-stat-grid">
+      ${analyticsStatCard("Cond sessions", conditioning.length, "Entradas marcadas como conditioning", "timer")}
+      ${analyticsStatCard("Dense minutes", totalMinutes, "Minutos registrados", "clock-3")}
+      ${analyticsStatCard("CNS load", roundTo(cnsLoad, 1), "sets eq x esfuerzo", "activity")}
+      ${analyticsStatCard("TUT", `${Math.round(entries.reduce((sum, entry) => sum + (entry.total_hold_seconds || 0), 0))}s`, "isométricos y holds", "pause-circle")}
+    </div>
+    <div class="analytics-card-grid">
+      <article class="analytics-card">
+        <div class="section-subhead"><strong>Conditioning volume</strong><span>últimas señales</span></div>
+        ${
+          recent.length
+            ? `<div class="analytics-detail-list is-in-card">
+                ${recent.map((entry) => analyticsDetailRow(entry.exercise_name, entry.scheme, denseEntryValue(entry), "activity")).join("")}
+              </div>`
+            : `<div class="analytics-empty is-compact"><i data-lucide="zap"></i><strong>Sin conditioning todavía</strong><span>Cuando registres carries, sprints, saltos o circuitos aparecerán aquí.</span></div>`
+        }
+      </article>
+      <article class="analytics-card">
+        <div class="section-subhead"><strong>CNS load</strong><span>últimos días</span></div>
+        <div class="recovery-sparkline">
+          ${loadByDay.map((row) => `<span style="height:${Math.max(8, pct(row.load, maxLoad))}%" title="${escapeAttr(`${row.date}: ${roundTo(row.load, 1)}`)}"></span>`).join("")}
+        </div>
+      </article>
+    </div>
+  `;
+}
+
 function renderRecoveryAnalytics(entries) {
   const hardSets = entries.filter((entry) => (entry.effort_value || 0) >= 7).reduce((sum, entry) => sum + denseEquivalentSets(entry), 0);
   const easySets = entries.filter((entry) => (entry.effort_value || 0) <= 3).reduce((sum, entry) => sum + denseEquivalentSets(entry), 0);
@@ -1453,6 +1498,7 @@ function renderRecoveryAnalytics(entries) {
   const loadByDay = denseLoadByDay(entries);
   const maxLoad = Math.max(...loadByDay.map((row) => row.load), 1);
   const recoveryScore = clamp(Math.round(100 - hardSets * 2.2 - failed * 6 + easySets * 0.8), 0, 100);
+  const bodyweightRows = bodyweightTrendRows(14);
   return `
     <div class="analytics-stat-grid">
       ${analyticsStatCard("Recovery", `${recoveryScore}/100`, recoveryScore >= 70 ? "Ligero" : recoveryScore >= 45 ? "Moderado" : "Cuidado", "heart-pulse")}
@@ -1465,6 +1511,24 @@ function renderRecoveryAnalytics(entries) {
       <div class="recovery-sparkline">
         ${loadByDay.map((row) => `<span style="height:${Math.max(8, pct(row.load, maxLoad))}%" title="${escapeAttr(`${row.date}: ${roundTo(row.load, 1)}`)}"></span>`).join("")}
       </div>
+    </div>
+    <div class="analytics-card-grid">
+      <article class="analytics-card">
+        <div class="section-subhead"><strong>Recovery thresholds</strong><span>global estimado</span></div>
+        <div class="threshold-grid">
+          ${thresholdCard("Elite", 25, recoveryScore >= 75)}
+          ${thresholdCard("Build", 60, recoveryScore >= 45 && recoveryScore < 75)}
+          ${thresholdCard("Overload", 90, recoveryScore < 45)}
+        </div>
+      </article>
+      <article class="analytics-card">
+        <div class="section-subhead"><strong>Bodyweight trend</strong><span>${bodyweightRows.length ? `${bodyweightRows.length} registros` : "sin peso diario"}</span></div>
+        ${
+          bodyweightRows.length
+            ? `<div class="bodyweight-trend">${bodyweightRows.map((row) => `<span style="height:${Math.max(8, pct(row.value - row.min + 1, row.range))}%" title="${escapeAttr(`${row.date}: ${row.value}kg`)}"></span>`).join("")}</div>`
+            : `<p class="tiny-copy">Registra peso corporal para comparar fuerza relativa y recuperación.</p>`
+        }
+      </article>
     </div>
   `;
 }
@@ -1489,6 +1553,50 @@ function renderBalanceAnalytics(entries) {
           ${ratioRow("Horizontal push / Horizontal pull", patternMap.horizontal_push?.sets, patternMap.horizontal_pull?.sets, "h push", "h pull", "0.8-1.2")}
           ${ratioRow("Squat / Hinge", patternMap.squat?.sets, patternMap.hinge?.sets, "squat", "hinge", "0.8-1.3")}
           ${ratioRow("Pierna unilateral / Squat", patternMap.unilateral_leg?.sets, patternMap.squat?.sets, "unilat", "squat", "0.25-0.6")}
+        </div>
+      </article>
+    </div>
+    <div class="analytics-detail-list">
+      ${balanceDetailRow("Push-Pull Balance", patternMap.push?.sets, patternMap.pull?.sets, "Close-Grip Bench Press / Pull-ups")}
+      ${balanceDetailRow("Squat-Deadlift Balance", patternMap.squat?.sets, patternMap.hinge?.sets, "Back Squat / Deadlift")}
+      ${balanceDetailRow("Biceps-Triceps Balance", patternMap.pull?.sets, patternMap.push?.sets, "Curl / Extension proxy")}
+      ${balanceDetailRow("Movement Pattern Balance", rows.length, 10, "patrones cubiertos")}
+    </div>
+  `;
+}
+
+function renderConsistencyAnalytics(entries) {
+  const days = consistencyDays(28);
+  const activeDays = days.filter((day) => day.entries.length).length;
+  const currentStreak = trainingCurrentStreak(days);
+  const completion = Math.round((activeDays / days.length) * 100);
+  const skipped = denseExerciseLibrary({ sort: "abandoned" }).slice(0, 5);
+  const weekdayRows = weekdayCompletionRows(entries);
+  const maxWeekday = Math.max(...weekdayRows.map((row) => row.count), 1);
+  return `
+    <div class="analytics-stat-grid">
+      ${analyticsStatCard("Training heatmap", `${completion}%`, `${activeDays}/${days.length} días con marcas`, "calendar-days")}
+      ${analyticsStatCard("Current streak", currentStreak, "días seguidos", "flame")}
+      ${analyticsStatCard("Most logged", mostLoggedExerciseName(entries), "ejercicio más repetido", "repeat-2")}
+      ${analyticsStatCard("Skipped", skipped.length, "ejercicios sin tocar hace más", "circle-dashed")}
+    </div>
+    <div class="analytics-card">
+      <div class="section-subhead"><strong>Training heatmap</strong><span>últimos 28 días</span></div>
+      <div class="training-heatmap">
+        ${days.map((day) => `<span class="${day.entries.length ? "is-on" : ""}" title="${escapeAttr(`${day.key}: ${day.entries.length} marcas`)}">${day.label}</span>`).join("")}
+      </div>
+    </div>
+    <div class="analytics-card-grid">
+      <article class="analytics-card">
+        <div class="section-subhead"><strong>Most-skipped exercises</strong><span>para rotar mejor</span></div>
+        <div class="analytics-detail-list is-in-card">
+          ${skipped.map((exercise) => analyticsDetailRow(exercise.name, denseCategoryLabel(exercise.category), denseExerciseStats(exercise.id).count ? "retomar pronto" : "sin marcas", "corner-down-right")).join("")}
+        </div>
+      </article>
+      <article class="analytics-card">
+        <div class="section-subhead"><strong>Completion by day</strong><span>densidad semanal</span></div>
+        <div class="weekday-completion">
+          ${weekdayRows.map((row) => analyticsBar(row.label, row.count, maxWeekday, `${row.count} marcas`)).join("")}
         </div>
       </article>
     </div>
@@ -3762,6 +3870,118 @@ function denseLoadByDay(entries) {
     return days;
   }, {});
   return Object.values(map).sort((a, b) => String(a.date).localeCompare(String(b.date))).slice(-14);
+}
+
+function analyticsDetailRow(title, value, detail, icon) {
+  return `
+    <article class="analytics-detail-row">
+      <span class="tiny-icon"><i data-lucide="${icon}"></i></span>
+      <div>
+        <strong>${escapeHtml(String(title))}</strong>
+        <small>${escapeHtml(String(detail || ""))}</small>
+      </div>
+      <b>${escapeHtml(String(value))}</b>
+      <i data-lucide="chevron-down"></i>
+    </article>
+  `;
+}
+
+function effortImprovementCount(entries) {
+  const byExercise = entries.reduce((map, entry) => {
+    map[entry.exercise_id] ||= [];
+    map[entry.exercise_id].push(entry);
+    return map;
+  }, {});
+  return Object.values(byExercise).reduce((count, exerciseEntries) => {
+    const sorted = exerciseEntries.sort((a, b) => String(a.created_at || a.date || "").localeCompare(String(b.created_at || b.date || "")));
+    const previous = sorted[sorted.length - 2];
+    const latest = sorted[sorted.length - 1];
+    if (!previous || !latest) return count;
+    const sameOrBetter = denseEntryScore(latest) >= denseEntryScore(previous);
+    const easier = (latest.effort_value || 5) < (previous.effort_value || 5);
+    return count + (sameOrBetter && easier ? 1 : 0);
+  }, 0);
+}
+
+function denseLevelUpCount(entries) {
+  const best = new Map();
+  return [...entries]
+    .sort((a, b) => String(a.created_at || a.date || "").localeCompare(String(b.created_at || b.date || "")))
+    .reduce((count, entry) => {
+      const key = `${entry.exercise_id}:${entry.scheme}`;
+      const score = denseEntryScore(entry);
+      const previousBest = best.get(key) || 0;
+      best.set(key, Math.max(previousBest, score));
+      return count + (score && score > previousBest ? 1 : 0);
+    }, 0);
+}
+
+function thresholdCard(label, value, active) {
+  return `
+    <article class="threshold-card ${active ? "is-active" : ""}">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(String(value))}</strong>
+    </article>
+  `;
+}
+
+function bodyweightTrendRows(limit = 14) {
+  const rows = Object.entries(state.bodyweightLogs || {})
+    .map(([date, value]) => ({ date, value: Number(value) }))
+    .filter((row) => Number.isFinite(row.value) && row.value > 0)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(-limit);
+  if (!rows.length) return [];
+  const min = Math.min(...rows.map((row) => row.value));
+  const max = Math.max(...rows.map((row) => row.value));
+  const range = Math.max(1, max - min + 1);
+  return rows.map((row) => ({ ...row, min, range }));
+}
+
+function balanceDetailRow(label, leftValue = 0, rightValue = 0, detail) {
+  const hasData = Number(leftValue) > 0 || Number(rightValue) > 0;
+  const ratio = hasData && Number(rightValue) ? Number(leftValue) / Number(rightValue) : 0;
+  const status = !hasData ? "no data" : ratio >= 0.8 && ratio <= 1.2 ? "balanced" : "needs attention";
+  return analyticsDetailRow(label, status, detail, status === "balanced" ? "check-circle-2" : "alert-circle");
+}
+
+function consistencyDays(limit = 28) {
+  return rangeDays(addDays(selectedDate, -limit + 1), selectedDate).map((day) => {
+    const key = dateKey(day);
+    return {
+      key,
+      label: shortWeekday(day).slice(0, 1),
+      entries: denseEntriesForDate(key),
+    };
+  });
+}
+
+function trainingCurrentStreak(days) {
+  let streak = 0;
+  for (let index = days.length - 1; index >= 0; index -= 1) {
+    if (!days[index].entries.length) break;
+    streak += 1;
+  }
+  return streak;
+}
+
+function mostLoggedExerciseName(entries) {
+  const counts = entries.reduce((map, entry) => {
+    map[entry.exercise_name] = (map[entry.exercise_name] || 0) + 1;
+    return map;
+  }, {});
+  return Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || "-";
+}
+
+function weekdayCompletionRows(entries) {
+  const labels = ["L", "M", "X", "J", "V", "S", "D"];
+  const rows = labels.map((label) => ({ label, count: 0 }));
+  entries.forEach((entry) => {
+    const day = parseDate(entry.date);
+    const index = (day.getDay() + 6) % 7;
+    rows[index].count += 1;
+  });
+  return rows;
 }
 
 function analyticsStatCard(label, value, detail, icon) {
