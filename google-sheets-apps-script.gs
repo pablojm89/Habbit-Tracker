@@ -83,7 +83,9 @@ function setupStaticSheets(ss) {
       ["weighted_calisthenics_relative", "relative_strength = total_system_load / bodyweight_kg"],
       ["bodyweight_capacity", "capacity = reps_per_min / multiplier(source_scheme_base)"],
       ["bodyweight_prediction", "target_reps_per_min = floor(capacity * multiplier(target_scheme_base))"],
+      ["isometric_capacity", "isometric_capacity = hold_seconds_per_min / multiplier(source_scheme_base)"],
       ["tonnage_estimate", "tonnage = effective_load * total_reps * tonnage_factor"],
+      ["tut_load", "tut_load = effective_load * total_hold_seconds * tonnage_factor"],
       ["effective_load", "external_load + bodyweight_kg * bodyweight_contribution_pct / 100"],
       ["effort_learning", "new_estimate = old_estimate * 0.70 + observed * effort_factor * 0.30"],
       ["weighted_cross_scheme", "target_load_kg = e1RM * target_working_pct"],
@@ -197,6 +199,9 @@ function rewriteDenseTraining(ss, syncedAt, state) {
     const duration = Number(entry.duration_minutes || parseDenseDuration(scheme) || 0);
     const totalReps = Number(entry.total_reps || 0);
     const repsPerMin = Number(entry.reps_per_min || (duration && totalReps ? totalReps / duration : 0));
+    const holdSecondsPerRound = Number(entry.hold_seconds_per_round || 0);
+    const totalHoldSeconds = Number(entry.total_hold_seconds || 0);
+    const holdSecondsPerMin = Number(entry.hold_seconds_per_min || (duration && totalHoldSeconds ? totalHoldSeconds / duration : 0));
     const load = Number(entry.load_kg || entry.external_load_kg || 0);
     const added = Number(entry.added_load_kg || 0);
     const bw = Number(entry.bodyweight_kg || 0);
@@ -209,10 +214,12 @@ function rewriteDenseTraining(ss, syncedAt, state) {
     const e1rm = Number(entry.e1rm_kg || (workingPct && totalSystemLoad ? totalSystemLoad / workingPct : 0));
     const multiplier = bwMultipliers[schemeBase] || "";
     const capacity = Number(entry.bodyweight_capacity || (multiplier && repsPerMin ? repsPerMin / multiplier : 0));
+    const isometricCapacity = Number(entry.isometric_capacity || (multiplier && holdSecondsPerMin ? holdSecondsPerMin / multiplier : 0));
     const bwContribution = Number(entry.bodyweight_contribution_pct || 0);
     const tonnageFactor = Number(entry.tonnage_factor == null ? 1 : entry.tonnage_factor);
     const effectiveLoad = nature === "weighted_calisthenics" ? totalSystemLoad : load + (bw * bwContribution) / 100;
     const tonnage = Number(entry.tonnage_kg || (totalReps && effectiveLoad ? effectiveLoad * totalReps * tonnageFactor : 0));
+    const tutLoad = Number(entry.tut_load_kg_seconds || (totalHoldSeconds && effectiveLoad ? effectiveLoad * totalHoldSeconds * tonnageFactor : 0));
 
     return [
       syncedAt,
@@ -233,6 +240,10 @@ function rewriteDenseTraining(ss, syncedAt, state) {
       entry.target_total_reps || "",
       totalReps || "",
       repsPerMin || "",
+      holdSecondsPerRound || "",
+      totalHoldSeconds || "",
+      holdSecondsPerMin || "",
+      isometricCapacity || "",
       load || "",
       entry.weight_per_dumbbell_kg || "",
       entry.dumbbell_count || "",
@@ -251,6 +262,7 @@ function rewriteDenseTraining(ss, syncedAt, state) {
       capacity || "",
       effectiveLoad || "",
       tonnage || "",
+      tutLoad || "",
       bwContribution || "",
       tonnageFactor || "",
       entry.notes || "",
@@ -263,7 +275,7 @@ function rewriteDenseTraining(ss, syncedAt, state) {
   writeTable(
     ss,
     SHEETS.dense,
-    ["synced_at", "entry_id", "version", "date", "exercise_id", "exercise_name", "exercise_family_id", "variant_id", "nature", "scheme", "scheme_base", "scheme_target", "scheme_type", "duration_min", "target_reps_per_min", "target_total_reps", "total_reps", "reps_per_min", "external_load_kg", "weight_per_dumbbell_kg", "dumbbell_count", "added_load_kg", "bodyweight_kg", "bodyweight_source", "total_system_load_kg", "visible_added_load_kg", "relative_strength", "effort", "effort_value", "failed", "missed_reps", "working_pct", "e1rm_kg", "bodyweight_capacity", "effective_load_kg", "tonnage_kg", "bodyweight_contribution_pct", "tonnage_factor", "notes", "created_at", "updated_at", "deleted_at"],
+    ["synced_at", "entry_id", "version", "date", "exercise_id", "exercise_name", "exercise_family_id", "variant_id", "nature", "scheme", "scheme_base", "scheme_target", "scheme_type", "duration_min", "target_reps_per_min", "target_total_reps", "total_reps", "reps_per_min", "hold_seconds_per_round", "total_hold_seconds", "hold_seconds_per_min", "isometric_capacity", "external_load_kg", "weight_per_dumbbell_kg", "dumbbell_count", "added_load_kg", "bodyweight_kg", "bodyweight_source", "total_system_load_kg", "visible_added_load_kg", "relative_strength", "effort", "effort_value", "failed", "missed_reps", "working_pct", "e1rm_kg", "bodyweight_capacity", "effective_load_kg", "tonnage_kg", "tut_load_kg_seconds", "bodyweight_contribution_pct", "tonnage_factor", "notes", "created_at", "updated_at", "deleted_at"],
     rows,
     true,
   );

@@ -6,6 +6,18 @@ const DEFAULT_CLOUD_SYNC_TOKEN = "bt_2026_mi_token_largo_cambialo";
 const today = startOfDay(new Date());
 let cloudConfig = loadCloudConfig();
 let cloudSyncTimer = null;
+let quickTimerState = {
+  scheme: "5D",
+  rounds: 5,
+  holdSeconds: 0,
+  running: false,
+  remainingSeconds: 0,
+  currentRound: 1,
+  startedAt: null,
+  intervalId: null,
+  metronome: false,
+  audioContext: null,
+};
 let cloudSyncStatus = {
   state: "idle",
   text: cloudConfig.enabled && cloudConfig.endpointUrl && cloudConfig.token ? "Cloud sync listo." : "Cloud sync sin configurar.",
@@ -1126,6 +1138,7 @@ function renderMesocycle() {
       <div class="workout-day-badges">
         <span class="workout-score"><strong>${scoreForDate(selectedDate)}</strong><small>EXR</small></span>
         <button class="icon-button" type="button" data-action="go-today" title="Hoy" aria-label="Hoy"><i data-lucide="calendar-clock"></i></button>
+        <button class="icon-button" type="button" data-action="open-quick-timer" title="Tools" aria-label="Tools"><i data-lucide="timer"></i></button>
       </div>
     </div>
     <div class="workout-week-strip">
@@ -1228,6 +1241,7 @@ function renderDenseTraining() {
         </fieldset>
         ${denseRepPerSetFields(exercise, defaults)}
         ${field("Reps totales", "totalReps", defaults.totalReps, "number")}
+        ${denseHoldFields(exercise, defaults)}
         ${denseLoadFields(exercise)}
         <fieldset class="effort-picker-field is-full">
           <legend>Esfuerzo</legend>
@@ -1249,6 +1263,7 @@ function renderDenseTraining() {
       </div>
     </form>
   `;
+  updateDenseHoldEstimate(nodes.denseTrainingPanel.querySelector("#denseTrainingForm"));
 }
 
 function renderTrainingAnalytics() {
@@ -1655,6 +1670,14 @@ function handleClick(event) {
   if (action === "set-quality") setQuality(target.dataset.habit, target.dataset.quality);
   if (action === "open-habit-modal") openHabitModal(target.dataset.id);
   if (action === "open-day-note") openDayModal();
+  if (action === "open-quick-timer") openQuickTimerModal();
+  if (action === "quick-timer-scheme") setQuickTimerScheme(target.dataset.scheme);
+  if (action === "quick-timer-hold") setQuickTimerHold(Number(target.dataset.seconds));
+  if (action === "quick-timer-start") startQuickTimer();
+  if (action === "quick-timer-pause") pauseQuickTimer();
+  if (action === "quick-timer-reset") resetQuickTimer();
+  if (action === "quick-timer-metronome") toggleQuickTimerMetronome();
+  if (action === "apply-timer-hold") applyTimerHoldToDenseForm();
   if (action === "select-week") selectWeek(target.dataset.week);
   if (action === "select-session") selectSession(target.dataset.session);
   if (action === "toggle-exercise") toggleExercise(target.dataset.session, target.dataset.exercise);
@@ -1696,6 +1719,12 @@ function handleInput(event) {
   }
   if (event.target.matches("#denseTrainingForm [name='repsPerSet']")) {
     updateDenseTotalFromRepsPerSet(event.target);
+  }
+  if (event.target.matches("[data-action-input='quick-timer-rounds']")) {
+    setQuickTimerRounds(event.target.value);
+  }
+  if (event.target.matches("#denseTrainingForm [name='holdSecondsPerRound'], #denseTrainingForm [name='rounds']")) {
+    updateDenseHoldEstimate(event.target.closest("#denseTrainingForm"));
   }
 }
 
@@ -1886,6 +1915,202 @@ function openDayModal() {
   openModal();
 }
 
+function openQuickTimerModal() {
+  syncQuickTimerFromForm();
+  nodes.modalEyebrow.textContent = "Tools";
+  nodes.modalTitle.textContent = "Quick Timer";
+  renderQuickTimerModalBody();
+  openModal();
+}
+
+function renderQuickTimerModalBody() {
+  const totalSeconds = quickTimerTotalSeconds();
+  const remaining = quickTimerState.remainingSeconds || totalSeconds;
+  const holdTotal = quickTimerState.holdSeconds ? quickTimerState.holdSeconds * quickTimerState.rounds : 0;
+  nodes.modalBody.innerHTML = `
+    <div class="quick-timer">
+      <div class="quick-timer-display">
+        <strong>${formatTimerSeconds(remaining)}</strong>
+        <span>Round ${Math.min(quickTimerState.currentRound, quickTimerState.rounds)} / ${quickTimerState.rounds}${quickTimerState.holdSeconds ? ` · ${quickTimerState.holdSeconds}s hold` : ""}</span>
+      </div>
+      <section>
+        <p class="timer-label">Choose scheme</p>
+        <div class="timer-option-grid">
+          ${bodyweightSchemes.map((scheme) => timerOptionButton("quick-timer-scheme", scheme, scheme, quickTimerState.scheme === scheme)).join("")}
+        </div>
+      </section>
+      <label class="field">
+        <span>Custom rounds</span>
+        <input data-action-input="quick-timer-rounds" type="number" min="1" max="120" value="${escapeAttr(quickTimerState.rounds)}" />
+      </label>
+      <section>
+        <p class="timer-label">Hold per round</p>
+        <div class="timer-option-grid is-hold">
+          ${[0, 5, 10, 20, 30, 40, 60].map((seconds) => timerOptionButton("quick-timer-hold", seconds, seconds ? `${seconds}s` : "Off", quickTimerState.holdSeconds === seconds)).join("")}
+        </div>
+      </section>
+      <div class="quick-timer-summary">
+        <span>${quickTimerState.rounds} rondas</span>
+        <span>${quickTimerState.holdSeconds ? `${holdTotal}s TUT objetivo` : "modo reps/EMOM"}</span>
+      </div>
+      <div class="timer-actions">
+        ${
+          quickTimerState.running
+            ? `<button class="text-button is-hot" type="button" data-action="quick-timer-pause"><i data-lucide="pause"></i>Pausar</button>`
+            : `<button class="text-button is-hot" type="button" data-action="quick-timer-start"><i data-lucide="play"></i>Start timer</button>`
+        }
+        <button class="text-button" type="button" data-action="quick-timer-reset"><i data-lucide="rotate-ccw"></i>Reset</button>
+      </div>
+      <button class="text-button timer-wide-button ${quickTimerState.metronome ? "is-hot" : ""}" type="button" data-action="quick-timer-metronome">
+        <i data-lucide="music"></i>${quickTimerState.metronome ? "Metronome on" : "Use metronome instead"}
+      </button>
+      <button class="text-button timer-wide-button" type="button" data-action="apply-timer-hold">
+        <i data-lucide="clipboard-check"></i>Aplicar hold al registro
+      </button>
+    </div>
+  `;
+  refreshIcons();
+}
+
+function timerOptionButton(action, value, label, selected) {
+  return `
+    <button class="timer-option ${selected ? "is-selected" : ""}" type="button" data-action="${action}" data-${action === "quick-timer-hold" ? "seconds" : "scheme"}="${escapeAttr(value)}">
+      ${escapeHtml(label)}
+    </button>
+  `;
+}
+
+function syncQuickTimerFromForm() {
+  const form = document.querySelector("#denseTrainingForm");
+  const scheme = form?.querySelector("input[name='scheme']:checked")?.value;
+  const rounds = positiveNumber(form?.querySelector("[name='rounds']")?.value);
+  const hold = positiveNumber(form?.querySelector("[name='holdSecondsPerRound']")?.value);
+  if (scheme && bodyweightSchemes.includes(denseSchemeBase(scheme))) {
+    quickTimerState.scheme = denseSchemeBase(scheme);
+  }
+  quickTimerState.rounds = rounds || denseSchemeMinutes(quickTimerState.scheme) || 5;
+  quickTimerState.holdSeconds = hold || quickTimerState.holdSeconds || 0;
+  if (!quickTimerState.running) {
+    quickTimerState.remainingSeconds = quickTimerTotalSeconds();
+    quickTimerState.currentRound = 1;
+  }
+}
+
+function setQuickTimerScheme(scheme) {
+  quickTimerState.scheme = scheme;
+  quickTimerState.rounds = denseSchemeMinutes(scheme) || quickTimerState.rounds;
+  resetQuickTimer(false);
+  renderQuickTimerModalBody();
+}
+
+function setQuickTimerRounds(value) {
+  quickTimerState.rounds = clamp(Math.round(Number(value) || denseSchemeMinutes(quickTimerState.scheme) || 1), 1, 120);
+  resetQuickTimer(false);
+  renderQuickTimerModalBody();
+}
+
+function setQuickTimerHold(seconds) {
+  quickTimerState.holdSeconds = Math.max(0, Number(seconds) || 0);
+  resetQuickTimer(false);
+  renderQuickTimerModalBody();
+}
+
+function quickTimerTotalSeconds() {
+  return Math.max(1, quickTimerState.rounds || denseSchemeMinutes(quickTimerState.scheme) || 1) * 60;
+}
+
+function startQuickTimer() {
+  if (quickTimerState.running) return;
+  if (!quickTimerState.remainingSeconds) quickTimerState.remainingSeconds = quickTimerTotalSeconds();
+  quickTimerState.running = true;
+  quickTimerState.startedAt = Date.now();
+  clearInterval(quickTimerState.intervalId);
+  quickTimerState.intervalId = setInterval(tickQuickTimer, 1000);
+  renderQuickTimerModalBody();
+}
+
+function tickQuickTimer() {
+  quickTimerState.remainingSeconds = Math.max(0, quickTimerState.remainingSeconds - 1);
+  const elapsed = quickTimerTotalSeconds() - quickTimerState.remainingSeconds;
+  quickTimerState.currentRound = clamp(Math.floor(elapsed / 60) + 1, 1, quickTimerState.rounds);
+  if (quickTimerState.metronome || quickTimerState.remainingSeconds % 60 === 0) playTimerBeep(quickTimerState.remainingSeconds % 60 === 0 ? 880 : 440);
+  if (quickTimerState.remainingSeconds <= 0) {
+    pauseQuickTimer(false);
+    playTimerBeep(1040);
+  }
+  if (nodes.modal.open && nodes.modalTitle.textContent === "Quick Timer") renderQuickTimerModalBody();
+}
+
+function pauseQuickTimer(renderBody = true) {
+  quickTimerState.running = false;
+  clearInterval(quickTimerState.intervalId);
+  quickTimerState.intervalId = null;
+  if (renderBody && nodes.modal.open) renderQuickTimerModalBody();
+}
+
+function resetQuickTimer(renderBody = true) {
+  pauseQuickTimer(false);
+  quickTimerState.remainingSeconds = quickTimerTotalSeconds();
+  quickTimerState.currentRound = 1;
+  if (renderBody && nodes.modal.open) renderQuickTimerModalBody();
+}
+
+function toggleQuickTimerMetronome() {
+  quickTimerState.metronome = !quickTimerState.metronome;
+  if (quickTimerState.metronome) playTimerBeep(660);
+  renderQuickTimerModalBody();
+}
+
+function applyTimerHoldToDenseForm() {
+  const form = document.querySelector("#denseTrainingForm");
+  if (!form) {
+    toast("Abre Training > Workout para aplicar el hold");
+    return;
+  }
+  const holdInput = form.querySelector("[name='holdSecondsPerRound']");
+  const roundsInput = form.querySelector("[name='rounds']");
+  if (holdInput) holdInput.value = quickTimerState.holdSeconds || "";
+  if (roundsInput) roundsInput.value = quickTimerState.rounds || "";
+  updateDenseHoldEstimate(form);
+  closeModal();
+  toast("Hold aplicado al registro");
+}
+
+function updateDenseHoldEstimate(form) {
+  if (!form) return;
+  const hold = positiveNumber(form.querySelector("[name='holdSecondsPerRound']")?.value);
+  const rounds = positiveNumber(form.querySelector("[name='rounds']")?.value);
+  const preview = form.querySelector("[data-hold-preview]");
+  if (!preview) return;
+  if (!hold || !rounds) {
+    preview.textContent = "Hold off";
+    preview.classList.remove("is-active");
+    return;
+  }
+  preview.textContent = `${hold * rounds}s TUT objetivo · ${rounds} rondas x ${hold}s`;
+  preview.classList.add("is-active");
+}
+
+function playTimerBeep(frequency = 660) {
+  try {
+    quickTimerState.audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = quickTimerState.audioContext;
+    const oscillator = ctx.createOscillator();
+    const gain = ctx.createGain();
+    oscillator.frequency.value = frequency;
+    oscillator.type = "sine";
+    gain.gain.setValueAtTime(0.001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+    oscillator.connect(gain);
+    gain.connect(ctx.destination);
+    oscillator.start();
+    oscillator.stop(ctx.currentTime + 0.14);
+  } catch {
+    // Audio can be blocked until the user interacts; the visual timer still works.
+  }
+}
+
 function saveHabitForm(form) {
   const data = Object.fromEntries(new FormData(form).entries());
   const id = data.id === "new" ? slugify(data.name) : data.id;
@@ -1941,7 +2166,12 @@ function saveDenseTrainingForm(form) {
   const targetRepsPerMin = positiveNumber(data.repsPerSet) || denseSchemePrescriptionAverage(scheme) || 0;
   const targetTotalReps = denseTotalFromRepsPerSet(targetRepsPerMin, scheme) || 0;
   const totalReps = positiveNumber(data.totalReps);
-  const failed = data.effort === "fallo" || (targetTotalReps > 0 && totalReps > 0 && totalReps < targetTotalReps);
+  const rounds = positiveNumber(data.rounds) || durationMinutes || null;
+  const holdSecondsPerRound = positiveNumber(data.holdSecondsPerRound);
+  const targetTotalHoldSeconds = holdSecondsPerRound && rounds ? holdSecondsPerRound * rounds : 0;
+  const totalHoldSeconds = positiveNumber(data.totalHoldSeconds) || targetTotalHoldSeconds;
+  const usesHold = Boolean(holdSecondsPerRound && rounds);
+  const failed = data.effort === "fallo" || (!usesHold && targetTotalReps > 0 && totalReps > 0 && totalReps < targetTotalReps);
   const raw = {
     id: `dense-${Date.now()}`,
     version: 1,
@@ -1959,16 +2189,19 @@ function saveDenseTrainingForm(form) {
     scheme,
     scheme_base: denseSchemeBase(scheme),
     scheme_target: denseSchemeTarget(scheme),
-    scheme_type: denseSchemeType(exercise, scheme),
+    scheme_type: usesHold ? "dense_hold" : denseSchemeType(exercise, scheme),
     duration_minutes: durationMinutes,
     target_reps_per_min: targetRepsPerMin,
     target_total_reps: targetTotalReps,
     reps_per_set: targetRepsPerMin,
-    total_reps: totalReps,
+    total_reps: usesHold ? 0 : totalReps,
     total_reps_is_manual: true,
+    hold_seconds_per_round: holdSecondsPerRound,
+    total_hold_seconds: totalHoldSeconds,
+    target_total_hold_seconds: targetTotalHoldSeconds,
     ladder_sequence_planned: denseLadderSequence(scheme),
     ladder_sequence_actual: null,
-    rounds: null,
+    rounds,
     external_load_kg: positiveNumber(data.externalLoadKg) || externalLoadFromPair,
     added_load_kg: positiveNumber(data.addedLoadKg),
     weight_per_dumbbell_kg: weightPerDumbbellKg,
@@ -1978,7 +2211,7 @@ function saveDenseTrainingForm(form) {
     effort: data.effort || "N",
     effort_value: denseEffortValues[data.effort] || 5,
     failed,
-    missed_reps: Math.max(0, targetTotalReps - totalReps),
+    missed_reps: usesHold ? 0 : Math.max(0, targetTotalReps - totalReps),
     notes: (data.notes || "").trim(),
     bodyweight_contribution_pct: exercise.bodyweightContributionPct ?? 0,
     tonnage_factor: exercise.tonnageFactor ?? 1,
@@ -2473,6 +2706,9 @@ function updateDenseSchemeSelection(input) {
   const reps = repsPerSetInput ? denseTotalFromRepsPerSet(repsPerSetInput.value, input.value) : denseDefaultTotalReps(exercise, input.value);
   const repsInput = form.querySelector("[name='totalReps']");
   if (repsInput) repsInput.value = reps || "";
+  const roundsInput = form.querySelector("[name='rounds']");
+  if (roundsInput) roundsInput.value = denseSchemeMinutes(input.value) || "";
+  updateDenseHoldEstimate(form);
 }
 
 function updateDenseTotalFromRepsPerSet(input) {
@@ -2486,6 +2722,15 @@ function updateDenseTotalFromRepsPerSet(input) {
 function denseRepPerSetFields(exercise, defaults) {
   if (!denseUsesRepsPerSet(exercise)) return "";
   return field("Reps por set/min", "repsPerSet", defaults.repsPerSet, "number");
+}
+
+function denseHoldFields(exercise, defaults) {
+  if (!denseSupportsHold(exercise)) return "";
+  return `
+    ${field("Hold/ronda s", "holdSecondsPerRound", defaults.holdSecondsPerRound || "", "number")}
+    ${field("Rondas", "rounds", defaults.rounds || denseSchemeMinutes(defaults.scheme) || "", "number")}
+    <div class="dense-hold-preview" data-hold-preview>Hold off</div>
+  `;
 }
 
 function denseLoadFields(exercise) {
@@ -2505,6 +2750,7 @@ function denseExerciseHint(exercise) {
   if (exercise.loadPattern === "dumbbell_pair") return "Guarda el peso por mancuerna; BitTracker calcula el total externo.";
   if (exercise.nature === "weighted_calisthenics") return "Guarda el lastre; BitTracker suma tu peso corporal para la carga total del sistema.";
   if (exercise.nature === "weighted") return "Guarda la carga externa usada en el esquema elegido.";
+  if (denseSupportsHold(exercise)) return "Guarda reps o activa Hold/ronda para isométricos; BitTracker calcula tiempo bajo tensión.";
   return "Guarda reps totales y esfuerzo; BitTracker calcula reps/min y capacidad entre esquemas.";
 }
 
@@ -2793,6 +3039,7 @@ function openModal() {
 }
 
 function closeModal() {
+  if (nodes.modalTitle.textContent === "Quick Timer") pauseQuickTimer(false);
   nodes.modal.close();
 }
 
@@ -3328,6 +3575,10 @@ function denseUsesRepsPerSet(exercise) {
   return ["bodyweight", "weighted", "weighted_calisthenics"].includes(exercise.nature);
 }
 
+function denseSupportsHold(exercise) {
+  return ["bodyweight", "skill", "mobility", "active_recovery"].includes(exercise.nature) || exercise.category === "skills" || exercise.category === "mobility";
+}
+
 function denseSchemePrescriptionAverage(scheme) {
   const values = String(scheme || "")
     .replace(/^\d+D/, "")
@@ -3352,6 +3603,7 @@ function denseLadderSequence(scheme) {
 
 function denseSchemeType(exercise, scheme) {
   if (denseLadderSequence(scheme)) return "ladder";
+  if (denseSupportsHold(exercise)) return "dense_reps_or_hold";
   if (exercise.nature === "weighted" || exercise.nature === "weighted_calisthenics") return "dense_load";
   if (exercise.nature === "conditioning") return "conditioning";
   if (exercise.nature === "skill") return "skill";
@@ -3530,6 +3782,8 @@ function denseFormDefaults() {
     scheme,
     repsPerSet,
     totalReps: repsPerSet ? denseTotalFromRepsPerSet(repsPerSet, scheme) : denseDefaultTotalReps(exercise, scheme),
+    holdSecondsPerRound: shouldUseLatest && latest?.hold_seconds_per_round ? latest.hold_seconds_per_round : "",
+    rounds: shouldUseLatest && latest?.rounds ? latest.rounds : denseSchemeMinutes(scheme) || "",
     effort: "N",
   };
 }
@@ -3554,6 +3808,9 @@ function computeDenseEntry(raw) {
   const duration = raw.duration_minutes || denseSchemeMinutes(scheme) || 0;
   const totalReps = raw.total_reps || 0;
   const repsPerMin = duration && totalReps ? totalReps / duration : 0;
+  const totalHoldSeconds = raw.total_hold_seconds || 0;
+  const holdSecondsPerRound = raw.hold_seconds_per_round || 0;
+  const holdSecondsPerMin = duration && totalHoldSeconds ? totalHoldSeconds / duration : 0;
   const workingPct = denseWorkingPct[scheme] || 0;
   const bw = raw.bodyweight_kg || 0;
   const load = raw.external_load_kg || 0;
@@ -3569,11 +3826,13 @@ function computeDenseEntry(raw) {
   const relativeStrength = bw && totalSystemLoad ? totalSystemLoad / bw : 0;
   const visibleAddedLoad = raw.nature === "weighted_calisthenics" && bw ? totalSystemLoad - bw : 0;
   const capacity = repsPerMin && multiplier ? repsPerMin / multiplier : 0;
+  const isometricCapacity = holdSecondsPerMin && multiplier ? holdSecondsPerMin / multiplier : 0;
   const effectiveLoad =
     raw.nature === "weighted_calisthenics"
       ? totalSystemLoad
       : load + (bw * (raw.bodyweight_contribution_pct || 0)) / 100;
   const tonnage = totalReps && effectiveLoad ? effectiveLoad * totalReps * (raw.tonnage_factor || 1) : 0;
+  const tutLoad = totalHoldSeconds && effectiveLoad ? effectiveLoad * totalHoldSeconds * (raw.tonnage_factor || 1) : 0;
 
   return {
     ...raw,
@@ -3581,6 +3840,10 @@ function computeDenseEntry(raw) {
     duration_minutes: duration,
     total_reps: totalReps,
     reps_per_min: roundTo(repsPerMin, 2),
+    hold_seconds_per_round: holdSecondsPerRound,
+    total_hold_seconds: totalHoldSeconds,
+    hold_seconds_per_min: roundTo(holdSecondsPerMin, 2),
+    isometric_capacity: roundTo(isometricCapacity, 3),
     working_pct: workingPct,
     total_system_load_kg: roundTo(totalSystemLoad, 2),
     visible_added_load_kg: roundTo(visibleAddedLoad, 2),
@@ -3589,13 +3852,15 @@ function computeDenseEntry(raw) {
     bodyweight_capacity: roundTo(capacity, 3),
     effective_load_kg: roundTo(effectiveLoad, 2),
     tonnage_kg: roundTo(tonnage, 1),
+    tut_load_kg_seconds: roundTo(tutLoad, 1),
     computed: {
       e1rm: roundTo(e1rmKg, 2) || null,
       relative_strength: roundTo(relativeStrength, 3) || null,
       effective_load_kg: roundTo(effectiveLoad, 2) || null,
       tonnage: roundTo(tonnage, 1) || null,
       capacity: roundTo(capacity, 3) || null,
-      pr_score: roundTo(denseEntryScore({ ...raw, e1rm_kg: e1rmKg, bodyweight_capacity: capacity, reps_per_min: repsPerMin }), 3) || null,
+      isometric_capacity: roundTo(isometricCapacity, 3) || null,
+      pr_score: roundTo(denseEntryScore({ ...raw, e1rm_kg: e1rmKg, bodyweight_capacity: capacity, isometric_capacity: isometricCapacity, reps_per_min: repsPerMin, total_hold_seconds: totalHoldSeconds }), 3) || null,
     },
   };
 }
@@ -3617,6 +3882,11 @@ function updateDenseEstimate(entry) {
     next.e1rm_kg = roundTo(current.e1rm_kg ? current.e1rm_kg * 0.7 + observed * 0.3 : observed, 2);
   }
 
+  if (entry.isometric_capacity) {
+    const observed = entry.isometric_capacity * effortFactor;
+    next.isometric_capacity = roundTo(current.isometric_capacity ? current.isometric_capacity * 0.7 + observed * 0.3 : observed, 3);
+  }
+
   state.denseEstimates[key] = next;
 }
 
@@ -3636,13 +3906,15 @@ function densePrRows() {
       exerciseName: entry.exercise_name,
       scheme: entry.scheme,
       value: denseEntryValue(entry),
-      relative: entry.relative_strength ? `${entry.relative_strength}x BW` : entry.reps_per_min ? `${entry.reps_per_min} rpm` : "-",
+      relative: entry.relative_strength ? `${entry.relative_strength}x BW` : entry.hold_seconds_per_min ? `${entry.hold_seconds_per_min}s/min` : entry.reps_per_min ? `${entry.reps_per_min} rpm` : "-",
       date: entry.date,
     }));
 }
 
 function denseEntryCard(entry) {
   const metrics = [];
+  if (entry.total_hold_seconds) metrics.push(`${entry.total_hold_seconds}s TUT`);
+  if (entry.hold_seconds_per_round) metrics.push(`${entry.hold_seconds_per_round}s/ronda`);
   if (entry.reps_per_min) metrics.push(`${entry.reps_per_min} rpm`);
   if (entry.e1rm_kg) metrics.push(`e1RM ${formatKg(entry.e1rm_kg)}`);
   if (entry.relative_strength) metrics.push(`${entry.relative_strength}x BW`);
@@ -3690,6 +3962,22 @@ function renderDenseEstimateCards(entry) {
   }
 
   const capacity = estimate.bodyweight_capacity || entry.bodyweight_capacity;
+  const isoCapacity = estimate.isometric_capacity || entry.isometric_capacity;
+  if (isoCapacity) {
+    return bodyweightSchemes
+      .map((scheme) => {
+        const minutes = denseSchemeMinutes(scheme);
+        const secondsPerMin = Math.floor(isoCapacity * bodyweightMultipliers[scheme]);
+        return `
+          <article class="dense-estimate-card">
+            <span>${scheme}</span>
+            <strong>${secondsPerMin}s/min</strong>
+            <small>${secondsPerMin * minutes}s TUT estimado</small>
+          </article>
+        `;
+      })
+      .join("");
+  }
   if (!capacity) return "";
   return bodyweightSchemes
     .map((scheme) => {
@@ -3708,12 +3996,17 @@ function renderDenseEstimateCards(entry) {
 
 function denseEntryScore(entry) {
   if (entry.e1rm_kg) return entry.e1rm_kg;
+  if (entry.isometric_capacity) return entry.isometric_capacity;
+  if (entry.total_hold_seconds) return entry.total_hold_seconds;
   if (entry.bodyweight_capacity) return entry.bodyweight_capacity;
   if (entry.reps_per_min) return entry.reps_per_min;
   return entry.total_reps || 0;
 }
 
 function denseEntryValue(entry) {
+  if (entry.total_hold_seconds) {
+    return `${entry.total_hold_seconds}s TUT · ${entry.hold_seconds_per_round || 0}s/ronda`;
+  }
   if (entry.nature === "weighted_calisthenics") {
     return `${formatKg(entry.visible_added_load_kg)} lastre · e1RM ${formatKg(entry.e1rm_kg)}`;
   }
@@ -3977,6 +4270,12 @@ function formatLogDate(value) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+function formatTimerSeconds(value) {
+  const seconds = Math.max(0, Math.round(Number(value) || 0));
+  const minutes = Math.floor(seconds / 60);
+  return `${minutes}:${`${seconds % 60}`.padStart(2, "0")}`;
 }
 
 function pct(value, total) {
