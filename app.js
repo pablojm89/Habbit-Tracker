@@ -326,6 +326,42 @@ const denseExerciseCatalog = [
     icon: "fold-horizontal",
   },
   {
+    id: "bridge_push_up",
+    name: "Bridge Push Ups",
+    category: "mobility",
+    family: "bridge",
+    nature: "bodyweight",
+    allowedNatures: ["bodyweight", "skill"],
+    bodyweightContributionPct: 55,
+    tonnageFactor: 0.7,
+    alpha: 0.11,
+    icon: "activity",
+  },
+  {
+    id: "bridge_isometric",
+    name: "Bridge Isometrico",
+    category: "mobility",
+    family: "bridge",
+    nature: "skill",
+    allowedNatures: ["skill", "bodyweight"],
+    bodyweightContributionPct: 55,
+    tonnageFactor: 0.7,
+    alpha: 0.1,
+    icon: "activity",
+  },
+  {
+    id: "bridge_walkover",
+    name: "Bridge Walkover",
+    category: "skills",
+    family: "bridge",
+    nature: "skill",
+    allowedNatures: ["skill", "bodyweight"],
+    bodyweightContributionPct: 65,
+    tonnageFactor: 0.8,
+    alpha: 0.12,
+    icon: "refresh-ccw",
+  },
+  {
     id: "headstand_push_up",
     name: "HeSPU nariz al suelo",
     category: "skills",
@@ -1217,15 +1253,16 @@ function renderDenseTraining() {
   const defaults = denseFormDefaults();
   const exercise = denseExerciseById(defaults.exerciseId);
   const allowedSchemes = denseAllowedSchemes(exercise);
+  const isEditingDenseEntry = Boolean(state.settings.denseDraftEntryId);
 
   nodes.denseTrainingPanel.innerHTML = `
     <div class="section-head">
       <div>
-        <p class="eyebrow">Registrar marca</p>
+        <p class="eyebrow">${isEditingDenseEntry ? "Editar marca" : "Registrar marca"}</p>
         <h2>${escapeHtml(exercise.name)}</h2>
-        <span class="section-meta">Elige esquema Dense y guarda sólo lo necesario para este ejercicio.</span>
+        <span class="section-meta">${isEditingDenseEntry ? "Marca cargada con objetivo y resultado real separados." : "Elige esquema Dense y guarda sólo lo necesario para este ejercicio."}</span>
       </div>
-      <span class="mini-tag is-green"><i data-lucide="cloud"></i>${cloudConfig.enabled ? "cloud ready" : "local"}</span>
+      <span class="mini-tag is-green"><i data-lucide="${isEditingDenseEntry ? "edit-3" : "cloud"}"></i>${isEditingDenseEntry ? "editando" : cloudConfig.enabled ? "cloud ready" : "local"}</span>
     </div>
     <form id="denseTrainingForm" class="dense-training-form">
       ${denseExercisePicker(defaults)}
@@ -1242,7 +1279,7 @@ function renderDenseTraining() {
         ${denseRepPerSetFields(exercise, defaults)}
         ${field("Reps totales", "totalReps", defaults.totalReps, "number")}
         ${denseHoldFields(exercise, defaults)}
-        ${denseLoadFields(exercise)}
+        ${denseLoadFields(exercise, defaults)}
         <fieldset class="effort-picker-field is-full">
           <legend>Esfuerzo</legend>
           <div class="effort-option-grid">
@@ -1251,7 +1288,7 @@ function renderDenseTraining() {
         </fieldset>
         <label class="field is-full">
           <span>Notas</span>
-          <textarea name="notes" placeholder="ROM, tempo, anillas altas, pies elevados, molestias, si las reps son por lado..."></textarea>
+          <textarea name="notes" placeholder="ROM, tempo, anillas altas, pies elevados, molestias, si las reps son por lado...">${escapeHtml(defaults.notes || "")}</textarea>
         </label>
       </div>
       <div class="dense-actions">
@@ -1259,7 +1296,7 @@ function renderDenseTraining() {
           <strong>${escapeHtml(denseNatureLabel(exercise.nature))}</strong>
           <span>${escapeHtml(denseExerciseHint(exercise))}</span>
         </div>
-        <button class="text-button is-hot" type="submit"><i data-lucide="save"></i>Guardar marca Dense</button>
+        <button class="text-button is-hot" type="submit"><i data-lucide="save"></i>${isEditingDenseEntry ? "Actualizar marca Dense" : "Guardar marca Dense"}</button>
       </div>
     </form>
   `;
@@ -1681,6 +1718,7 @@ function handleClick(event) {
   if (action === "select-week") selectWeek(target.dataset.week);
   if (action === "select-session") selectSession(target.dataset.session);
   if (action === "toggle-exercise") toggleExercise(target.dataset.session, target.dataset.exercise);
+  if (action === "load-dense-entry") loadDenseEntry(target.dataset.entry);
   if (action === "pick-dense-exercise") pickDenseExercise(target.dataset.exercise);
   if (action === "toggle-dense-favorite") toggleDenseFavorite(target.dataset.exercise);
   if (action === "focus-dense-register") document.querySelector("#denseTrainingPanel")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -2172,12 +2210,15 @@ function saveDenseTrainingForm(form) {
   const totalHoldSeconds = positiveNumber(data.totalHoldSeconds) || targetTotalHoldSeconds;
   const usesHold = Boolean(holdSecondsPerRound && rounds);
   const failed = data.effort === "fallo" || (!usesHold && targetTotalReps > 0 && totalReps > 0 && totalReps < targetTotalReps);
+  const editingEntryId = state.settings.denseDraftEntryId || "";
+  const existingEntry = editingEntryId ? getDenseEntries().find((entry) => entry.id === editingEntryId) : null;
+  const now = new Date().toISOString();
   const raw = {
-    id: `dense-${Date.now()}`,
+    id: existingEntry?.id || `dense-${Date.now()}`,
     version: 1,
     date: data.date || dateKey(selectedDate),
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    created_at: existingEntry?.created_at || now,
+    updated_at: now,
     exercise_id: exercise.id,
     exercise_name: exercise.name,
     exercise_family_id: exercise.family,
@@ -2222,11 +2263,18 @@ function saveDenseTrainingForm(form) {
 
   const entry = computeDenseEntry(raw);
   state.denseTrainingEntries ||= [];
-  state.denseTrainingEntries.push(entry);
+  const existingIndex = existingEntry ? state.denseTrainingEntries.findIndex((item) => item.id === existingEntry.id) : -1;
+  if (existingIndex >= 0) {
+    state.denseTrainingEntries[existingIndex] = entry;
+    rebuildDenseEstimates();
+  } else {
+    state.denseTrainingEntries.push(entry);
+    updateDenseEstimate(entry);
+  }
   if (entry.bodyweight_kg) state.bodyweightLogs[entry.date] = entry.bodyweight_kg;
-  updateDenseEstimate(entry);
+  delete state.settings.denseDraftEntryId;
   form.reset();
-  saveAndRender("Marca Dense guardada");
+  saveAndRender(existingIndex >= 0 ? "Marca Dense actualizada" : "Marca Dense guardada");
 }
 
 function selectWeek(weekId) {
@@ -2253,11 +2301,27 @@ function pickDenseExercise(exerciseId) {
   const exercise = findDenseExerciseById(exerciseId);
   if (!exercise) return;
   state.settings.denseSelectedExerciseId = exercise.id;
+  delete state.settings.denseDraftEntryId;
   renderSession();
   renderDenseTraining();
   renderDensePrs();
   refreshIcons();
   document.querySelector("#denseTrainingPanel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function loadDenseEntry(entryId) {
+  const entry = getDenseEntries().find((item) => item.id === entryId);
+  if (!entry) {
+    toast("No encuentro esa marca Dense");
+    return;
+  }
+  state.settings.denseSelectedExerciseId = entry.exercise_id;
+  state.settings.denseDraftEntryId = entry.id;
+  persistUiOnly();
+  setTimeout(() => {
+    document.querySelector("#denseTrainingPanel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, 0);
+  toast("Marca Dense cargada");
 }
 
 function toggleDenseFavorite(exerciseId) {
@@ -2733,15 +2797,15 @@ function denseHoldFields(exercise, defaults) {
   `;
 }
 
-function denseLoadFields(exercise) {
+function denseLoadFields(exercise, defaults = {}) {
   if (exercise.loadPattern === "dumbbell_pair") {
-    return field("Peso por mancuerna kg", "weightPerDumbbellKg", "", "number");
+    return field("Peso por mancuerna kg", "weightPerDumbbellKg", defaults.weightPerDumbbellKg || "", "number");
   }
   if (exercise.nature === "weighted_calisthenics") {
-    return field("Lastre añadido kg", "addedLoadKg", "", "number");
+    return field("Lastre añadido kg", "addedLoadKg", defaults.addedLoadKg || "", "number");
   }
   if (exercise.nature === "weighted") {
-    return field("Carga usada kg", "externalLoadKg", "", "number");
+    return field("Carga usada kg", "externalLoadKg", defaults.externalLoadKg || "", "number");
   }
   return "";
 }
@@ -3338,8 +3402,8 @@ function todayWorkoutCard(entry) {
         <strong>${escapeHtml(entry.exercise_name)}</strong>
         <span>${escapeHtml(entry.scheme)} · ${escapeHtml(denseEntryValue(entry))}</span>
       </div>
-      <button class="icon-button" type="button" data-action="pick-dense-exercise" data-exercise="${escapeAttr(entry.exercise_id)}" title="Repetir ejercicio" aria-label="Repetir ${escapeAttr(entry.exercise_name)}">
-        <i data-lucide="repeat-2"></i>
+      <button class="icon-button" type="button" data-action="load-dense-entry" data-entry="${escapeAttr(entry.id)}" title="Editar marca" aria-label="Editar ${escapeAttr(entry.exercise_name)}">
+        <i data-lucide="edit-3"></i>
       </button>
     </article>
   `;
@@ -3546,7 +3610,7 @@ function denseDefaultTotalReps(exercise, scheme) {
   const latestSameScheme = [...getDenseEntries()]
     .filter((entry) => entry.exercise_id === exercise.id && entry.scheme === scheme && entry.total_reps)
     .sort((a, b) => (b.created_at || b.date || "").localeCompare(a.created_at || a.date || ""))[0];
-  if (latestSameScheme) return latestSameScheme.total_reps;
+  if (latestSameScheme) return latestSameScheme.target_total_reps || latestSameScheme.total_reps;
 
   const baseRpm = denseDefaultRpm(exercise, denseSchemeBase(scheme));
   return Math.max(1, Math.round(baseRpm * minutes));
@@ -3562,7 +3626,11 @@ function denseDefaultRepsPerSet(exercise, scheme) {
   const latestSameScheme = [...getDenseEntries()]
     .filter((entry) => entry.exercise_id === exercise.id && entry.scheme === scheme && entry.total_reps)
     .sort((a, b) => (b.created_at || b.date || "").localeCompare(a.created_at || a.date || ""))[0];
-  if (latestSameScheme) return Math.max(1, Math.round(Number(latestSameScheme.total_reps) / minutes));
+  if (latestSameScheme) {
+    const target = Number(latestSameScheme.target_reps_per_min || latestSameScheme.reps_per_set || 0);
+    if (target > 0) return target;
+    return Math.max(1, Math.round(Number(latestSameScheme.total_reps) / minutes));
+  }
 
   const estimate = state.denseEstimates?.[exercise.id]?.bodyweight_capacity;
   const multiplier = bodyweightMultipliers[denseSchemeBase(scheme)];
@@ -3768,6 +3836,28 @@ function applyDenseExerciseSearch(value) {
 function denseFormDefaults() {
   const latest = [...getDenseEntries()].sort((a, b) => (b.created_at || b.date || "").localeCompare(a.created_at || a.date || ""))[0];
   const selectedId = state.settings.denseSelectedExerciseId;
+  const draftEntry = state.settings.denseDraftEntryId
+    ? getDenseEntries().find((entry) => entry.id === state.settings.denseDraftEntryId)
+    : null;
+  if (draftEntry) {
+    const exercise = denseExerciseById(draftEntry.exercise_id);
+    return {
+      date: draftEntry.date || dateKey(selectedDate),
+      bodyweightKg: draftEntry.bodyweight_kg || latestKnownBodyweight(draftEntry.date || dateKey(selectedDate)) || 80,
+      exerciseId: exercise.id,
+      nature: draftEntry.nature || exercise.nature,
+      scheme: draftEntry.scheme || denseAllowedSchemes(exercise)[0],
+      repsPerSet: draftEntry.target_reps_per_min || draftEntry.reps_per_set || "",
+      totalReps: draftEntry.total_reps || "",
+      holdSecondsPerRound: draftEntry.hold_seconds_per_round || "",
+      rounds: draftEntry.rounds || denseSchemeMinutes(draftEntry.scheme) || "",
+      effort: draftEntry.effort || "N",
+      externalLoadKg: draftEntry.external_load_kg || "",
+      addedLoadKg: draftEntry.added_load_kg || "",
+      weightPerDumbbellKg: draftEntry.weight_per_dumbbell_kg || "",
+      notes: draftEntry.notes || "",
+    };
+  }
   const exercise = denseExerciseById(selectedId || latest?.exercise_id || "pull_up");
   const shouldUseLatest = !selectedId || selectedId === latest?.exercise_id;
   const allowedSchemes = denseAllowedSchemes(exercise);
@@ -3785,6 +3875,10 @@ function denseFormDefaults() {
     holdSecondsPerRound: shouldUseLatest && latest?.hold_seconds_per_round ? latest.hold_seconds_per_round : "",
     rounds: shouldUseLatest && latest?.rounds ? latest.rounds : denseSchemeMinutes(scheme) || "",
     effort: "N",
+    externalLoadKg: "",
+    addedLoadKg: "",
+    weightPerDumbbellKg: "",
+    notes: "",
   };
 }
 
@@ -3890,6 +3984,13 @@ function updateDenseEstimate(entry) {
   state.denseEstimates[key] = next;
 }
 
+function rebuildDenseEstimates() {
+  state.denseEstimates = {};
+  [...getDenseEntries()]
+    .sort((a, b) => String(a.created_at || a.date || "").localeCompare(String(b.created_at || b.date || "")))
+    .forEach((entry) => updateDenseEstimate(entry));
+}
+
 function densePrRows() {
   const best = new Map();
   getDenseEntries().forEach((entry) => {
@@ -3928,6 +4029,9 @@ function denseEntryCard(entry) {
           <strong>${escapeHtml(entry.exercise_name)}</strong>
           <span>${escapeHtml(entry.date)} · ${escapeHtml(entry.scheme)} · ${escapeHtml(entry.effort)}</span>
         </div>
+        <button class="icon-button" type="button" data-action="load-dense-entry" data-entry="${escapeAttr(entry.id)}" title="Editar marca" aria-label="Editar ${escapeAttr(entry.exercise_name)}">
+          <i data-lucide="edit-3"></i>
+        </button>
       </div>
       <div class="dense-entry-stats">
         ${metrics.slice(0, 4).map((item) => `<span class="mini-tag">${escapeHtml(item)}</span>`).join("")}
@@ -4014,7 +4118,16 @@ function denseEntryValue(entry) {
     const db = entry.weight_per_dumbbell_kg ? `${formatKg(entry.weight_per_dumbbell_kg)} x2 · ` : "";
     return `${db}${formatKg(entry.external_load_kg)} · e1RM ${formatKg(entry.e1rm_kg)}`;
   }
-  if (entry.reps_per_min) return `${entry.reps_per_min} rpm · ${entry.total_reps} reps`;
+  if (entry.reps_per_min) {
+    const targetRpm = Number(entry.target_reps_per_min || entry.reps_per_set || 0);
+    const targetTotal = Number(entry.target_total_reps || 0);
+    const total = Number(entry.total_reps || 0);
+    if (targetRpm && targetTotal && total && total !== targetTotal) {
+      return `objetivo ${entry.scheme}${targetRpm} · ${total}/${targetTotal} reps · ${entry.reps_per_min} rpm real`;
+    }
+    if (targetRpm && targetTotal) return `${targetRpm}/min · ${targetTotal} reps`;
+    return `${entry.reps_per_min} rpm · ${entry.total_reps} reps`;
+  }
   return `${entry.total_reps || 0} reps`;
 }
 

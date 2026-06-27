@@ -95,6 +95,8 @@ function setupStaticSheets(ss) {
   );
 }
 
+const MAX_SNAPSHOTS = 200;
+
 function appendSnapshot(ss, syncedAt, payload) {
   const sheet = ensureSheet(ss, SHEETS.snapshots);
   ensureHeader(sheet, ["synced_at", "source", "reason", "version", "selected_date", "payload_json"]);
@@ -106,6 +108,10 @@ function appendSnapshot(ss, syncedAt, payload) {
     payload.state && payload.state.settings ? payload.state.settings.selectedDate || "" : "",
     JSON.stringify(payload.state || {}),
   ]);
+
+  // Conserva solo las últimas MAX_SNAPSHOTS copias (la fila 1 es la cabecera).
+  const extra = sheet.getLastRow() - 1 - MAX_SNAPSHOTS;
+  if (extra > 0) sheet.deleteRows(2, extra);
 }
 
 function rewriteHabitRecords(ss, syncedAt, state) {
