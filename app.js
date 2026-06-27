@@ -160,6 +160,12 @@ const trainingAnalyticsWindows = [
   ["all", "All"],
 ];
 
+const trainingModeTabs = [
+  ["workout", "Workout", "calendar-days"],
+  ["analytics", "Analytics", "activity"],
+  ["dashboard", "Dashboard", "layout-dashboard"],
+];
+
 const denseExerciseCatalog = [
   {
     id: "pull_up",
@@ -655,6 +661,7 @@ const nodes = {
   trainingCardPanel: document.querySelector("#trainingCardPanel"),
   habitEditorPanel: document.querySelector("#habitEditorPanel"),
   habitAnalyticsPanel: document.querySelector("#habitAnalyticsPanel"),
+  trainingModePanel: document.querySelector("#trainingModePanel"),
   mesocyclePanel: document.querySelector("#mesocyclePanel"),
   sessionPanel: document.querySelector("#sessionPanel"),
   denseTrainingPanel: document.querySelector("#denseTrainingPanel"),
@@ -715,6 +722,7 @@ function render() {
   renderTrainingCard();
   renderHabitEditor();
   renderHabitAnalytics();
+  renderTrainingMode();
   renderMesocycle();
   renderDenseTraining();
   renderTrainingAnalytics();
@@ -1076,20 +1084,85 @@ function renderHabitAnalytics() {
   `;
 }
 
+function renderTrainingMode() {
+  const activeMode = state.settings.trainingMode || "workout";
+  document.querySelectorAll("[data-training-section]").forEach((section) => {
+    section.classList.toggle("is-hidden", section.dataset.trainingSection !== activeMode);
+  });
+  if (!nodes.trainingModePanel) return;
+  nodes.trainingModePanel.innerHTML = `
+    <nav class="training-mode-tabs" aria-label="Training sections">
+      ${trainingModeTabs
+        .map(
+          ([mode, label, icon]) => `
+            <button class="training-mode-tab ${activeMode === mode ? "is-active" : ""}" type="button" data-action="set-training-mode" data-mode="${mode}">
+              <i data-lucide="${icon}"></i>
+              <span>${label}</span>
+            </button>
+          `,
+        )
+        .join("")}
+    </nav>
+  `;
+}
+
 function renderMesocycle() {
   const entries = denseEntriesForDate(dateKey(selectedDate)).sort((a, b) => (a.created_at || "").localeCompare(b.created_at || ""));
+  const weekDays = trainingWeekDays(selectedDate);
+  const weekIndex = trainingWeekIndex(selectedDate);
+  const planned = plannedExercisesForDate(selectedDate);
+  const totalReps = entries.reduce((sum, entry) => sum + (entry.total_reps || 0), 0);
+  const volume = entries.reduce((sum, entry) => sum + (entry.tonnage_kg || 0), 0);
+  const blocks = entries.reduce((sum, entry) => sum + denseEquivalentSets(entry), 0);
+  const headline = entries[0]?.exercise_name || planned[0]?.name || "Sin sesión programada";
+  const status = entries.length ? "LOGGED" : planned.length ? "PLANNED" : "EMPTY";
   nodes.mesocyclePanel.innerHTML = `
-    <div class="section-head">
+    <div class="workout-day-head">
       <div>
-        <p class="eyebrow">Entreno de hoy</p>
-        <h2>${formatShortDate(selectedDate)}</h2>
-        <span class="section-meta">${entries.length ? `${entries.length} ejercicios registrados` : "Aún no has logueado ningún ejercicio"}</span>
+        <p class="eyebrow">Workout</p>
+        <h2>${capitalize(formatWeekday(selectedDate))}</h2>
+        <span>${formatMonthDay(selectedDate)}</span>
+      </div>
+      <div class="workout-day-badges">
+        <span class="workout-score"><strong>${scoreForDate(selectedDate)}</strong><small>EXR</small></span>
+        <button class="icon-button" type="button" data-action="go-today" title="Hoy" aria-label="Hoy"><i data-lucide="calendar-clock"></i></button>
+      </div>
+    </div>
+    <div class="workout-week-strip">
+      <button class="week-nav-button" type="button" data-action="shift-day" data-shift="-7" title="Semana anterior" aria-label="Semana anterior">
+        <i data-lucide="chevron-left"></i>
+      </button>
+      <div class="week-chip">
+        <i data-lucide="calendar-days"></i>
+        <strong>Week ${weekIndex} of 52</strong>
+        <span>${sameWeek(selectedDate, today) ? "current" : "selected"}</span>
+      </div>
+      <button class="week-nav-button" type="button" data-action="shift-day" data-shift="7" title="Semana siguiente" aria-label="Semana siguiente">
+        <i data-lucide="chevron-right"></i>
+      </button>
+      <div class="weekday-strip">
+        ${weekDays.map((day) => workoutDayButton(day)).join("")}
+      </div>
+    </div>
+    <div class="workout-daily-summary">
+      <div class="workout-title-line">
+        <span class="tiny-icon" style="--item-color:var(--green)"><i data-lucide="${entries.length ? "flame" : planned.length ? "clipboard-list" : "calendar-plus"}"></i></span>
+        <strong>${escapeHtml(shortWeekday(selectedDate))} · ${escapeHtml(headline)}</strong>
+        <span class="mini-tag ${entries.length ? "is-green" : planned.length ? "is-amber" : ""}">${status}</span>
+      </div>
+      <div class="progress-track"><i style="width:${entries.length ? 100 : planned.length ? 35 : 8}%"></i></div>
+      <div class="workout-metric-row">
+        ${workoutSummaryMetric(volume ? `${roundTo(volume / 1000, 1)}t` : "-", "vol")}
+        ${workoutSummaryMetric(roundTo(blocks, 1), "blocks")}
+        ${workoutSummaryMetric(totalReps || "-", "reps")}
       </div>
     </div>
     <div class="today-workout-list">
       ${
         entries.length
           ? entries.map((entry) => todayWorkoutCard(entry)).join("")
+          : planned.length
+            ? planned.map((exercise) => plannedWorkoutCard(exercise)).join("")
           : `<article class="today-workout-empty">
               <span class="tiny-icon" style="--item-color:var(--green)"><i data-lucide="plus"></i></span>
               <div>
@@ -1569,6 +1642,7 @@ function handleClick(event) {
   if (action === "set-choice-value") setChoiceValue(target);
   if (action === "switch-view") switchView(target.dataset.view);
   if (action === "toggle-density") toggleUiDensity();
+  if (action === "set-training-mode") setTrainingMode(target.dataset.mode);
   if (action === "set-training-analytics-tab") setTrainingAnalyticsTab(target.dataset.tab);
   if (action === "set-training-analytics-window") setTrainingAnalyticsWindow(target.dataset.window);
   if (action === "shift-day") shiftDay(Number(target.dataset.shift));
@@ -1664,6 +1738,12 @@ function toggleUiDensity() {
 function setTrainingAnalyticsTab(tab) {
   if (!trainingAnalyticsTabs.some(([value]) => value === tab)) return;
   state.settings.trainingAnalyticsTab = tab;
+  persistUiOnly();
+}
+
+function setTrainingMode(mode) {
+  if (!trainingModeTabs.some(([value]) => value === mode)) return;
+  state.settings.trainingMode = mode;
   persistUiOnly();
 }
 
@@ -2042,6 +2122,7 @@ function createInitialState() {
       uiDensity: "normal",
       trainingAnalyticsTab: "balance",
       trainingAnalyticsWindow: "70",
+      trainingMode: "workout",
     },
     habits: habitDefaults,
     records,
@@ -2091,6 +2172,7 @@ function normalizeState(input) {
     uiDensity: "normal",
     trainingAnalyticsTab: "balance",
     trainingAnalyticsWindow: "70",
+    trainingMode: "workout",
     ...(input.settings || {}),
   };
   merged.habits = (merged.habits?.length ? merged.habits : habitDefaults).map((habit) => ({ ...habit, id: habit.id || slugify(habit.name) }));
@@ -3016,6 +3098,83 @@ function todayWorkoutCard(entry) {
   `;
 }
 
+function plannedWorkoutCard(exercise) {
+  return `
+    <article class="today-workout-card is-planned" style="--item-color:${denseCategoryColor(exercise.category)}">
+      <span class="tiny-icon"><i data-lucide="${exercise.icon || "dumbbell"}"></i></span>
+      <div>
+        <strong>${escapeHtml(exercise.name)}</strong>
+        <span>${escapeHtml(denseCategoryLabel(exercise.category))} · previsto · ${escapeHtml(denseNatureLabel(exercise.nature))}</span>
+      </div>
+      <button class="icon-button" type="button" data-action="pick-dense-exercise" data-exercise="${escapeAttr(exercise.id)}" title="Registrar ejercicio" aria-label="Registrar ${escapeAttr(exercise.name)}">
+        <i data-lucide="plus"></i>
+      </button>
+    </article>
+  `;
+}
+
+function workoutSummaryMetric(value, label) {
+  return `
+    <div class="workout-summary-metric">
+      <strong>${escapeHtml(String(value))}</strong>
+      <span>${escapeHtml(label)}</span>
+    </div>
+  `;
+}
+
+function workoutDayButton(day) {
+  const key = dateKey(day);
+  const entries = denseEntriesForDate(key);
+  const planned = plannedExercisesForDate(day);
+  const selected = key === dateKey(selectedDate);
+  const hasWork = entries.length || planned.length;
+  return `
+    <button
+      class="weekday-button ${selected ? "is-selected" : ""} ${entries.length ? "has-log" : planned.length ? "has-plan" : ""}"
+      type="button"
+      data-action="select-calendar-date"
+      data-date="${key}"
+      title="${escapeAttr(formatLongDate(day))}"
+      aria-label="${escapeAttr(formatLongDate(day))}"
+    >
+      <span>${shortWeekday(day)}</span>
+      ${hasWork ? `<i>${entries.length ? entries.length : planned.length}</i>` : ""}
+    </button>
+  `;
+}
+
+function plannedExercisesForDate(day) {
+  const current = currentMesocycleSessionForDate(day);
+  if (!current?.exercises?.length) return [];
+  return current.exercises
+    .map((item) => denseExerciseFromPlannedName(item.name))
+    .filter(Boolean)
+    .slice(0, 4);
+}
+
+function currentMesocycleSessionForDate(day) {
+  const weekIndex = Math.min(state.mesocycle.weeks.length - 1, Math.max(0, Math.floor(daysBetween(parseDate(state.mesocycle.startDate), day) / 7)));
+  const week = state.mesocycle.weeks[weekIndex] || state.mesocycle.weeks[0];
+  if (!week?.sessions?.length) return null;
+  const dayIndex = (day.getDay() + 6) % 7;
+  if (dayIndex <= 1) return week.sessions[0];
+  if (dayIndex <= 3) return week.sessions[1] || week.sessions[0];
+  if (dayIndex <= 5) return week.sessions[2] || week.sessions[0];
+  return null;
+}
+
+function denseExerciseFromPlannedName(name = "") {
+  const normalized = name.toLowerCase();
+  if (normalized.includes("domin")) return denseExerciseById("pull_up");
+  if (normalized.includes("remo")) return denseExerciseById("ring_row");
+  if (normalized.includes("press militar")) return denseExerciseById("seated_db_overhead_press");
+  if (normalized.includes("press") || normalized.includes("banca")) return denseExerciseById("floor_push_up");
+  if (normalized.includes("sentadilla") || normalized.includes("squat")) return denseExerciseById("bodyweight_squat");
+  if (normalized.includes("zancada") || normalized.includes("split")) return denseExerciseById("pistol_squat");
+  if (normalized.includes("movilidad") || normalized.includes("cadera")) return denseExerciseById("seated_bent_leg_good_morning");
+  return null;
+}
+
 function denseExerciseById(id) {
   return denseExerciseCatalog.find((exercise) => exercise.id === id) || denseExerciseCatalog[0];
 }
@@ -3711,6 +3870,29 @@ function addMonths(date, amount) {
   return new Date(date.getFullYear(), date.getMonth() + amount, 1);
 }
 
+function daysBetween(from, to) {
+  const ms = startOfDay(to).getTime() - startOfDay(from).getTime();
+  return Math.floor(ms / 86400000);
+}
+
+function weekStart(date) {
+  return addDays(date, -((date.getDay() + 6) % 7));
+}
+
+function trainingWeekDays(date) {
+  const start = weekStart(date);
+  return rangeDays(start, addDays(start, 6));
+}
+
+function sameWeek(a, b) {
+  return dateKey(weekStart(a)) === dateKey(weekStart(b));
+}
+
+function trainingWeekIndex(date) {
+  const yearStart = new Date(date.getFullYear(), 0, 1);
+  return Math.max(1, Math.ceil((daysBetween(yearStart, date) + ((yearStart.getDay() + 6) % 7) + 1) / 7));
+}
+
 function monthStart(date) {
   return new Date(date.getFullYear(), date.getMonth(), 1);
 }
@@ -3761,6 +3943,23 @@ function formatLongDate(date) {
     day: "numeric",
     month: "long",
   }).format(date);
+}
+
+function formatWeekday(date) {
+  return new Intl.DateTimeFormat("es", { weekday: "long" }).format(date);
+}
+
+function shortWeekday(date) {
+  return new Intl.DateTimeFormat("es", { weekday: "short" }).format(date).replace(".", "");
+}
+
+function formatMonthDay(date) {
+  return new Intl.DateTimeFormat("es", { month: "short", day: "numeric" }).format(date);
+}
+
+function capitalize(value) {
+  const text = String(value || "");
+  return text ? text.charAt(0).toUpperCase() + text.slice(1) : "";
 }
 
 function formatMonth(date) {
