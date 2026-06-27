@@ -22,6 +22,8 @@
   - Recovery: score, fallos, sets duros/faciles, thresholds y bodyweight trend.
   - Balance: set balance, ratios y filas de balance tipo Dense.
   - Consistency: heatmap de 28 dias, streak, most logged, skipped y completion by day.
+- Modal post-entreno tipo `How did that session go?` con fatiga 1-10, comparacion contra esperado y notas.
+- Filas `tap to view` de Analytics convertidas en detalles desplegables reales.
 - Modo compacto/normal para entrenar en movil.
 - Versionado de cache PWA para que el movil reciba cambios de JS/CSS.
 
@@ -34,6 +36,4 @@
 ## Siguiente Capa Recomendada
 
 - Crear `Training Dashboard > Transformation` con fotos usando almacenamiento cloud, no localStorage.
-- Crear modal post-entreno tipo `How did that session go?` para fatiga, comparacion contra esperado y nota final.
-- Convertir filas `tap to view` de Analytics en detalles desplegables reales.
 - Separar `app.js` en modulos cuando el flujo movil quede estable.

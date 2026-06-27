@@ -1495,16 +1495,18 @@ function renderRecoveryAnalytics(entries) {
   const hardSets = entries.filter((entry) => (entry.effort_value || 0) >= 7).reduce((sum, entry) => sum + denseEquivalentSets(entry), 0);
   const easySets = entries.filter((entry) => (entry.effort_value || 0) <= 3).reduce((sum, entry) => sum + denseEquivalentSets(entry), 0);
   const failed = entries.filter((entry) => entry.failed).length;
+  const fatigueAvg = average(entries.map((entry) => Number(entry.session_fatigue || 0)).filter(Boolean));
+  const harderThanExpected = entries.filter((entry) => entry.expected_comparison === "harder").length;
   const loadByDay = denseLoadByDay(entries);
   const maxLoad = Math.max(...loadByDay.map((row) => row.load), 1);
-  const recoveryScore = clamp(Math.round(100 - hardSets * 2.2 - failed * 6 + easySets * 0.8), 0, 100);
+  const recoveryScore = clamp(Math.round(100 - hardSets * 2.2 - failed * 6 - harderThanExpected * 4 - fatigueAvg * 1.8 + easySets * 0.8), 0, 100);
   const bodyweightRows = bodyweightTrendRows(14);
   return `
     <div class="analytics-stat-grid">
       ${analyticsStatCard("Recovery", `${recoveryScore}/100`, recoveryScore >= 70 ? "Ligero" : recoveryScore >= 45 ? "Moderado" : "Cuidado", "heart-pulse")}
       ${analyticsStatCard("Sets duros", roundTo(hardSets, 1), "H/VH/fallo", "flame")}
       ${analyticsStatCard("Fallos", failed, "No llegaste al objetivo", "triangle-alert")}
-      ${analyticsStatCard("Sets fáciles", roundTo(easySets, 1), "VE/E", "leaf")}
+      ${analyticsStatCard("Fatiga", fatigueAvg ? `${roundTo(fatigueAvg, 1)}/10` : "-", `${harderThanExpected} harder than expected`, "gauge")}
     </div>
     <div class="analytics-card">
       <div class="section-subhead"><strong>Carga diaria</strong><span>sets x esfuerzo</span></div>
@@ -1529,6 +1531,11 @@ function renderRecoveryAnalytics(entries) {
             : `<p class="tiny-copy">Registra peso corporal para comparar fuerza relativa y recuperación.</p>`
         }
       </article>
+    </div>
+    <div class="analytics-detail-list">
+      ${analyticsDetailRow("Post-session feedback", entries.filter((entry) => entry.session_fatigue).length, "sesiones con feedback guardado", "message-square-text", recoveryFeedbackDetails(entries))}
+      ${analyticsDetailRow("Harder than expected", harderThanExpected, "sesiones por encima de lo previsto", "triangle-alert")}
+      ${analyticsDetailRow("Easy work", roundTo(easySets, 1), "sets VE/E que suman recuperación activa", "leaf")}
     </div>
   `;
 }
@@ -1891,6 +1898,10 @@ function handleSubmit(event) {
   if (event.target.id === "denseTrainingForm") {
     event.preventDefault();
     saveDenseTrainingForm(event.target);
+  }
+  if (event.target.id === "denseFeedbackForm") {
+    event.preventDefault();
+    saveDenseFeedbackForm(event.target);
   }
 }
 
@@ -2362,6 +2373,9 @@ function saveDenseTrainingForm(form) {
     effort_value: denseEffortValues[data.effort] || 5,
     failed,
     missed_reps: usesHold ? 0 : Math.max(0, targetTotalReps - totalReps),
+    session_fatigue: existingEntry?.session_fatigue || "",
+    expected_comparison: existingEntry?.expected_comparison || "",
+    session_notes: existingEntry?.session_notes || "",
     notes: (data.notes || "").trim(),
     bodyweight_contribution_pct: exercise.bodyweightContributionPct ?? 0,
     tonnage_factor: exercise.tonnageFactor ?? 1,
@@ -2384,6 +2398,83 @@ function saveDenseTrainingForm(form) {
   delete state.settings.denseDraftEntryId;
   form.reset();
   saveAndRender(existingIndex >= 0 ? "Marca Dense actualizada" : "Marca Dense guardada");
+  if (existingIndex < 0) setTimeout(() => openDenseFeedbackModal(entry.id), 0);
+}
+
+function openDenseFeedbackModal(entryId) {
+  const entry = getDenseEntries().find((item) => item.id === entryId);
+  if (!entry) return;
+  nodes.modalEyebrow.textContent = "Post set";
+  nodes.modalTitle.textContent = "How did that session go?";
+  nodes.modalBody.innerHTML = `
+    <form id="denseFeedbackForm" class="dense-feedback-form">
+      <input type="hidden" name="entryId" value="${escapeAttr(entry.id)}" />
+      <div class="feedback-entry-summary">
+        <span class="tiny-icon"><i data-lucide="${denseExerciseById(entry.exercise_id)?.icon || "dumbbell"}"></i></span>
+        <div>
+          <strong>${escapeHtml(entry.exercise_name)}</strong>
+          <span>${escapeHtml(entry.scheme)} · ${escapeHtml(denseEntryValue(entry))}</span>
+        </div>
+      </div>
+      <label class="field is-full">
+        <span>Fatigue level</span>
+        <input name="sessionFatigue" type="range" min="1" max="10" value="${escapeAttr(entry.session_fatigue || 5)}" />
+      </label>
+      <div class="feedback-scale">
+        <span>1</span>
+        <strong>${escapeHtml(String(entry.session_fatigue || 5))} / 10</strong>
+        <span>10</span>
+      </div>
+      <fieldset class="feedback-picker-field">
+        <legend>Compared to what was expected</legend>
+        <div class="feedback-option-grid">
+          ${feedbackOption("easier", "Easier than expected", entry.expected_comparison)}
+          ${feedbackOption("as_expected", "As expected", entry.expected_comparison || "as_expected")}
+          ${feedbackOption("harder", "Harder than expected", entry.expected_comparison)}
+        </div>
+      </fieldset>
+      <label class="field is-full">
+        <span>Notes</span>
+        <textarea name="sessionNotes" placeholder="Fatiga, molestias, sueño, técnica, si tocó cortar reps...">${escapeHtml(entry.session_notes || "")}</textarea>
+      </label>
+      <div class="modal-actions">
+        <button class="text-button" type="button" data-action="close-modal"><i data-lucide="x"></i>Luego</button>
+        <button class="text-button is-hot" type="submit"><i data-lucide="save"></i>Guardar feedback</button>
+      </div>
+    </form>
+  `;
+  const range = nodes.modalBody.querySelector("[name='sessionFatigue']");
+  const output = nodes.modalBody.querySelector(".feedback-scale strong");
+  range?.addEventListener("input", () => {
+    output.textContent = `${range.value} / 10`;
+  });
+  openModal();
+}
+
+function feedbackOption(value, label, currentValue) {
+  const selected = value === currentValue;
+  return `
+    <label class="feedback-option ${selected ? "is-selected" : ""}">
+      <input type="radio" name="expectedComparison" value="${escapeAttr(value)}" ${selected ? "checked" : ""} />
+      <span>${escapeHtml(label)}</span>
+    </label>
+  `;
+}
+
+function saveDenseFeedbackForm(form) {
+  const data = Object.fromEntries(new FormData(form).entries());
+  const entry = getDenseEntries().find((item) => item.id === data.entryId);
+  if (!entry) {
+    closeModal();
+    toast("No encuentro esa marca");
+    return;
+  }
+  entry.session_fatigue = clamp(Number(data.sessionFatigue) || 5, 1, 10);
+  entry.expected_comparison = data.expectedComparison || "as_expected";
+  entry.session_notes = (data.sessionNotes || "").trim();
+  entry.updated_at = new Date().toISOString();
+  closeModal();
+  saveAndRender("Feedback guardado");
 }
 
 function selectWeek(weekId) {
@@ -3872,18 +3963,38 @@ function denseLoadByDay(entries) {
   return Object.values(map).sort((a, b) => String(a.date).localeCompare(String(b.date))).slice(-14);
 }
 
-function analyticsDetailRow(title, value, detail, icon) {
+function analyticsDetailRow(title, value, detail, icon, expandedDetail = "") {
   return `
-    <article class="analytics-detail-row">
-      <span class="tiny-icon"><i data-lucide="${icon}"></i></span>
-      <div>
-        <strong>${escapeHtml(String(title))}</strong>
-        <small>${escapeHtml(String(detail || ""))}</small>
-      </div>
-      <b>${escapeHtml(String(value))}</b>
-      <i data-lucide="chevron-down"></i>
-    </article>
+    <details class="analytics-detail-row">
+      <summary>
+        <span class="tiny-icon"><i data-lucide="${icon}"></i></span>
+        <div>
+          <strong>${escapeHtml(String(title))}</strong>
+          <small>${escapeHtml(String(detail || ""))}</small>
+        </div>
+        <b>${escapeHtml(String(value))}</b>
+        <i data-lucide="chevron-down"></i>
+      </summary>
+      <p>${escapeHtml(String(expandedDetail || detail || "Sin detalle extra todavía."))}</p>
+    </details>
   `;
+}
+
+function recoveryFeedbackDetails(entries) {
+  const withFeedback = entries.filter((entry) => entry.session_fatigue || entry.expected_comparison || entry.session_notes);
+  if (!withFeedback.length) return "Aún no hay feedback post-entreno. Al guardar una marca nueva aparecerá el modal de fatiga y comparación.";
+  return withFeedback
+    .slice(-4)
+    .reverse()
+    .map((entry) => `${entry.date} · ${entry.exercise_name} · fatiga ${entry.session_fatigue || "-"} · ${denseExpectedComparisonLabel(entry.expected_comparison)}${entry.session_notes ? ` · ${entry.session_notes}` : ""}`)
+    .join(" / ");
+}
+
+function denseExpectedComparisonLabel(value) {
+  if (value === "easier") return "más fácil";
+  if (value === "harder") return "más duro";
+  if (value === "as_expected") return "esperado";
+  return "sin comparar";
 }
 
 function effortImprovementCount(entries) {

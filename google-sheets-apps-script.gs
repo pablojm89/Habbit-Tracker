@@ -263,6 +263,9 @@ function rewriteDenseTraining(ss, syncedAt, state) {
       entry.effort_value || "",
       Boolean(entry.failed),
       entry.missed_reps || "",
+      entry.session_fatigue || "",
+      entry.expected_comparison || "",
+      entry.session_notes || "",
       workingPct || "",
       e1rm || "",
       capacity || "",
@@ -281,7 +284,7 @@ function rewriteDenseTraining(ss, syncedAt, state) {
   writeTable(
     ss,
     SHEETS.dense,
-    ["synced_at", "entry_id", "version", "date", "exercise_id", "exercise_name", "exercise_family_id", "variant_id", "nature", "scheme", "scheme_base", "scheme_target", "scheme_type", "duration_min", "target_reps_per_min", "target_total_reps", "total_reps", "reps_per_min", "hold_seconds_per_round", "total_hold_seconds", "hold_seconds_per_min", "isometric_capacity", "external_load_kg", "weight_per_dumbbell_kg", "dumbbell_count", "added_load_kg", "bodyweight_kg", "bodyweight_source", "total_system_load_kg", "visible_added_load_kg", "relative_strength", "effort", "effort_value", "failed", "missed_reps", "working_pct", "e1rm_kg", "bodyweight_capacity", "effective_load_kg", "tonnage_kg", "tut_load_kg_seconds", "bodyweight_contribution_pct", "tonnage_factor", "notes", "created_at", "updated_at", "deleted_at"],
+    ["synced_at", "entry_id", "version", "date", "exercise_id", "exercise_name", "exercise_family_id", "variant_id", "nature", "scheme", "scheme_base", "scheme_target", "scheme_type", "duration_min", "target_reps_per_min", "target_total_reps", "total_reps", "reps_per_min", "hold_seconds_per_round", "total_hold_seconds", "hold_seconds_per_min", "isometric_capacity", "external_load_kg", "weight_per_dumbbell_kg", "dumbbell_count", "added_load_kg", "bodyweight_kg", "bodyweight_source", "total_system_load_kg", "visible_added_load_kg", "relative_strength", "effort", "effort_value", "failed", "missed_reps", "session_fatigue", "expected_comparison", "session_notes", "working_pct", "e1rm_kg", "bodyweight_capacity", "effective_load_kg", "tonnage_kg", "tut_load_kg_seconds", "bodyweight_contribution_pct", "tonnage_factor", "notes", "created_at", "updated_at", "deleted_at"],
     rows,
     true,
   );
