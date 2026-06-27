@@ -144,6 +144,22 @@ const denseExerciseSortOptions = [
   ["az", "A-Z"],
 ];
 
+const trainingAnalyticsTabs = [
+  ["progress", "Progreso", "trending-up"],
+  ["volume", "Volumen", "bar-chart-3"],
+  ["strength", "Fuerza", "trophy"],
+  ["recovery", "Recovery", "heart-pulse"],
+  ["balance", "Balance", "scale"],
+];
+
+const trainingAnalyticsWindows = [
+  ["7", "7d"],
+  ["30", "30d"],
+  ["70", "70d"],
+  ["180", "180d"],
+  ["all", "All"],
+];
+
 const denseExerciseCatalog = [
   {
     id: "pull_up",
@@ -642,6 +658,7 @@ const nodes = {
   mesocyclePanel: document.querySelector("#mesocyclePanel"),
   sessionPanel: document.querySelector("#sessionPanel"),
   denseTrainingPanel: document.querySelector("#denseTrainingPanel"),
+  trainingAnalyticsPanel: document.querySelector("#trainingAnalyticsPanel"),
   densePrPanel: document.querySelector("#densePrPanel"),
   logbookPanel: document.querySelector("#logbookPanel"),
   reviewPanel: document.querySelector("#reviewPanel"),
@@ -673,6 +690,7 @@ render();
 
 function render() {
   const activeView = state.settings.view || "dashboard";
+  document.body.dataset.density = state.settings.uiDensity || "normal";
   document.querySelectorAll(".view").forEach((view) => {
     view.classList.toggle("is-active", view.id === `view-${activeView}`);
   });
@@ -682,6 +700,13 @@ function render() {
 
   nodes.seasonLabel.textContent = `BitTracker · ${activeHabits().length} hábitos activos`;
   nodes.todayChip.textContent = formatShortDate(selectedDate);
+  document.querySelectorAll("[data-action='toggle-density']").forEach((button) => {
+    const compact = (state.settings.uiDensity || "normal") === "compact";
+    button.classList.toggle("is-hot", compact);
+    button.title = compact ? "Modo normal" : "Modo compacto";
+    button.setAttribute("aria-label", button.title);
+    button.innerHTML = `<i data-lucide="${compact ? "maximize-2" : "minimize-2"}"></i>`;
+  });
 
   renderHero();
   renderQuests();
@@ -692,6 +717,7 @@ function render() {
   renderHabitAnalytics();
   renderMesocycle();
   renderDenseTraining();
+  renderTrainingAnalytics();
   renderDensePrs();
   renderLogbook();
   renderReview();
@@ -1152,6 +1178,197 @@ function renderDenseTraining() {
   `;
 }
 
+function renderTrainingAnalytics() {
+  if (!nodes.trainingAnalyticsPanel) return;
+  const activeTab = state.settings.trainingAnalyticsTab || "balance";
+  const activeWindow = state.settings.trainingAnalyticsWindow || "70";
+  const entries = trainingAnalyticsEntries(activeWindow);
+  const totalSets = entries.reduce((sum, entry) => sum + denseEquivalentSets(entry), 0);
+  const uniqueDays = new Set(entries.map((entry) => entry.date)).size;
+
+  nodes.trainingAnalyticsPanel.innerHTML = `
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Training analytics</p>
+        <h2>Volumen, fuerza y balance</h2>
+        <span class="section-meta">${entries.length ? `${entries.length} marcas · ${roundTo(totalSets, 1)} sets eq · ${uniqueDays} días` : "Empieza a logear para activar tendencias."}</span>
+      </div>
+      <span class="mini-tag is-green"><i data-lucide="smartphone"></i>${(state.settings.uiDensity || "normal") === "compact" ? "minimal" : "normal"}</span>
+    </div>
+    <div class="analytics-switch-row">
+      <div class="analytics-tab-strip" role="tablist" aria-label="Training analytics">
+        ${trainingAnalyticsTabs
+          .map(
+            ([value, label, icon]) => `
+              <button class="analytics-tab ${activeTab === value ? "is-active" : ""}" type="button" data-action="set-training-analytics-tab" data-tab="${value}">
+                <i data-lucide="${icon}"></i><span>${label}</span>
+              </button>
+            `,
+          )
+          .join("")}
+      </div>
+      <div class="analytics-window-strip" aria-label="Ventana">
+        ${trainingAnalyticsWindows
+          .map(
+            ([value, label]) => `
+              <button class="seg-button ${activeWindow === value ? "is-active" : ""}" type="button" data-action="set-training-analytics-window" data-window="${value}">${label}</button>
+            `,
+          )
+          .join("")}
+      </div>
+    </div>
+    <div class="training-analytics-body">
+      ${renderTrainingAnalyticsTab(activeTab, entries)}
+    </div>
+  `;
+}
+
+function renderTrainingAnalyticsTab(tab, entries) {
+  if (!entries.length) return renderEmptyAnalytics();
+  if (tab === "progress") return renderProgressAnalytics(entries);
+  if (tab === "volume") return renderVolumeAnalytics(entries);
+  if (tab === "strength") return renderStrengthAnalytics(entries);
+  if (tab === "recovery") return renderRecoveryAnalytics(entries);
+  return renderBalanceAnalytics(entries);
+}
+
+function renderEmptyAnalytics() {
+  return `
+    <div class="analytics-empty">
+      <i data-lucide="activity"></i>
+      <strong>Sin datos en esta ventana</strong>
+      <span>Guarda el primer DenseTraining y esta zona empezará a mostrar volumen, PRs, recovery y balance de patrones.</span>
+    </div>
+  `;
+}
+
+function renderProgressAnalytics(entries) {
+  const prs = densePrRows().filter((row) => entries.some((entry) => entry.exercise_name === row.exerciseName && entry.scheme === row.scheme));
+  const last = [...entries].sort((a, b) => (b.created_at || b.date || "").localeCompare(a.created_at || a.date || ""))[0];
+  const effortAvg = average(entries.map((entry) => entry.effort_value).filter(Boolean));
+  const density = average(entries.map((entry) => entry.reps_per_min).filter(Boolean));
+  const recent = entries.slice(-6).reverse();
+  return `
+    <div class="analytics-stat-grid">
+      ${analyticsStatCard("Marcas", entries.length, "Entradas reales", "clipboard-check")}
+      ${analyticsStatCard("PRs vivos", prs.length, "Ejercicio + esquema", "trophy")}
+      ${analyticsStatCard("Esfuerzo medio", effortAvg ? roundTo(effortAvg, 1) : "-", "1 fácil · 10 límite", "gauge")}
+      ${analyticsStatCard("Densidad media", density ? `${roundTo(density, 1)} rpm` : "-", "Reps/min cuando aplica", "timer")}
+    </div>
+    <div class="analytics-card-grid">
+      <article class="analytics-card">
+        <div class="section-subhead"><strong>Última señal</strong><span>${escapeHtml(last.date)}</span></div>
+        <div class="analytics-highlight">
+          <strong>${escapeHtml(last.exercise_name)}</strong>
+          <span>${escapeHtml(last.scheme)} · ${escapeHtml(denseEntryValue(last))}</span>
+        </div>
+      </article>
+      <article class="analytics-card">
+        <div class="section-subhead"><strong>Historial reciente</strong><span>${recent.length} marcas</span></div>
+        <div class="mini-timeline">
+          ${recent.map((entry) => `<span title="${escapeAttr(entry.exercise_name)}">${escapeHtml(entry.scheme)}</span>`).join("")}
+        </div>
+      </article>
+    </div>
+  `;
+}
+
+function renderVolumeAnalytics(entries) {
+  const patternRows = densePatternRows(entries).slice(0, 8);
+  const maxSets = Math.max(...patternRows.map((row) => row.sets), 1);
+  const totalSets = entries.reduce((sum, entry) => sum + denseEquivalentSets(entry), 0);
+  const totalReps = entries.reduce((sum, entry) => sum + (entry.total_reps || 0), 0);
+  const tonnage = entries.reduce((sum, entry) => sum + (entry.tonnage_kg || 0), 0);
+  return `
+    <div class="analytics-stat-grid">
+      ${analyticsStatCard("Sets eq", roundTo(totalSets, 1), "Minutos/bloques Dense", "blocks")}
+      ${analyticsStatCard("Reps", totalReps, "Repeticiones registradas", "repeat-2")}
+      ${analyticsStatCard("Tonnage", tonnage ? `${roundTo(tonnage / 1000, 1)}t` : "-", "Carga efectiva estimada", "warehouse")}
+      ${analyticsStatCard("Ejercicios", new Set(entries.map((entry) => entry.exercise_id)).size, "Variantes usadas", "dumbbell")}
+    </div>
+    <div class="analytics-card">
+      <div class="section-subhead"><strong>Volumen por patrón</strong><span>sets equivalentes</span></div>
+      <div class="analytics-bars">
+        ${patternRows.map((row) => analyticsBar(patternLabel(row.pattern), row.sets, maxSets, `${roundTo(row.reps, 0)} reps · ${roundTo(row.tonnage / 1000, 1)}t`)).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function renderStrengthAnalytics(entries) {
+  const weighted = entries.filter((entry) => entry.e1rm_kg);
+  const best = [...weighted].sort((a, b) => (b.e1rm_kg || 0) - (a.e1rm_kg || 0)).slice(0, 5);
+  const relativeBest = [...entries].filter((entry) => entry.relative_strength).sort((a, b) => (b.relative_strength || 0) - (a.relative_strength || 0))[0];
+  const bodyweightBest = [...entries].filter((entry) => entry.bodyweight_capacity).sort((a, b) => (b.bodyweight_capacity || 0) - (a.bodyweight_capacity || 0))[0];
+  return `
+    <div class="analytics-stat-grid">
+      ${analyticsStatCard("e1RM top", best[0] ? formatKg(best[0].e1rm_kg) : "-", best[0] ? best[0].exercise_name : "Sin cargas", "badge-check")}
+      ${analyticsStatCard("Relativo top", relativeBest ? `${relativeBest.relative_strength}x` : "-", relativeBest ? relativeBest.exercise_name : "BW + lastre", "scale")}
+      ${analyticsStatCard("Capacidad BW", bodyweightBest ? bodyweightBest.bodyweight_capacity : "-", bodyweightBest ? bodyweightBest.exercise_name : "Reps/min", "activity")}
+      ${analyticsStatCard("Cargas", weighted.length, "Entradas con e1RM", "dumbbell")}
+    </div>
+    <div class="analytics-card">
+      <div class="section-subhead"><strong>Personal records</strong><span>carga estimada</span></div>
+      <div class="compact-pr-list">
+        ${
+          best.length
+            ? best.map((entry) => `<div><span>${escapeHtml(entry.exercise_name)}</span><strong>${formatKg(entry.e1rm_kg)}</strong><small>${escapeHtml(entry.scheme)} · ${escapeHtml(entry.date)}</small></div>`).join("")
+            : `<p class="tiny-copy">Registra un ejercicio con carga o lastre para ver tus e1RM y fuerza relativa.</p>`
+        }
+      </div>
+    </div>
+  `;
+}
+
+function renderRecoveryAnalytics(entries) {
+  const hardSets = entries.filter((entry) => (entry.effort_value || 0) >= 7).reduce((sum, entry) => sum + denseEquivalentSets(entry), 0);
+  const easySets = entries.filter((entry) => (entry.effort_value || 0) <= 3).reduce((sum, entry) => sum + denseEquivalentSets(entry), 0);
+  const failed = entries.filter((entry) => entry.failed).length;
+  const loadByDay = denseLoadByDay(entries);
+  const maxLoad = Math.max(...loadByDay.map((row) => row.load), 1);
+  const recoveryScore = clamp(Math.round(100 - hardSets * 2.2 - failed * 6 + easySets * 0.8), 0, 100);
+  return `
+    <div class="analytics-stat-grid">
+      ${analyticsStatCard("Recovery", `${recoveryScore}/100`, recoveryScore >= 70 ? "Ligero" : recoveryScore >= 45 ? "Moderado" : "Cuidado", "heart-pulse")}
+      ${analyticsStatCard("Sets duros", roundTo(hardSets, 1), "H/VH/fallo", "flame")}
+      ${analyticsStatCard("Fallos", failed, "No llegaste al objetivo", "triangle-alert")}
+      ${analyticsStatCard("Sets fáciles", roundTo(easySets, 1), "VE/E", "leaf")}
+    </div>
+    <div class="analytics-card">
+      <div class="section-subhead"><strong>Carga diaria</strong><span>sets x esfuerzo</span></div>
+      <div class="recovery-sparkline">
+        ${loadByDay.map((row) => `<span style="height:${Math.max(8, pct(row.load, maxLoad))}%" title="${escapeAttr(`${row.date}: ${roundTo(row.load, 1)}`)}"></span>`).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function renderBalanceAnalytics(entries) {
+  const patternMap = densePatternMap(entries);
+  const rows = densePatternRows(entries).slice(0, 10);
+  const maxSets = Math.max(...rows.map((row) => row.sets), 1);
+  return `
+    <div class="balance-layout">
+      <article class="analytics-card">
+        <div class="section-subhead"><strong>Set balance</strong><span>patrones principales</span></div>
+        <div class="analytics-bars">
+          ${rows.map((row) => analyticsBar(patternLabel(row.pattern), row.sets, maxSets, `${roundTo(row.reps, 0)} reps`)).join("")}
+        </div>
+      </article>
+      <article class="analytics-card">
+        <div class="section-subhead"><strong>Ratios actuales</strong><span>objetivo aproximado</span></div>
+        <div class="ratio-list">
+          ${ratioRow("Push / Pull", patternMap.push?.sets, patternMap.pull?.sets, "push", "pull", "0.8-1.2")}
+          ${ratioRow("Vertical push / Vertical pull", patternMap.vertical_push?.sets, patternMap.vertical_pull?.sets, "v push", "v pull", "0.7-1.1")}
+          ${ratioRow("Horizontal push / Horizontal pull", patternMap.horizontal_push?.sets, patternMap.horizontal_pull?.sets, "h push", "h pull", "0.8-1.2")}
+          ${ratioRow("Squat / Hinge", patternMap.squat?.sets, patternMap.hinge?.sets, "squat", "hinge", "0.8-1.3")}
+          ${ratioRow("Pierna unilateral / Squat", patternMap.unilateral_leg?.sets, patternMap.squat?.sets, "unilat", "squat", "0.25-0.6")}
+        </div>
+      </article>
+    </div>
+  `;
+}
+
 function renderDensePrs() {
   if (!nodes.densePrPanel) return;
   const entries = [...getDenseEntries()];
@@ -1351,6 +1568,9 @@ function handleClick(event) {
   if (action === "toggle-choice-popover") toggleChoicePopover(target);
   if (action === "set-choice-value") setChoiceValue(target);
   if (action === "switch-view") switchView(target.dataset.view);
+  if (action === "toggle-density") toggleUiDensity();
+  if (action === "set-training-analytics-tab") setTrainingAnalyticsTab(target.dataset.tab);
+  if (action === "set-training-analytics-window") setTrainingAnalyticsWindow(target.dataset.window);
   if (action === "shift-day") shiftDay(Number(target.dataset.shift));
   if (action === "go-today") goToday();
   if (action === "shift-calendar-month") shiftCalendarMonth(Number(target.dataset.shift));
@@ -1427,6 +1647,30 @@ function handleSubmit(event) {
 function switchView(view) {
   state.settings.view = view;
   saveAndRender();
+}
+
+function persistUiOnly() {
+  state.settings.selectedDate = dateKey(selectedDate);
+  localStorage.setItem(STORE_KEY, JSON.stringify(state));
+  render();
+}
+
+function toggleUiDensity() {
+  state.settings.uiDensity = (state.settings.uiDensity || "normal") === "compact" ? "normal" : "compact";
+  persistUiOnly();
+  toast(state.settings.uiDensity === "compact" ? "Modo compacto" : "Modo normal");
+}
+
+function setTrainingAnalyticsTab(tab) {
+  if (!trainingAnalyticsTabs.some(([value]) => value === tab)) return;
+  state.settings.trainingAnalyticsTab = tab;
+  persistUiOnly();
+}
+
+function setTrainingAnalyticsWindow(windowKey) {
+  if (!trainingAnalyticsWindows.some(([value]) => value === windowKey)) return;
+  state.settings.trainingAnalyticsWindow = windowKey;
+  persistUiOnly();
 }
 
 function shiftDay(amount) {
@@ -1795,6 +2039,9 @@ function createInitialState() {
       calendarAnchor: monthKey(today),
       selectedWeekId: mesocycleDefault.weeks[getCurrentCycleWeek()].id,
       selectedSessionId: mesocycleDefault.weeks[getCurrentCycleWeek()].sessions[0].id,
+      uiDensity: "normal",
+      trainingAnalyticsTab: "balance",
+      trainingAnalyticsWindow: "70",
     },
     habits: habitDefaults,
     records,
@@ -1841,6 +2088,9 @@ function normalizeState(input) {
     denseExerciseSort: "recent",
     denseExerciseSearch: "",
     denseSelectedExerciseId: "pull_up",
+    uiDensity: "normal",
+    trainingAnalyticsTab: "balance",
+    trainingAnalyticsWindow: "70",
     ...(input.settings || {}),
   };
   merged.habits = (merged.habits?.length ? merged.habits : habitDefaults).map((habit) => ({ ...habit, id: habit.id || slugify(habit.name) }));
@@ -2966,6 +3216,134 @@ function denseDefaultRpm(exercise, base) {
   }[exercise.category] || 8;
   const factor = { "2D": 1.25, "5D": 1, "10D": 0.75, "20D": 0.6 }[base] || 1;
   return categoryBase * factor;
+}
+
+function trainingAnalyticsEntries(windowKey) {
+  const entries = [...getDenseEntries()].sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")));
+  if (windowKey === "all") return entries;
+  const days = Number(windowKey) || 70;
+  const cutoff = dateKey(addDays(selectedDate, -(days - 1)));
+  return entries.filter((entry) => !entry.date || entry.date >= cutoff);
+}
+
+function denseEquivalentSets(entry) {
+  const duration = entry.duration_minutes || denseSchemeMinutes(entry.scheme);
+  if (duration) return duration;
+  if (entry.rounds) return Number(entry.rounds) || 1;
+  return 1;
+}
+
+function densePatternProfile(exercise) {
+  const patterns = new Set([exercise?.category].filter(Boolean));
+  const family = exercise?.family || "";
+  const id = exercise?.id || "";
+
+  if (["strict_pull", "weighted_pull_up"].includes(family) || id.includes("pull_up")) patterns.add("vertical_pull");
+  if (family === "horizontal_pull" || id.includes("row")) patterns.add("horizontal_pull");
+  if (["strict_pull", "horizontal_pull"].includes(family) || exercise?.category === "pull") patterns.add("pull");
+
+  if (["strict_dip", "hspu", "accessory"].includes(family) || id.includes("hspu") || id.includes("press")) patterns.add("vertical_push");
+  if (["ring_push", "pushup"].includes(family) || id.includes("push_up")) patterns.add("horizontal_push");
+  if (["strict_dip", "ring_push", "pushup", "hspu", "accessory"].includes(family) || exercise?.category === "push" || exercise?.category === "skills") patterns.add("push");
+
+  if (["squat_bodyweight", "single_leg_squat"].includes(family) || id.includes("squat")) patterns.add("squat");
+  if (family === "single_leg_squat" || id.includes("single_leg") || id.includes("pistol")) patterns.add("unilateral_leg");
+  if (family === "hinge_bodyweight" || id.includes("good_morning")) patterns.add("hinge");
+  if (exercise?.category === "legs") patterns.add("legs");
+  if (exercise?.category === "mobility" || family === "mobility_strength") patterns.add("mobility");
+  if (exercise?.category === "skills" || family === "hspu") patterns.add("skill");
+
+  return [...patterns].filter(Boolean);
+}
+
+function densePatternMap(entries) {
+  return entries.reduce((map, entry) => {
+    const exercise = denseExerciseById(entry.exercise_id);
+    const sets = denseEquivalentSets(entry);
+    densePatternProfile(exercise).forEach((pattern) => {
+      map[pattern] ||= { pattern, sets: 0, reps: 0, tonnage: 0 };
+      map[pattern].sets += sets;
+      map[pattern].reps += entry.total_reps || 0;
+      map[pattern].tonnage += entry.tonnage_kg || 0;
+    });
+    return map;
+  }, {});
+}
+
+function densePatternRows(entries) {
+  return Object.values(densePatternMap(entries)).sort((a, b) => b.sets - a.sets);
+}
+
+function denseLoadByDay(entries) {
+  const map = entries.reduce((days, entry) => {
+    const key = entry.date || "sin fecha";
+    days[key] ||= { date: key, load: 0 };
+    days[key].load += denseEquivalentSets(entry) * (entry.effort_value || 5);
+    return days;
+  }, {});
+  return Object.values(map).sort((a, b) => String(a.date).localeCompare(String(b.date))).slice(-14);
+}
+
+function analyticsStatCard(label, value, detail, icon) {
+  return `
+    <article class="analytics-stat-card">
+      <span><i data-lucide="${icon}"></i>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(String(value))}</strong>
+      <small>${escapeHtml(detail)}</small>
+    </article>
+  `;
+}
+
+function analyticsBar(label, value, max, detail) {
+  const width = Math.max(3, pct(value, max));
+  return `
+    <div class="analytics-bar-row">
+      <span>${escapeHtml(label)}</span>
+      <div class="analytics-bar-track"><i style="width:${width}%"></i></div>
+      <strong>${roundTo(value, 1)}</strong>
+      <small>${escapeHtml(detail)}</small>
+    </div>
+  `;
+}
+
+function ratioRow(label, leftValue = 0, rightValue = 0, leftLabel, rightLabel, target) {
+  const ratio = rightValue ? leftValue / rightValue : 0;
+  const display = ratio ? roundTo(ratio, 2) : "-";
+  const balance = ratio ? clamp(Math.round((1 - Math.min(Math.abs(1 - ratio), 1)) * 100), 0, 100) : 0;
+  return `
+    <div class="ratio-row">
+      <div>
+        <strong>${escapeHtml(label)}</strong>
+        <span>${escapeHtml(leftLabel)} ${roundTo(leftValue || 0, 1)} · ${escapeHtml(rightLabel)} ${roundTo(rightValue || 0, 1)} · target ${escapeHtml(target)}</span>
+      </div>
+      <div class="ratio-meter"><i style="width:${Math.max(5, balance)}%"></i></div>
+      <b>${display}</b>
+    </div>
+  `;
+}
+
+function patternLabel(pattern) {
+  return (
+    {
+      push: "Empuje",
+      pull: "Tirón",
+      legs: "Pierna",
+      skills: "Skills",
+      mobility: "Movilidad",
+      vertical_push: "Empuje vertical",
+      vertical_pull: "Tirón vertical",
+      horizontal_push: "Empuje horizontal",
+      horizontal_pull: "Tirón horizontal",
+      squat: "Squat",
+      hinge: "Hinge",
+      unilateral_leg: "Pierna unilateral",
+      skill: "Skill",
+    }[pattern] || pattern
+  );
+}
+
+function average(values) {
+  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
 }
 
 function applyDenseExerciseSearch(value) {

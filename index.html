@@ -11,9 +11,9 @@
     <link rel="manifest" href="./manifest.webmanifest?v=20260627-mobile-01" />
     <link rel="icon" href="./icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="./icon.svg" />
-    <link rel="stylesheet" href="./styles.css?v=20260627-cloud-01" />
+    <link rel="stylesheet" href="./styles.css?v=20260627-mobile-analytics-01" />
     <script src="https://unpkg.com/lucide@latest" defer></script>
-    <script src="./app.js?v=20260627-cloud-01" defer></script>
+    <script src="./app.js?v=20260627-mobile-analytics-01" defer></script>
   </head>
   <body>
     <header class="topbar">
@@ -45,12 +45,38 @@
       </nav>
 
       <div class="top-actions">
+        <button class="icon-button" type="button" data-action="toggle-density" title="Modo compacto" aria-label="Modo compacto">
+          <i data-lucide="minimize-2"></i>
+        </button>
         <button class="icon-button" id="openBackup" type="button" title="Backup" aria-label="Backup">
           <i data-lucide="database"></i>
         </button>
         <button class="date-chip" id="todayChip" type="button"></button>
       </div>
     </header>
+
+    <button class="icon-button density-fab" type="button" data-action="toggle-density" title="Modo compacto" aria-label="Modo compacto">
+      <i data-lucide="minimize-2"></i>
+    </button>
+
+    <nav class="mobile-view-tabs" aria-label="Vistas móvil">
+      <button class="tab-button is-active" type="button" data-view="dashboard">
+        <i data-lucide="layout-dashboard"></i>
+        <span>Panel</span>
+      </button>
+      <button class="tab-button" type="button" data-view="habits">
+        <i data-lucide="flame"></i>
+        <span>Hábitos</span>
+      </button>
+      <button class="tab-button" type="button" data-view="training">
+        <i data-lucide="dumbbell"></i>
+        <span>Training</span>
+      </button>
+      <button class="tab-button" type="button" data-view="review">
+        <i data-lucide="radar"></i>
+        <span>Review</span>
+      </button>
+    </nav>
 
     <main class="app-shell">
       <section class="view is-active" id="view-dashboard" aria-label="Panel principal">
@@ -91,6 +117,9 @@
           </section>
           <section class="panel training-wide-panel" aria-label="Registro DenseTraining">
             <div id="denseTrainingPanel"></div>
+          </section>
+          <section class="panel training-wide-panel" aria-label="Analítica de entrenamiento">
+            <div id="trainingAnalyticsPanel"></div>
           </section>
           <section class="panel training-wide-panel" aria-label="PRs y estimaciones Dense">
             <div id="densePrPanel"></div>

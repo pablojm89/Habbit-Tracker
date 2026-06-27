@@ -1,3 +1,4 @@
 mobile-build/
+tmp/
 *.zip
 .DS_Store
