@@ -387,6 +387,8 @@ const denseExerciseCatalog = [
     alpha: 0.17,
     icon: "arrow-up-from-line",
   },
+  ...leverSkillExercises("front_lever", "Front Lever", 88),
+  ...leverSkillExercises("back_lever", "Back Lever", 88),
   {
     id: "seated_db_overhead_press",
     name: "Press militar sentado mancuernas",
@@ -401,6 +403,50 @@ const denseExerciseCatalog = [
     icon: "dumbbell",
   },
 ];
+
+function leverSkillExercises(prefix, label, bodyweightContributionPct) {
+  const progressions = [
+    ["tuck", "Tuck"],
+    ["one_quarter", "1/4"],
+    ["adv_tuck", "Adv Tuck"],
+    ["one_leg", "Con una pierna"],
+    ["straddle", "Straddle"],
+    ["half", "1/2"],
+    ["three_quarter", "3/4"],
+    ["full", "Full"],
+  ];
+
+  return progressions.flatMap(([id, name], index) => {
+    const alpha = roundTo(0.1 + index * 0.01, 2);
+    const base = {
+      category: "skills",
+      family: prefix,
+      bodyweightContributionPct,
+      tonnageFactor: 1,
+      alpha,
+      icon: prefix === "front_lever" ? "move-horizontal" : "rotate-ccw",
+    };
+    return [
+      {
+        ...base,
+        id: `${prefix}_${id}`,
+        name: `${label} ${name}`,
+        nature: "skill",
+        allowedNatures: ["skill", "bodyweight"],
+        allowedSchemes: bodyweightSchemes,
+      },
+      {
+        ...base,
+        id: `${prefix}_${id}_pull`,
+        name: `${label} ${name} Pull`,
+        family: `${prefix}_pull`,
+        nature: "bodyweight",
+        allowedNatures: ["bodyweight", "skill"],
+        allowedSchemes: bodyweightSchemes,
+      },
+    ];
+  });
+}
 
 const habitDefaults = [
   {
@@ -3239,6 +3285,8 @@ function denseExerciseHint(exercise) {
   if (exercise.loadPattern === "dumbbell_pair") return "Guarda el peso por mancuerna; BitTracker calcula el total externo.";
   if (exercise.nature === "weighted_calisthenics") return "Guarda el lastre; BitTracker suma tu peso corporal para la carga total del sistema.";
   if (exercise.nature === "weighted") return "Guarda la carga externa usada en el esquema elegido.";
+  if (exercise.family === "front_lever" || exercise.family === "back_lever") return "Isométrico straight-arm: registra hold/ronda y rondas para calcular tiempo bajo tensión.";
+  if (exercise.family === "front_lever_pull" || exercise.family === "back_lever_pull") return "Versión Pull: registra reps por minuto o reps totales como trabajo dinámico.";
   if (denseSupportsHold(exercise)) return "Guarda reps o activa Hold/ronda para isométricos; BitTracker calcula tiempo bajo tensión.";
   return "Guarda reps totales y esfuerzo; BitTracker calcula reps/min y capacidad entre esquemas.";
 }
@@ -4298,17 +4346,21 @@ function densePatternProfile(exercise) {
   if (["strict_pull", "weighted_pull_up"].includes(family) || id.includes("pull_up")) patterns.add("vertical_pull");
   if (family === "horizontal_pull" || id.includes("row")) patterns.add("horizontal_pull");
   if (["strict_pull", "horizontal_pull"].includes(family) || exercise?.category === "pull") patterns.add("pull");
+  if (family === "front_lever_pull" || family === "back_lever_pull") {
+    patterns.add("pull");
+    patterns.add("horizontal_pull");
+  }
 
   if (["strict_dip", "hspu", "accessory"].includes(family) || id.includes("hspu") || id.includes("press")) patterns.add("vertical_push");
   if (["ring_push", "pushup"].includes(family) || id.includes("push_up")) patterns.add("horizontal_push");
-  if (["strict_dip", "ring_push", "pushup", "hspu", "accessory"].includes(family) || exercise?.category === "push" || exercise?.category === "skills") patterns.add("push");
+  if (["strict_dip", "ring_push", "pushup", "hspu", "accessory"].includes(family) || exercise?.category === "push") patterns.add("push");
 
   if (["squat_bodyweight", "single_leg_squat"].includes(family) || id.includes("squat")) patterns.add("squat");
   if (family === "single_leg_squat" || id.includes("single_leg") || id.includes("pistol")) patterns.add("unilateral_leg");
   if (family === "hinge_bodyweight" || id.includes("good_morning")) patterns.add("hinge");
   if (exercise?.category === "legs") patterns.add("legs");
   if (exercise?.category === "mobility" || family === "mobility_strength") patterns.add("mobility");
-  if (exercise?.category === "skills" || family === "hspu") patterns.add("skill");
+  if (exercise?.category === "skills" || family === "hspu" || family.includes("lever")) patterns.add("skill");
 
   return [...patterns].filter(Boolean);
 }
