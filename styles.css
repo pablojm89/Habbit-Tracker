@@ -2121,7 +2121,7 @@ i[data-lucide] {
 
 .exercise-pick-main {
   display: grid;
-  grid-template-columns: 34px minmax(0, 1fr);
+  grid-template-columns: 34px minmax(0, 1fr) 18px;
   gap: 8px;
   align-items: center;
   min-width: 0;
@@ -2132,6 +2132,10 @@ i[data-lucide] {
   cursor: pointer;
   padding: 8px;
   text-align: left;
+}
+
+.exercise-pick-main > i[data-lucide] {
+  color: var(--green);
 }
 
 .exercise-pick-main strong,
@@ -4398,7 +4402,7 @@ button:focus-visible {
 
   body[data-density="compact"] .exercise-pick-main {
     min-height: 46px;
-    grid-template-columns: 28px minmax(0, 1fr);
+    grid-template-columns: 28px minmax(0, 1fr) 16px;
     padding: 6px;
   }
 

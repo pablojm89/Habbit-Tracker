@@ -1942,9 +1942,13 @@ function handleClick(event) {
   if (action === "load-dense-entry") loadDenseEntry(target.dataset.entry);
   if (action === "open-dense-entry-modal") openDenseTrainingModal({ entryId: target.dataset.entry });
   if (action === "open-dense-exercise-modal") openDenseTrainingModal({ exerciseId: target.dataset.exercise });
+  if (action === "open-workout-exercise-picker") openWorkoutExercisePickerModal();
+  if (action === "add-planned-exercise") addPlannedExerciseToSelectedDate(target.dataset.exercise);
   if (action === "open-dense-exercise-detail") openDenseExerciseDetailModal(target.dataset.exercise);
   if (action === "confirm-delete-dense-entry") openDenseDeleteConfirm(target.dataset.entry);
   if (action === "delete-dense-entry") deleteDenseEntry(target.dataset.entry);
+  if (action === "confirm-delete-planned-exercise") openPlannedExerciseDeleteConfirm(target.dataset.exercise);
+  if (action === "delete-planned-exercise") deletePlannedExercise(target.dataset.exercise);
   if (action === "pick-dense-exercise") pickDenseExercise(target.dataset.exercise);
   if (action === "toggle-dense-favorite") toggleDenseFavorite(target.dataset.exercise);
   if (action === "focus-dense-register") openDenseTrainingModal({ exerciseId: state.settings.denseSelectedExerciseId });
@@ -1966,13 +1970,11 @@ function handleChange(event) {
   }
   if (event.target.matches("[data-action-input='dense-exercise-category']")) {
     state.settings.denseExerciseCategory = event.target.value;
-    renderDenseTraining();
-    refreshIcons();
+    refreshDenseExercisePickerSurface();
   }
   if (event.target.matches("[data-action-input='dense-exercise-sort']")) {
     state.settings.denseExerciseSort = event.target.value;
-    renderDenseTraining();
-    refreshIcons();
+    refreshDenseExercisePickerSurface();
   }
 }
 
@@ -2460,6 +2462,91 @@ function openDenseTrainingModal({ exerciseId = "", entryId = "" } = {}) {
   updateDenseHoldEstimate(nodes.modalBody.querySelector("#denseTrainingForm"));
 }
 
+function openWorkoutExercisePickerModal() {
+  nodes.modalCard.dataset.modalKind = "workout-exercise-picker";
+  nodes.modalEyebrow.textContent = "Programar";
+  nodes.modalTitle.textContent = "Elegir ejercicio";
+  nodes.modalBody.innerHTML = `
+    <div class="workout-exercise-picker-modal">
+      <p class="tiny-copy">Añade un ejercicio al día. Luego aparecerá como tarjeta programada para rellenarlo cuando entrenes.</p>
+      ${workoutExercisePickerMarkup()}
+    </div>
+  `;
+  openModal();
+}
+
+function workoutExercisePickerMarkup() {
+  const category = state.settings.denseExerciseCategory || "all";
+  const sort = state.settings.denseExerciseSort || "recent";
+  const search = state.settings.denseExerciseSearch || "";
+  const exercises = denseExerciseLibrary({ category, sort, search });
+  return `
+    <section class="dense-exercise-picker is-workout-picker">
+      <div class="exercise-picker-controls">
+        <label class="field">
+          <span>Grupo</span>
+          <select data-action-input="dense-exercise-category">
+            ${denseExerciseCategories.map(([value, label]) => `<option value="${value}" ${category === value ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}
+          </select>
+        </label>
+        <label class="field exercise-search-field">
+          <span>Buscar</span>
+          <input data-action-input="dense-exercise-search" type="search" value="${escapeAttr(search)}" placeholder="front lever, dominadas, hspu..." />
+        </label>
+        <label class="field">
+          <span>Orden</span>
+          <select data-action-input="dense-exercise-sort">
+            ${denseExerciseSortOptions.map(([value, label]) => `<option value="${value}" ${sort === value ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}
+          </select>
+        </label>
+      </div>
+      <div class="exercise-picker-list">
+        ${
+          exercises.length
+            ? exercises.map((exercise) => denseExercisePickCard(exercise, "", "add-planned-exercise")).join("")
+            : `<article class="exercise-pick-empty">No hay ejercicios con ese filtro.</article>`
+        }
+      </div>
+    </section>
+  `;
+}
+
+function refreshDenseExercisePickerSurface() {
+  if (nodes.modal.open && nodes.modalCard.dataset.modalKind === "workout-exercise-picker") {
+    const shell = nodes.modalBody.querySelector(".workout-exercise-picker-modal");
+    if (shell) {
+      shell.innerHTML = `
+        <p class="tiny-copy">Añade un ejercicio al día. Luego aparecerá como tarjeta programada para rellenarlo cuando entrenes.</p>
+        ${workoutExercisePickerMarkup()}
+      `;
+      refreshIcons();
+      return;
+    }
+  }
+  renderDenseTraining();
+  refreshIcons();
+}
+
+function addPlannedExerciseToSelectedDate(exerciseId) {
+  const exercise = findDenseExerciseById(exerciseId);
+  if (!exercise) {
+    toast("Ejercicio no válido");
+    return;
+  }
+  const key = dateKey(selectedDate);
+  state.denseDayPlans ||= {};
+  const plan = state.denseDayPlans[key] || [];
+  if (plan.includes(exercise.id) || denseEntriesForDate(key).some((entry) => entry.exercise_id === exercise.id)) {
+    closeModal();
+    toast("Ese ejercicio ya está en el día");
+    return;
+  }
+  state.denseDayPlans[key] = [...plan, exercise.id];
+  state.settings.denseSelectedExerciseId = exercise.id;
+  closeModal();
+  saveAndRender(`${exercise.name} añadido`);
+}
+
 function openDenseDeleteConfirm(entryId) {
   const entry = getDenseEntries().find((item) => item.id === entryId);
   if (!entry) {
@@ -2484,6 +2571,38 @@ function openDenseDeleteConfirm(entryId) {
     </div>
   `;
   openModal();
+}
+
+function openPlannedExerciseDeleteConfirm(exerciseId) {
+  const exercise = findDenseExerciseById(exerciseId);
+  if (!exercise) return;
+  nodes.modalCard.dataset.modalKind = "confirm-delete";
+  nodes.modalEyebrow.textContent = "Quitar";
+  nodes.modalTitle.textContent = "¿Quitar ejercicio del día?";
+  nodes.modalBody.innerHTML = `
+    <div class="confirm-box">
+      <span class="tiny-icon" style="--item-color:${denseCategoryColor(exercise.category)}"><i data-lucide="${exercise.icon || "dumbbell"}"></i></span>
+      <div>
+        <strong>${escapeHtml(exercise.name)}</strong>
+        <span>${escapeHtml(formatLongDate(selectedDate))} · programado sin marca</span>
+      </div>
+    </div>
+    <p class="tiny-copy">Sólo se quitará de la planificación de este día. No borra marcas ya guardadas.</p>
+    <div class="modal-actions">
+      <button class="text-button" type="button" data-action="close-modal"><i data-lucide="x"></i>Cancelar</button>
+      <button class="text-button is-danger" type="button" data-action="delete-planned-exercise" data-exercise="${escapeAttr(exercise.id)}"><i data-lucide="trash-2"></i>Quitar</button>
+    </div>
+  `;
+  openModal();
+}
+
+function deletePlannedExercise(exerciseId) {
+  const key = dateKey(selectedDate);
+  const plan = state.denseDayPlans?.[key] || [];
+  state.denseDayPlans[key] = plan.filter((id) => id !== exerciseId);
+  if (!state.denseDayPlans[key].length) delete state.denseDayPlans[key];
+  closeModal();
+  saveAndRender("Ejercicio quitado");
 }
 
 function deleteDenseEntry(entryId) {
@@ -2898,6 +3017,7 @@ function createInitialState() {
     mesocycle: mesocycleDefault,
     trainingLogs: {},
     denseTrainingEntries: [],
+    denseDayPlans: {},
     bodyweightLogs: {},
     denseEstimates: {},
     denseExerciseFavorites: [],
@@ -2914,6 +3034,7 @@ function normalizeState(input) {
     mesocycle: mesocycleDefault,
     trainingLogs: {},
     denseTrainingEntries: [],
+    denseDayPlans: {},
     bodyweightLogs: {},
     denseEstimates: {},
     denseExerciseFavorites: [],
@@ -2941,6 +3062,7 @@ function normalizeState(input) {
   merged.dayNotes ||= {};
   merged.trainingLogs ||= {};
   merged.denseTrainingEntries = Array.isArray(merged.denseTrainingEntries || merged.trainingEntries) ? merged.denseTrainingEntries || merged.trainingEntries : [];
+  merged.denseDayPlans = merged.denseDayPlans && typeof merged.denseDayPlans === "object" ? merged.denseDayPlans : {};
   merged.bodyweightLogs ||= {};
   merged.denseEstimates ||= {};
   merged.denseExerciseFavorites = Array.isArray(merged.denseExerciseFavorites) ? merged.denseExerciseFavorites : [];
@@ -3165,11 +3287,12 @@ function denseExercisePicker(defaults) {
   `;
 }
 
-function denseExercisePickCard(exercise, selectedId) {
+function denseExercisePickCard(exercise, selectedId, action = "pick-dense-exercise") {
   const stats = denseExerciseStats(exercise.id);
   const favorite = denseExerciseFavorites().includes(exercise.id);
   const selected = exercise.id === selectedId;
   const last = stats.lastEntry ? `${stats.daysSince === 0 ? "hoy" : `hace ${stats.daysSince}d`}` : "sin marcas";
+  const actionIcon = action === "add-planned-exercise" ? "plus" : "check";
   return `
     <article
       class="exercise-pick-card ${selected ? "is-selected" : ""}"
@@ -3177,12 +3300,13 @@ function denseExercisePickCard(exercise, selectedId) {
       data-search="${escapeAttr(`${exercise.name} ${exercise.family} ${denseCategoryLabel(exercise.category)}`.toLowerCase())}"
       data-exercise="${escapeAttr(exercise.id)}"
     >
-      <button class="exercise-pick-main" type="button" data-action="pick-dense-exercise" data-exercise="${escapeAttr(exercise.id)}">
+      <button class="exercise-pick-main" type="button" data-action="${escapeAttr(action)}" data-exercise="${escapeAttr(exercise.id)}">
         <span class="tiny-icon" style="--item-color:${denseCategoryColor(exercise.category)}"><i data-lucide="${exercise.icon || "dumbbell"}"></i></span>
         <span>
           <strong>${escapeHtml(exercise.name)}</strong>
           <small>${escapeHtml(denseCategoryLabel(exercise.category))} · ${stats.count} marcas · ${last}</small>
         </span>
+        <i data-lucide="${actionIcon}"></i>
       </button>
       <button
         class="icon-button exercise-fav ${favorite ? "is-hot" : ""}"
@@ -3917,6 +4041,7 @@ function denseEntryIsPr(entry) {
 }
 
 function plannedWorkoutCard(exercise) {
+  const canDelete = exercise.plannedSource === "custom";
   return `
     <article class="today-workout-card workout-set-card is-planned" style="--item-color:${denseCategoryColor(exercise.category)}" data-action="open-dense-exercise-detail" data-exercise="${escapeAttr(exercise.id)}">
       <div class="workout-set-main">
@@ -3932,6 +4057,13 @@ function plannedWorkoutCard(exercise) {
         <strong>${escapeHtml(denseAllowedSchemes(exercise)[0] || "-")}</strong>
       </div>
       <div class="workout-set-actions">
+        ${
+          canDelete
+            ? `<button class="icon-button is-danger" type="button" data-action="confirm-delete-planned-exercise" data-exercise="${escapeAttr(exercise.id)}" title="Quitar del día" aria-label="Quitar ${escapeAttr(exercise.name)} del día">
+                <i data-lucide="trash-2"></i>
+              </button>`
+            : ""
+        }
         <button class="icon-button" type="button" data-action="open-dense-exercise-modal" data-exercise="${escapeAttr(exercise.id)}" title="Rellenar entreno" aria-label="Rellenar ${escapeAttr(exercise.name)}">
           <i data-lucide="edit-3"></i>
         </button>
@@ -3945,11 +4077,11 @@ function plannedWorkoutCard(exercise) {
 
 function addWorkoutCard() {
   return `
-    <article class="today-workout-card workout-set-card workout-add-card" data-action="open-dense-exercise-modal" data-exercise="${escapeAttr(state.settings.denseSelectedExerciseId || "pull_up")}">
+    <article class="today-workout-card workout-set-card workout-add-card" data-action="open-workout-exercise-picker">
       <span class="add-card-icon"><i data-lucide="plus"></i></span>
       <div>
         <strong>Agregar ejercicio</strong>
-        <span>Programa o registra una marca Dense para este día.</span>
+        <span>Primero elige el ejercicio; después rellenas la marca.</span>
       </div>
     </article>
   `;
@@ -4006,12 +4138,24 @@ function workoutDayButton(day) {
 }
 
 function plannedExercisesForDate(day) {
+  const key = dateKey(day);
   const current = currentMesocycleSessionForDate(day);
-  if (!current?.exercises?.length) return [];
-  return current.exercises
-    .map((item) => denseExerciseFromPlannedName(item.name))
+  const custom = (state.denseDayPlans?.[key] || [])
+    .map((id) => findDenseExerciseById(id))
     .filter(Boolean)
-    .slice(0, 4);
+    .map((exercise) => ({ ...exercise, plannedSource: "custom" }));
+  const mesocycle = current?.exercises?.length
+    ? current.exercises
+        .map((item) => denseExerciseFromPlannedName(item.name))
+        .filter(Boolean)
+        .map((exercise) => ({ ...exercise, plannedSource: "mesocycle" }))
+        .slice(0, 4)
+    : [];
+  const unique = new Map();
+  [...custom, ...mesocycle].forEach((exercise) => {
+    if (exercise?.id && !unique.has(exercise.id)) unique.set(exercise.id, exercise);
+  });
+  return [...unique.values()];
 }
 
 function currentMesocycleSessionForDate(day) {
