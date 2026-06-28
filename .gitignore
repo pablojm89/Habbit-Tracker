@@ -2,3 +2,4 @@ mobile-build/
 tmp/
 *.zip
 .DS_Store
+__preview.html

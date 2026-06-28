@@ -432,6 +432,7 @@ function leverSkillExercises(prefix, label, bodyweightContributionPct) {
         id: `${prefix}_${id}`,
         name: `${label} ${name}`,
         nature: "skill",
+        isometric: true,
         allowedNatures: ["skill", "bodyweight"],
         allowedSchemes: bodyweightSchemes,
       },
@@ -1217,51 +1218,40 @@ function renderMesocycle() {
   const currentWeekIndex = Math.min(52, trainingWeekIndex(today));
   const isCurrentWeek = selectedDate.getFullYear() === today.getFullYear() && weekIndex === currentWeekIndex;
   const planned = plannedExercisesForDate(selectedDate);
+  const loggedCounts = {};
+  entries.forEach((entry) => {
+    loggedCounts[entry.exercise_id] = (loggedCounts[entry.exercise_id] || 0) + 1;
+  });
+  const fulfilledCounts = {};
+  const visiblePlanned = planned.filter((exercise) => {
+    const logged = loggedCounts[exercise.id] || 0;
+    const used = fulfilledCounts[exercise.id] || 0;
+    if (used < logged) {
+      fulfilledCounts[exercise.id] = used + 1;
+      return false;
+    }
+    return true;
+  });
   const totalReps = entries.reduce((sum, entry) => sum + (entry.total_reps || 0), 0);
   const volume = entries.reduce((sum, entry) => sum + (entry.tonnage_kg || 0), 0);
   const blocks = entries.reduce((sum, entry) => sum + denseEquivalentSets(entry), 0);
-  const headline = entries[0]?.exercise_name || planned[0]?.name || "Sin sesión programada";
-  const status = entries.length ? "LOGGED" : planned.length ? "PLANNED" : "EMPTY";
-  const latest = latestDenseEntry();
-  const latestDate = latest?.date ? parseDate(latest.date) : null;
-  const latestHint =
-    latest && latest.date !== dateKey(selectedDate)
-      ? `${formatMonthDay(latestDate)} · ${latest.exercise_name} · ${latest.scheme}`
-      : latest
-        ? `${latest.exercise_name} · ${latest.scheme}`
-        : "sin marcas locales";
+  const totalMinutes = entries.reduce((sum, entry) => sum + (Number(entry.duration_minutes) || 0), 0);
+  const goalMinutes = 60;
+  const timePct = Math.min(100, Math.round((totalMinutes / goalMinutes) * 100));
+  const dayNumber = ((selectedDate.getDay() + 6) % 7) + 1;
+  const timeLabel = entries.length
+    ? timePct >= 100
+      ? "COMPLETE"
+      : `${Math.round(totalMinutes)} / ${goalMinutes} MIN`
+    : planned.length
+      ? "PLANNED"
+      : "EMPTY";
+  const statusTone = entries.length ? "is-green" : planned.length ? "is-amber" : "";
   nodes.mesocyclePanel.innerHTML = `
     <div class="workout-widget-stack">
-      <section class="workout-widget week-viewer-widget" aria-label="Semana de entrenamiento">
-        <div class="week-selector-row">
-          <button class="week-edge-button" type="button" data-action="shift-day" data-shift="-7" title="Semana anterior" aria-label="Semana anterior">
-            <i data-lucide="chevron-left"></i>
-          </button>
-          <details class="week-selector">
-            <summary class="week-chip">
-              <i data-lucide="calendar-days"></i>
-              <span>
-                <strong>Week ${weekIndex} of 52</strong>
-                <em>${isCurrentWeek ? "CURRENT" : selectedDate.getFullYear()}</em>
-              </span>
-            </summary>
-            <div class="week-menu">
-              ${yearWeekOptions(weekIndex, currentWeekIndex)}
-            </div>
-          </details>
-          <button class="week-edge-button" type="button" data-action="shift-day" data-shift="7" title="Semana siguiente" aria-label="Semana siguiente">
-            <i data-lucide="chevron-right"></i>
-          </button>
-        </div>
-        <div class="weekday-strip">
-          ${weekDays.map((day) => workoutDayButton(day)).join("")}
-        </div>
-      </section>
-
-      <section class="workout-widget workout-day-widget" aria-label="Día seleccionado">
+      <section class="workout-widget workout-summary-card" aria-label="Resumen del día">
         <div class="workout-day-head">
-          <div>
-            <p class="eyebrow">Workout</p>
+          <div class="workout-day-title">
             <h2>${capitalize(formatWeekday(selectedDate))}</h2>
             <span>${formatMonthDay(selectedDate)}</span>
           </div>
@@ -1271,19 +1261,41 @@ function renderMesocycle() {
             <button class="icon-button" type="button" data-action="open-quick-timer" title="Tools" aria-label="Tools"><i data-lucide="timer"></i></button>
           </div>
         </div>
-        <div class="workout-sync-line">
-          <span>Última marca local</span>
-          <strong>${escapeHtml(latestHint)}</strong>
-        </div>
-      </section>
 
-      <section class="workout-widget workout-summary-widget" aria-label="Resumen del día">
-        <div class="workout-title-line">
-          <span class="tiny-icon" style="--item-color:var(--green)"><i data-lucide="${entries.length ? "flame" : planned.length ? "clipboard-list" : "calendar-plus"}"></i></span>
-          <strong>${escapeHtml(shortWeekday(selectedDate))} · ${escapeHtml(headline)}</strong>
-          <span class="mini-tag ${entries.length ? "is-green" : planned.length ? "is-amber" : ""}">${status}</span>
+        <div class="week-viewer-widget">
+          <div class="week-selector-row">
+            <button class="week-edge-button" type="button" data-action="shift-day" data-shift="-7" title="Semana anterior" aria-label="Semana anterior">
+              <i data-lucide="chevron-left"></i>
+            </button>
+            <details class="week-selector">
+              <summary class="week-chip">
+                <i data-lucide="calendar-days"></i>
+                <span>
+                  <strong>Week ${weekIndex} of 52</strong>
+                  <em>${isCurrentWeek ? "CURRENT" : selectedDate.getFullYear()}</em>
+                </span>
+              </summary>
+              <div class="week-menu">
+                ${yearWeekOptions(weekIndex, currentWeekIndex)}
+              </div>
+            </details>
+            <button class="week-edge-button" type="button" data-action="shift-day" data-shift="7" title="Semana siguiente" aria-label="Semana siguiente">
+              <i data-lucide="chevron-right"></i>
+            </button>
+          </div>
+          <div class="weekday-strip">
+            ${weekDays.map((day) => workoutDayButton(day)).join("")}
+          </div>
         </div>
-        <div class="progress-track"><i style="width:${entries.length ? 100 : planned.length ? 35 : 8}%"></i></div>
+
+        <div class="workout-progress">
+          <div class="workout-progress-head">
+            <span class="workout-progress-label"><i data-lucide="${entries.length ? "flame" : planned.length ? "clipboard-list" : "calendar-plus"}"></i>Week ${weekIndex} · Day ${dayNumber}</span>
+            <span class="workout-progress-time ${statusTone}">${timeLabel}</span>
+          </div>
+          <div class="progress-track"><i style="width:${timePct}%"></i></div>
+        </div>
+
         <div class="workout-metric-row">
           ${workoutSummaryMetric(volume ? `${roundTo(volume / 1000, 1)}t` : "-", "vol")}
           ${workoutSummaryMetric(roundTo(blocks, 1), "blocks")}
@@ -1291,13 +1303,9 @@ function renderMesocycle() {
         </div>
       </section>
 
-      <section class="workout-widget workout-list-widget" aria-label="Entrenos del día">
-        <div class="today-workout-list">
-          ${entries.map((entry) => todayWorkoutCard(entry)).join("")}
-          ${planned.filter((exercise) => !entries.some((entry) => entry.exercise_id === exercise.id)).map((exercise) => plannedWorkoutCard(exercise)).join("")}
-          ${addWorkoutCard()}
-        </div>
-      </section>
+      ${entries.map((entry) => todayWorkoutCard(entry)).join("")}
+      ${visiblePlanned.map((exercise) => plannedWorkoutCard(exercise)).join("")}
+      ${addWorkoutCard()}
     </div>
   `;
 }
@@ -1370,7 +1378,7 @@ function denseTrainingFormMarkup(defaults, { includePicker = false, modal = fals
           </div>
         </fieldset>
         ${denseRepPerSetFields(exercise, defaults)}
-        ${field("Reps totales", "totalReps", defaults.totalReps, "number")}
+        ${denseIsIsometric(exercise) ? "" : field("Reps totales", "totalReps", defaults.totalReps, "number")}
         ${denseHoldFields(exercise, defaults)}
         ${denseLoadFields(exercise, defaults)}
         <fieldset class="effort-picker-field is-full">
@@ -1947,8 +1955,8 @@ function handleClick(event) {
   if (action === "open-dense-exercise-detail") openDenseExerciseDetailModal(target.dataset.exercise);
   if (action === "confirm-delete-dense-entry") openDenseDeleteConfirm(target.dataset.entry);
   if (action === "delete-dense-entry") deleteDenseEntry(target.dataset.entry);
-  if (action === "confirm-delete-planned-exercise") openPlannedExerciseDeleteConfirm(target.dataset.exercise);
-  if (action === "delete-planned-exercise") deletePlannedExercise(target.dataset.exercise);
+  if (action === "confirm-delete-planned-exercise") openPlannedExerciseDeleteConfirm(Number(target.dataset.planIndex));
+  if (action === "delete-planned-exercise") deletePlannedExercise(Number(target.dataset.planIndex));
   if (action === "pick-dense-exercise") pickDenseExercise(target.dataset.exercise);
   if (action === "toggle-dense-favorite") toggleDenseFavorite(target.dataset.exercise);
   if (action === "focus-dense-register") openDenseTrainingModal({ exerciseId: state.settings.denseSelectedExerciseId });
@@ -2536,11 +2544,6 @@ function addPlannedExerciseToSelectedDate(exerciseId) {
   const key = dateKey(selectedDate);
   state.denseDayPlans ||= {};
   const plan = state.denseDayPlans[key] || [];
-  if (plan.includes(exercise.id) || denseEntriesForDate(key).some((entry) => entry.exercise_id === exercise.id)) {
-    closeModal();
-    toast("Ese ejercicio ya está en el día");
-    return;
-  }
   state.denseDayPlans[key] = [...plan, exercise.id];
   state.settings.denseSelectedExerciseId = exercise.id;
   closeModal();
@@ -2573,8 +2576,9 @@ function openDenseDeleteConfirm(entryId) {
   openModal();
 }
 
-function openPlannedExerciseDeleteConfirm(exerciseId) {
-  const exercise = findDenseExerciseById(exerciseId);
+function openPlannedExerciseDeleteConfirm(planIndex) {
+  const key = dateKey(selectedDate);
+  const exercise = findDenseExerciseById(state.denseDayPlans?.[key]?.[planIndex]);
   if (!exercise) return;
   nodes.modalCard.dataset.modalKind = "confirm-delete";
   nodes.modalEyebrow.textContent = "Quitar";
@@ -2590,17 +2594,21 @@ function openPlannedExerciseDeleteConfirm(exerciseId) {
     <p class="tiny-copy">Sólo se quitará de la planificación de este día. No borra marcas ya guardadas.</p>
     <div class="modal-actions">
       <button class="text-button" type="button" data-action="close-modal"><i data-lucide="x"></i>Cancelar</button>
-      <button class="text-button is-danger" type="button" data-action="delete-planned-exercise" data-exercise="${escapeAttr(exercise.id)}"><i data-lucide="trash-2"></i>Quitar</button>
+      <button class="text-button is-danger" type="button" data-action="delete-planned-exercise" data-plan-index="${planIndex}"><i data-lucide="trash-2"></i>Quitar</button>
     </div>
   `;
   openModal();
 }
 
-function deletePlannedExercise(exerciseId) {
+function deletePlannedExercise(planIndex) {
   const key = dateKey(selectedDate);
-  const plan = state.denseDayPlans?.[key] || [];
-  state.denseDayPlans[key] = plan.filter((id) => id !== exerciseId);
-  if (!state.denseDayPlans[key].length) delete state.denseDayPlans[key];
+  const plan = state.denseDayPlans?.[key];
+  if (!Array.isArray(plan) || !Number.isInteger(planIndex) || planIndex < 0 || planIndex >= plan.length) {
+    closeModal();
+    return;
+  }
+  plan.splice(planIndex, 1);
+  if (!plan.length) delete state.denseDayPlans[key];
   closeModal();
   saveAndRender("Ejercicio quitado");
 }
@@ -2698,16 +2706,17 @@ function saveDenseTrainingForm(form) {
   const bodyweightKg = positiveNumber(data.bodyweightKg);
   const weightPerDumbbellKg = positiveNumber(data.weightPerDumbbellKg);
   const externalLoadFromPair = exercise.loadPattern === "dumbbell_pair" && weightPerDumbbellKg ? weightPerDumbbellKg * 2 : 0;
-  const scheme = data.scheme || (exercise.nature === "bodyweight" ? "10D" : "10D5");
+  const isometric = denseIsIsometric(exercise);
+  const scheme = data.scheme || (exercise.nature === "bodyweight" || isometric ? "10D" : "10D5");
   const durationMinutes = denseSchemeMinutes(scheme) || 0;
-  const targetRepsPerMin = positiveNumber(data.repsPerSet) || denseSchemePrescriptionAverage(scheme) || 0;
-  const targetTotalReps = denseTotalFromRepsPerSet(targetRepsPerMin, scheme) || 0;
-  const totalReps = positiveNumber(data.totalReps);
+  const targetRepsPerMin = isometric ? 0 : positiveNumber(data.repsPerSet) || denseSchemePrescriptionAverage(scheme) || 0;
+  const targetTotalReps = isometric ? 0 : denseTotalFromRepsPerSet(targetRepsPerMin, scheme) || 0;
+  const totalReps = isometric ? 0 : positiveNumber(data.totalReps);
   const rounds = positiveNumber(data.rounds) || durationMinutes || null;
   const holdSecondsPerRound = positiveNumber(data.holdSecondsPerRound);
   const targetTotalHoldSeconds = holdSecondsPerRound && rounds ? holdSecondsPerRound * rounds : 0;
   const totalHoldSeconds = positiveNumber(data.totalHoldSeconds) || targetTotalHoldSeconds;
-  const usesHold = Boolean(holdSecondsPerRound && rounds);
+  const usesHold = isometric || Boolean(holdSecondsPerRound && rounds);
   const failed = data.effort === "fallo" || (!usesHold && targetTotalReps > 0 && totalReps > 0 && totalReps < targetTotalReps);
   const editingEntryId = state.settings.denseDraftEntryId || "";
   const existingEntry = editingEntryId ? getDenseEntries().find((entry) => entry.id === editingEntryId) : null;
@@ -4059,7 +4068,7 @@ function plannedWorkoutCard(exercise) {
       <div class="workout-set-actions">
         ${
           canDelete
-            ? `<button class="icon-button is-danger" type="button" data-action="confirm-delete-planned-exercise" data-exercise="${escapeAttr(exercise.id)}" title="Quitar del día" aria-label="Quitar ${escapeAttr(exercise.name)} del día">
+            ? `<button class="icon-button is-danger" type="button" data-action="confirm-delete-planned-exercise" data-plan-index="${exercise.planIndex}" title="Quitar del día" aria-label="Quitar ${escapeAttr(exercise.name)} del día">
                 <i data-lucide="trash-2"></i>
               </button>`
             : ""
@@ -4077,13 +4086,10 @@ function plannedWorkoutCard(exercise) {
 
 function addWorkoutCard() {
   return `
-    <article class="today-workout-card workout-set-card workout-add-card" data-action="open-workout-exercise-picker">
-      <span class="add-card-icon"><i data-lucide="plus"></i></span>
-      <div>
-        <strong>Agregar ejercicio</strong>
-        <span>Primero elige el ejercicio; después rellenas la marca.</span>
-      </div>
-    </article>
+    <button class="workout-add-button" type="button" data-action="open-workout-exercise-picker">
+      <i data-lucide="plus"></i>
+      <span>Agregar ejercicio</span>
+    </button>
   `;
 }
 
@@ -4122,15 +4128,20 @@ function workoutDayButton(day) {
   const entries = denseEntriesForDate(key);
   const planned = plannedExercisesForDate(day);
   const selected = key === dateKey(selectedDate);
-  const hasWork = entries.length || planned.length;
+  const minutes = entries.reduce((sum, entry) => sum + (Number(entry.duration_minutes) || 0), 0);
+  const goalMinutes = 60;
+  const heat = entries.length ? Math.max(0.2, Math.min(1, minutes / goalMinutes)) : 0;
+  const heatClass = entries.length ? (minutes >= goalMinutes ? "is-heat is-goal-met" : "is-heat") : planned.length ? "has-plan" : "";
+  const heatLabel = entries.length ? ` · ${Math.round(minutes)} min` : "";
   return `
     <button
-      class="weekday-button ${selected ? "is-selected" : ""} ${entries.length ? "has-log" : planned.length ? "has-plan" : ""}"
+      class="weekday-button ${selected ? "is-selected" : ""} ${heatClass}"
+      style="--heat:${roundTo(heat, 2)}"
       type="button"
       data-action="select-calendar-date"
       data-date="${key}"
-      title="${escapeAttr(formatLongDate(day))}"
-      aria-label="${escapeAttr(formatLongDate(day))}"
+      title="${escapeAttr(formatLongDate(day) + heatLabel)}"
+      aria-label="${escapeAttr(formatLongDate(day) + heatLabel)}"
     >
       <span>${denseWeekdayLetter(day)}</span>
     </button>
@@ -4141,21 +4152,26 @@ function plannedExercisesForDate(day) {
   const key = dateKey(day);
   const current = currentMesocycleSessionForDate(day);
   const custom = (state.denseDayPlans?.[key] || [])
-    .map((id) => findDenseExerciseById(id))
-    .filter(Boolean)
-    .map((exercise) => ({ ...exercise, plannedSource: "custom" }));
+    .map((id, index) => {
+      const exercise = findDenseExerciseById(id);
+      return exercise ? { ...exercise, plannedSource: "custom", planIndex: index } : null;
+    })
+    .filter(Boolean);
+  const customIds = new Set(custom.map((exercise) => exercise.id));
+  const seenMeso = new Set();
   const mesocycle = current?.exercises?.length
     ? current.exercises
         .map((item) => denseExerciseFromPlannedName(item.name))
         .filter(Boolean)
+        .filter((exercise) => {
+          if (customIds.has(exercise.id) || seenMeso.has(exercise.id)) return false;
+          seenMeso.add(exercise.id);
+          return true;
+        })
         .map((exercise) => ({ ...exercise, plannedSource: "mesocycle" }))
         .slice(0, 4)
     : [];
-  const unique = new Map();
-  [...custom, ...mesocycle].forEach((exercise) => {
-    if (exercise?.id && !unique.has(exercise.id)) unique.set(exercise.id, exercise);
-  });
-  return [...unique.values()];
+  return [...custom, ...mesocycle];
 }
 
 function currentMesocycleSessionForDate(day) {
@@ -4411,6 +4427,10 @@ function denseProgressionReason(entry, direction) {
 
 function denseUsesRepsPerSet(exercise) {
   return ["bodyweight", "weighted", "weighted_calisthenics"].includes(exercise.nature);
+}
+
+function denseIsIsometric(exercise) {
+  return Boolean(exercise && exercise.isometric);
 }
 
 function denseSupportsHold(exercise) {
