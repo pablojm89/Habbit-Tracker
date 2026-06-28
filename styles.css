@@ -1639,6 +1639,76 @@ i[data-lucide] {
     var(--panel-2);
 }
 
+.dense-progression-card {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, var(--item-color), #30312a 42%);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--item-color), transparent 80%), transparent 58%),
+    #151611;
+}
+
+.dense-progression-card.is-green {
+  border-color: rgba(104, 214, 111, 0.52);
+}
+
+.dense-progression-card.is-amber {
+  border-color: rgba(228, 175, 84, 0.48);
+}
+
+.dense-progression-card.is-danger {
+  border-color: rgba(216, 87, 79, 0.48);
+}
+
+.dense-progression-card strong,
+.dense-progression-card span,
+.dense-progression-card small,
+.dense-progression-card em {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dense-progression-card span,
+.dense-progression-card small {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 780;
+}
+
+.dense-progression-card small {
+  margin-top: 5px;
+  color: var(--dim);
+  font-size: 0.68rem;
+}
+
+.dense-progression-title {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.dense-progression-title strong {
+  color: var(--text);
+  font-size: 0.88rem;
+}
+
+.dense-progression-title em {
+  color: #b7fb48;
+  font-size: 0.82rem;
+  font-style: normal;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
 .quick-exercise-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

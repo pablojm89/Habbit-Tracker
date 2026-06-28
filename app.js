@@ -1271,6 +1271,7 @@ function renderSession() {
   const selected = denseExerciseById(state.settings.denseSelectedExerciseId || "pull_up");
   const schemes = denseAllowedSchemes(selected);
   const stats = denseExerciseStats(selected.id);
+  const suggestion = denseProgressionSuggestion(selected);
 
   nodes.sessionPanel.innerHTML = `
     <div class="section-head">
@@ -1288,6 +1289,7 @@ function renderSession() {
       </div>
       <button class="text-button" type="button" data-action="focus-dense-register"><i data-lucide="edit-3"></i>Registrar</button>
     </div>
+    ${renderDenseProgressionSuggestion(selected, suggestion)}
   `;
 }
 
@@ -1341,6 +1343,7 @@ function renderDenseTraining() {
         <button class="text-button is-hot" type="submit"><i data-lucide="save"></i>${isEditingDenseEntry ? "Actualizar marca Dense" : "Guardar marca Dense"}</button>
       </div>
     </form>
+    ${renderDenseProgressionSuggestion(exercise, denseProgressionSuggestion(exercise))}
     ${renderSelectedExerciseLog(exercise.id)}
   `;
   updateDenseHoldEstimate(nodes.denseTrainingPanel.querySelector("#denseTrainingForm"));
@@ -3637,6 +3640,12 @@ function latestDenseEntry() {
   return [...getDenseEntries()].sort((a, b) => (b.created_at || b.date || "").localeCompare(a.created_at || a.date || ""))[0] || null;
 }
 
+function latestDenseEntryForExercise(exerciseId, scheme = "") {
+  return [...getDenseEntries()]
+    .filter((entry) => entry.exercise_id === exerciseId && !entry.deleted_at && (!scheme || entry.scheme === scheme))
+    .sort((a, b) => (b.created_at || b.date || "").localeCompare(a.created_at || a.date || ""))[0] || null;
+}
+
 function denseQuickExercises() {
   const favorites = denseExerciseFavorites()
     .map((id) => denseExerciseById(id))
@@ -3914,6 +3923,81 @@ function denseDefaultRepsPerSet(exercise, scheme) {
   if (estimate && multiplier) return Math.max(1, Math.floor(estimate * multiplier));
 
   return Math.max(1, Math.round(denseDefaultRpm(exercise, denseSchemeBase(scheme))));
+}
+
+function denseProgressionSuggestion(exercise) {
+  const entry = latestDenseEntryForExercise(exercise.id);
+  if (!entry) return null;
+  const scheme = denseAllowedSchemes(exercise).includes(entry.scheme) ? entry.scheme : denseAllowedSchemes(exercise)[0];
+  const minutes = denseSchemeMinutes(scheme) || entry.duration_minutes || 0;
+  const effort = entry.effort || "N";
+  const completed = !entry.failed && (!entry.target_total_reps || Number(entry.total_reps || 0) >= Number(entry.target_total_reps || 0));
+  const base = {
+    entry,
+    scheme,
+    rounds: entry.rounds || minutes || "",
+    effort,
+    tone: entry.failed || effort === "fallo" ? "danger" : effort === "VE" || effort === "E" ? "green" : effort === "H" || effort === "VH" ? "amber" : "neutral",
+  };
+
+  if (entry.hold_seconds_per_round || entry.total_hold_seconds) {
+    const currentHold = Number(entry.hold_seconds_per_round || (minutes ? entry.total_hold_seconds / minutes : 0)) || 0;
+    const delta = effort === "VE" ? 5 : effort === "E" ? 3 : effort === "N" && completed ? 2 : entry.failed || effort === "fallo" ? -3 : 0;
+    const holdSecondsPerRound = Math.max(1, Math.round(currentHold + delta));
+    return {
+      ...base,
+      type: "hold",
+      holdSecondsPerRound,
+      totalHoldSeconds: holdSecondsPerRound * (base.rounds || minutes || 1),
+      title: `${scheme} · ${holdSecondsPerRound}s hold/ronda`,
+      reason: denseProgressionReason(entry, holdSecondsPerRound > currentHold ? "up" : holdSecondsPerRound < currentHold ? "down" : "hold"),
+    };
+  }
+
+  if (exercise.nature === "weighted" || exercise.nature === "weighted_calisthenics") {
+    const loadKey = exercise.loadPattern === "dumbbell_pair" ? "weight_per_dumbbell_kg" : exercise.nature === "weighted_calisthenics" ? "added_load_kg" : "external_load_kg";
+    const currentLoad = Number(entry[loadKey] || entry.external_load_kg || entry.added_load_kg || entry.weight_per_dumbbell_kg || 0);
+    const factor = entry.failed || effort === "fallo" ? 0.95 : effort === "VE" ? 1.05 : effort === "E" ? 1.025 : effort === "N" && completed ? 1.015 : 1;
+    const nextLoad = denseRoundLoad(currentLoad * factor);
+    return {
+      ...base,
+      type: "load",
+      repsPerSet: entry.target_reps_per_min || entry.reps_per_set || denseSchemePrescriptionAverage(scheme) || "",
+      totalReps: entry.target_total_reps || entry.total_reps || "",
+      externalLoadKg: loadKey === "external_load_kg" ? nextLoad : entry.external_load_kg || "",
+      addedLoadKg: loadKey === "added_load_kg" ? nextLoad : entry.added_load_kg || "",
+      weightPerDumbbellKg: loadKey === "weight_per_dumbbell_kg" ? nextLoad : entry.weight_per_dumbbell_kg || "",
+      title: `${scheme} · ${loadKey === "added_load_kg" ? "+" : ""}${formatKg(nextLoad)}`,
+      reason: denseProgressionReason(entry, nextLoad > currentLoad ? "up" : nextLoad < currentLoad ? "down" : "hold"),
+    };
+  }
+
+  const currentTarget = Number(entry.target_reps_per_min || entry.reps_per_set || (minutes ? entry.total_reps / minutes : 0)) || denseDefaultRepsPerSet(exercise, scheme) || 1;
+  const actualRpm = Number(entry.reps_per_min || (minutes ? entry.total_reps / minutes : 0)) || currentTarget;
+  const delta = entry.failed || effort === "fallo" ? Math.min(-1, Math.floor(actualRpm) - currentTarget) : effort === "VE" ? 2 : effort === "E" ? 1 : effort === "N" && completed ? 1 : 0;
+  const repsPerSet = Math.max(1, Math.round(currentTarget + delta));
+  return {
+    ...base,
+    type: "reps",
+    repsPerSet,
+    totalReps: denseTotalFromRepsPerSet(repsPerSet, scheme),
+    title: `${scheme}${repsPerSet} · ${denseTotalFromRepsPerSet(repsPerSet, scheme)} reps`,
+    reason: denseProgressionReason(entry, repsPerSet > currentTarget ? "up" : repsPerSet < currentTarget ? "down" : "hold"),
+  };
+}
+
+function denseRoundLoad(value) {
+  if (!Number.isFinite(value) || value <= 0) return "";
+  return Math.round(value * 2) / 2;
+}
+
+function denseProgressionReason(entry, direction) {
+  if (entry.failed || entry.effort === "fallo") return "Fallaste o no llegaste: ajusto el objetivo al resultado real para reconstruir.";
+  if (entry.effort === "VE") return direction === "up" ? "Lo marcaste muy fácil: subo el objetivo para provocar adaptación." : "Muy fácil, pero sin margen claro de carga.";
+  if (entry.effort === "E") return direction === "up" ? "Lo marcaste fácil: progreso suave para la próxima exposición." : "Fácil, pero mantengo por prudencia.";
+  if (entry.effort === "H" || entry.effort === "VH") return "Fue duro: mantengo el objetivo para consolidarlo.";
+  if (direction === "up") return "Completado normal: subo un paso pequeño.";
+  return "Mantengo el objetivo hasta tener otra señal.";
 }
 
 function denseUsesRepsPerSet(exercise) {
@@ -4268,25 +4352,28 @@ function denseFormDefaults() {
     };
   }
   const exercise = denseExerciseById(selectedId || latest?.exercise_id || "pull_up");
-  const shouldUseLatest = !selectedId || selectedId === latest?.exercise_id;
+  const latestForExercise = latestDenseEntryForExercise(exercise.id);
+  const suggestion = denseProgressionSuggestion(exercise);
+  const referenceEntry = selectedId ? latestForExercise : latest;
+  const shouldUseLatest = Boolean(referenceEntry);
   const allowedSchemes = denseAllowedSchemes(exercise);
-  const preferredScheme = shouldUseLatest && latest?.scheme ? latest.scheme : exercise.nature === "weighted" || exercise.nature === "weighted_calisthenics" ? "10D5" : "10D";
+  const preferredScheme = suggestion?.scheme || (shouldUseLatest && referenceEntry?.scheme ? referenceEntry.scheme : exercise.nature === "weighted" || exercise.nature === "weighted_calisthenics" ? "10D5" : "10D");
   const scheme = allowedSchemes.includes(preferredScheme) ? preferredScheme : allowedSchemes[0];
-  const repsPerSet = denseDefaultRepsPerSet(exercise, scheme);
+  const repsPerSet = suggestion?.repsPerSet || denseDefaultRepsPerSet(exercise, scheme);
   return {
     date: dateKey(selectedDate),
     bodyweightKg: latestKnownBodyweight(dateKey(selectedDate)) || 80,
     exerciseId: exercise.id,
-    nature: shouldUseLatest && latest?.nature ? latest.nature : exercise.nature,
+    nature: shouldUseLatest && referenceEntry?.nature ? referenceEntry.nature : exercise.nature,
     scheme,
     repsPerSet,
-    totalReps: repsPerSet ? denseTotalFromRepsPerSet(repsPerSet, scheme) : denseDefaultTotalReps(exercise, scheme),
-    holdSecondsPerRound: shouldUseLatest && latest?.hold_seconds_per_round ? latest.hold_seconds_per_round : "",
-    rounds: shouldUseLatest && latest?.rounds ? latest.rounds : denseSchemeMinutes(scheme) || "",
+    totalReps: suggestion?.totalReps || (repsPerSet ? denseTotalFromRepsPerSet(repsPerSet, scheme) : denseDefaultTotalReps(exercise, scheme)),
+    holdSecondsPerRound: suggestion?.holdSecondsPerRound || (shouldUseLatest && referenceEntry?.hold_seconds_per_round ? referenceEntry.hold_seconds_per_round : ""),
+    rounds: suggestion?.rounds || (shouldUseLatest && referenceEntry?.rounds ? referenceEntry.rounds : denseSchemeMinutes(scheme) || ""),
     effort: "N",
-    externalLoadKg: "",
-    addedLoadKg: "",
-    weightPerDumbbellKg: "",
+    externalLoadKg: suggestion?.externalLoadKg || "",
+    addedLoadKg: suggestion?.addedLoadKg || "",
+    weightPerDumbbellKg: suggestion?.weightPerDumbbellKg || "",
     notes: "",
   };
 }
@@ -4480,6 +4567,33 @@ function renderSelectedExerciseLog(exerciseId) {
         }
       </div>
     </section>
+  `;
+}
+
+function renderDenseProgressionSuggestion(exercise, suggestion = denseProgressionSuggestion(exercise)) {
+  if (!suggestion) {
+    return `
+      <article class="dense-progression-card is-empty" style="--item-color:${denseCategoryColor(exercise.category)}">
+        <span class="tiny-icon"><i data-lucide="trending-up"></i></span>
+        <div>
+          <strong>Siguiente objetivo</strong>
+          <span>Guarda una marca de ${escapeHtml(exercise.name)} y BitTracker propondrá la progresión.</span>
+        </div>
+      </article>
+    `;
+  }
+  return `
+    <article class="dense-progression-card is-${escapeAttr(suggestion.tone)}" style="--item-color:${denseCategoryColor(exercise.category)}">
+      <span class="tiny-icon"><i data-lucide="${suggestion.tone === "danger" ? "arrow-down" : suggestion.tone === "green" ? "arrow-up" : "move-right"}"></i></span>
+      <div>
+        <div class="dense-progression-title">
+          <strong>Siguiente objetivo</strong>
+          <em>${escapeHtml(suggestion.title)}</em>
+        </div>
+        <span>${escapeHtml(suggestion.reason)}</span>
+        <small>Base: ${escapeHtml(suggestion.entry.scheme)} · ${escapeHtml(denseEntryValue(suggestion.entry))} · esfuerzo ${escapeHtml(suggestion.entry.effort || "N")}</small>
+      </div>
+    </article>
   `;
 }
 
