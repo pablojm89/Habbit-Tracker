@@ -4131,7 +4131,7 @@ function workoutDayButton(day) {
   const minutes = entries.reduce((sum, entry) => sum + (Number(entry.duration_minutes) || 0), 0);
   const goalMinutes = 60;
   const heat = entries.length ? Math.max(0.2, Math.min(1, minutes / goalMinutes)) : 0;
-  const heatClass = entries.length ? (minutes >= goalMinutes ? "is-heat is-goal-met" : "is-heat") : planned.length ? "has-plan" : "";
+  const heatClass = entries.length ? (minutes >= goalMinutes ? "is-heat is-goal-met" : "is-heat") : "";
   const heatLabel = entries.length ? ` · ${Math.round(minutes)} min` : "";
   return `
     <button
@@ -4150,28 +4150,13 @@ function workoutDayButton(day) {
 
 function plannedExercisesForDate(day) {
   const key = dateKey(day);
-  const current = currentMesocycleSessionForDate(day);
-  const custom = (state.denseDayPlans?.[key] || [])
+  // Mesocycle auto-programming is hidden for now: only manual day plans are shown.
+  return (state.denseDayPlans?.[key] || [])
     .map((id, index) => {
       const exercise = findDenseExerciseById(id);
       return exercise ? { ...exercise, plannedSource: "custom", planIndex: index } : null;
     })
     .filter(Boolean);
-  const customIds = new Set(custom.map((exercise) => exercise.id));
-  const seenMeso = new Set();
-  const mesocycle = current?.exercises?.length
-    ? current.exercises
-        .map((item) => denseExerciseFromPlannedName(item.name))
-        .filter(Boolean)
-        .filter((exercise) => {
-          if (customIds.has(exercise.id) || seenMeso.has(exercise.id)) return false;
-          seenMeso.add(exercise.id);
-          return true;
-        })
-        .map((exercise) => ({ ...exercise, plannedSource: "mesocycle" }))
-        .slice(0, 4)
-    : [];
-  return [...custom, ...mesocycle];
 }
 
 function currentMesocycleSessionForDate(day) {

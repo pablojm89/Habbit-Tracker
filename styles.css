@@ -1568,22 +1568,6 @@ i[data-lucide] {
   outline-offset: -2px;
 }
 
-.weekday-button.has-log::after,
-.weekday-button.has-plan::after {
-  position: absolute;
-  right: 5px;
-  bottom: 4px;
-  width: 5px;
-  height: 5px;
-  border-radius: 999px;
-  background: var(--green);
-  content: "";
-}
-
-.weekday-button.has-plan::after {
-  background: var(--amber);
-}
-
 .weekday-button i {
   position: absolute;
   inset: auto 6px 5px auto;
@@ -1726,8 +1710,7 @@ i[data-lucide] {
     inset 0 0 0 1px rgba(255, 214, 92, 0.5),
     inset 4px 0 0 rgba(255, 205, 70, 1),
     inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    0 0 28px rgba(255, 196, 60, 0.5),
-    0 0 60px rgba(255, 184, 40, 0.28);
+    0 0 16px rgba(255, 196, 60, 0.28);
 }
 
 .workout-set-card.is-complete .mini-tag.is-amber {
@@ -4483,15 +4466,19 @@ button:focus-visible {
   }
 
   .modal {
-    width: 100vw;
-    max-width: 100vw;
-    margin: auto 0 0;
+    width: calc(100vw - 16px);
+    max-width: calc(100vw - 16px);
+    margin: auto 8px calc(14px + env(safe-area-inset-bottom, 0px));
   }
 
   .modal-card {
-    max-height: 88vh;
-    border-radius: 18px 18px 0 0;
+    max-height: 84vh;
+    border-radius: 22px;
     overflow-y: auto;
+  }
+
+  .modal-body {
+    padding-bottom: 20px;
   }
 
   .modal-head {
@@ -4528,6 +4515,16 @@ button:focus-visible {
   .analytics-stat-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 7px;
+  }
+
+  .exercise-picker-controls {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .exercise-search-field {
+    grid-column: 1 / -1;
+    order: -1;
   }
 
   .analytics-tab-strip,
@@ -4610,7 +4607,8 @@ button:focus-visible {
 
   .exercise-picker-list {
     grid-template-columns: 1fr;
-    max-height: 360px;
+    max-height: none;
+    overflow: visible;
   }
 
   .stat-row {
