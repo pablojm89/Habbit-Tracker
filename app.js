@@ -1247,19 +1247,9 @@ function renderMesocycle() {
 
       <section class="workout-widget workout-list-widget" aria-label="Entrenos del día">
         <div class="today-workout-list">
-          ${
-            entries.length
-              ? entries.map((entry) => todayWorkoutCard(entry)).join("")
-              : planned.length
-                ? planned.map((exercise) => plannedWorkoutCard(exercise)).join("")
-              : `<article class="today-workout-empty">
-                  <span class="tiny-icon" style="--item-color:var(--green)"><i data-lucide="plus"></i></span>
-                  <div>
-                    <strong>Empieza el día de entreno</strong>
-                    <span>Selecciona un ejercicio, elige esquema Dense y guarda tu marca.</span>
-                  </div>
-                </article>`
-          }
+          ${entries.map((entry) => todayWorkoutCard(entry)).join("")}
+          ${planned.filter((exercise) => !entries.some((entry) => entry.exercise_id === exercise.id)).map((exercise) => plannedWorkoutCard(exercise)).join("")}
+          ${addWorkoutCard()}
         </div>
       </section>
     </div>
@@ -1294,9 +1284,10 @@ function renderSession() {
 }
 
 function renderDenseTraining() {
+  nodes.denseTrainingPanel.innerHTML = "";
+  return;
   const defaults = denseFormDefaults();
   const exercise = denseExerciseById(defaults.exerciseId);
-  const allowedSchemes = denseAllowedSchemes(exercise);
   const isEditingDenseEntry = Boolean(state.settings.denseDraftEntryId);
 
   nodes.denseTrainingPanel.innerHTML = `
@@ -1308,14 +1299,26 @@ function renderDenseTraining() {
       </div>
       <span class="mini-tag is-green"><i data-lucide="${isEditingDenseEntry ? "edit-3" : "cloud"}"></i>${isEditingDenseEntry ? "editando" : cloudConfig.enabled ? "cloud ready" : "local"}</span>
     </div>
-    <form id="denseTrainingForm" class="dense-training-form">
-      ${denseExercisePicker(defaults)}
+    ${denseTrainingFormMarkup(defaults, { includePicker: true, submitLabel: isEditingDenseEntry ? "Actualizar marca Dense" : "Guardar marca Dense" })}
+    ${renderDenseProgressionSuggestion(exercise, denseProgressionSuggestion(exercise))}
+    ${renderSelectedExerciseLog(exercise.id)}
+  `;
+  updateDenseHoldEstimate(nodes.denseTrainingPanel.querySelector("#denseTrainingForm"));
+}
+
+function denseTrainingFormMarkup(defaults, { includePicker = false, modal = false, submitLabel = "Guardar marca Dense" } = {}) {
+  const exercise = denseExerciseById(defaults.exerciseId);
+  const allowedSchemes = denseAllowedSchemes(exercise);
+  return `
+    <form id="denseTrainingForm" class="dense-training-form ${modal ? "is-modal-form" : ""}">
+      ${includePicker ? denseExercisePicker(defaults) : ""}
+      ${modal ? denseSetModalSummary(exercise, defaults) : ""}
       <div class="dense-form-grid">
         ${field("Peso corporal kg", "bodyweightKg", defaults.bodyweightKg, "number")}
         <input type="hidden" name="exerciseId" value="${escapeAttr(defaults.exerciseId)}" />
         <input type="hidden" name="nature" value="${escapeAttr(exercise.nature)}" />
         <fieldset class="scheme-picker-field is-full">
-          <legend>Esquema Dense</legend>
+          <legend>${modal ? "Scheme completed" : "Esquema Dense"}</legend>
           <div class="scheme-option-grid">
             ${allowedSchemes.map((scheme) => denseSchemeOption(scheme, defaults.scheme)).join("")}
           </div>
@@ -1325,14 +1328,14 @@ function renderDenseTraining() {
         ${denseHoldFields(exercise, defaults)}
         ${denseLoadFields(exercise, defaults)}
         <fieldset class="effort-picker-field is-full">
-          <legend>Esfuerzo</legend>
+          <legend>Effort</legend>
           <div class="effort-option-grid">
-            ${denseEffortOptions.map(([value, label]) => denseEffortOption(value, label, defaults.effort)).join("")}
+            ${denseEffortOptions.map(([value, label]) => denseEffortOption(value, label, defaults.effort, modal)).join("")}
           </div>
         </fieldset>
         <label class="field is-full">
-          <span>Notas</span>
-          <textarea name="notes" placeholder="ROM, tempo, anillas altas, pies elevados, molestias, si las reps son por lado...">${escapeHtml(defaults.notes || "")}</textarea>
+          <span>Notes ${modal ? "(optional)" : ""}</span>
+          <textarea name="notes" placeholder="${modal ? "Any thoughts on this session..." : "ROM, tempo, anillas altas, pies elevados, molestias, si las reps son por lado..."}">${escapeHtml(defaults.notes || "")}</textarea>
         </label>
       </div>
       <div class="dense-actions">
@@ -1340,13 +1343,24 @@ function renderDenseTraining() {
           <strong>${escapeHtml(denseNatureLabel(exercise.nature))}</strong>
           <span>${escapeHtml(denseExerciseHint(exercise))}</span>
         </div>
-        <button class="text-button is-hot" type="submit"><i data-lucide="save"></i>${isEditingDenseEntry ? "Actualizar marca Dense" : "Guardar marca Dense"}</button>
+        <button class="text-button is-hot" type="submit"><i data-lucide="save"></i>${escapeHtml(submitLabel)}</button>
       </div>
     </form>
-    ${renderDenseProgressionSuggestion(exercise, denseProgressionSuggestion(exercise))}
-    ${renderSelectedExerciseLog(exercise.id)}
   `;
-  updateDenseHoldEstimate(nodes.denseTrainingPanel.querySelector("#denseTrainingForm"));
+}
+
+function denseSetModalSummary(exercise, defaults) {
+  const total = Number(defaults.totalReps || 0);
+  const bodyweight = Number(defaults.bodyweightKg || 0);
+  const volume = total && bodyweight ? `${Math.round(total * bodyweight)} kg volume` : denseExerciseHint(exercise);
+  return `
+    <div class="dense-set-modal-summary">
+      <span class="mini-tag is-green">${escapeHtml(denseNatureLabel(exercise.nature).split("·")[0].trim())}</span>
+      <span class="mini-tag"><i data-lucide="edit-3"></i>${state.settings.denseDraftEntryId ? "editing" : "new"} · ${escapeHtml(formatMonthDay(selectedDate))}</span>
+      <strong>${escapeHtml(defaults.scheme)} · ${escapeHtml(defaults.repsPerSet ? `${defaults.repsPerSet}/min` : "objetivo")}</strong>
+      <small>${escapeHtml(total ? `${total} reps · ${volume}` : volume)}</small>
+    </div>
+  `;
 }
 
 function renderTrainingAnalytics() {
@@ -1880,9 +1894,14 @@ function handleClick(event) {
   if (action === "select-session") selectSession(target.dataset.session);
   if (action === "toggle-exercise") toggleExercise(target.dataset.session, target.dataset.exercise);
   if (action === "load-dense-entry") loadDenseEntry(target.dataset.entry);
+  if (action === "open-dense-entry-modal") openDenseTrainingModal({ entryId: target.dataset.entry });
+  if (action === "open-dense-exercise-modal") openDenseTrainingModal({ exerciseId: target.dataset.exercise });
+  if (action === "open-dense-exercise-detail") openDenseExerciseDetailModal(target.dataset.exercise);
+  if (action === "confirm-delete-dense-entry") openDenseDeleteConfirm(target.dataset.entry);
+  if (action === "delete-dense-entry") deleteDenseEntry(target.dataset.entry);
   if (action === "pick-dense-exercise") pickDenseExercise(target.dataset.exercise);
   if (action === "toggle-dense-favorite") toggleDenseFavorite(target.dataset.exercise);
-  if (action === "focus-dense-register") document.querySelector("#denseTrainingPanel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  if (action === "focus-dense-register") openDenseTrainingModal({ exerciseId: state.settings.denseSelectedExerciseId });
   if (action === "export-json") exportJson();
   if (action === "copy-json") copyJson();
   if (action === "sync-now") syncCloudState("manual");
@@ -2368,6 +2387,141 @@ function saveDayForm(form) {
   saveAndRender("Día guardado");
 }
 
+function openDenseTrainingModal({ exerciseId = "", entryId = "" } = {}) {
+  const entry = entryId ? getDenseEntries().find((item) => item.id === entryId) : null;
+  const exercise = entry ? denseExerciseById(entry.exercise_id) : denseExerciseById(exerciseId || state.settings.denseSelectedExerciseId || "pull_up");
+  if (!exercise) return;
+
+  state.settings.denseSelectedExerciseId = exercise.id;
+  if (entry) state.settings.denseDraftEntryId = entry.id;
+  else delete state.settings.denseDraftEntryId;
+
+  const defaults = denseFormDefaults();
+  const editing = Boolean(entry);
+  nodes.modalCard.dataset.modalKind = "dense-set";
+  nodes.modalEyebrow.textContent = editing ? "Editing set" : "New set";
+  nodes.modalTitle.textContent = exercise.name;
+  nodes.modalBody.innerHTML = `
+    <div class="dense-set-modal-shell">
+      ${denseTrainingFormMarkup(defaults, {
+        includePicker: !entry && !exerciseId,
+        modal: true,
+        submitLabel: editing ? "Update set" : "Save set",
+      })}
+    </div>
+  `;
+  openModal();
+  updateDenseHoldEstimate(nodes.modalBody.querySelector("#denseTrainingForm"));
+}
+
+function openDenseDeleteConfirm(entryId) {
+  const entry = getDenseEntries().find((item) => item.id === entryId);
+  if (!entry) {
+    toast("No encuentro esa marca");
+    return;
+  }
+  nodes.modalCard.dataset.modalKind = "confirm-delete";
+  nodes.modalEyebrow.textContent = "Eliminar";
+  nodes.modalTitle.textContent = "¿Eliminar entreno?";
+  nodes.modalBody.innerHTML = `
+    <div class="confirm-box">
+      <span class="tiny-icon" style="--item-color:var(--red)"><i data-lucide="trash-2"></i></span>
+      <div>
+        <strong>${escapeHtml(entry.exercise_name)}</strong>
+        <span>${escapeHtml(entry.date)} · ${escapeHtml(entry.scheme)} · ${escapeHtml(denseEntryValue(entry))}</span>
+      </div>
+    </div>
+    <p class="tiny-copy">Esto quitará la marca de la app y se sincronizará con Google en el siguiente sync.</p>
+    <div class="modal-actions">
+      <button class="text-button" type="button" data-action="close-modal"><i data-lucide="x"></i>Cancelar</button>
+      <button class="text-button is-danger" type="button" data-action="delete-dense-entry" data-entry="${escapeAttr(entry.id)}"><i data-lucide="trash-2"></i>Eliminar</button>
+    </div>
+  `;
+  openModal();
+}
+
+function deleteDenseEntry(entryId) {
+  const index = state.denseTrainingEntries?.findIndex((entry) => entry.id === entryId) ?? -1;
+  if (index < 0) {
+    closeModal();
+    toast("No encuentro esa marca");
+    return;
+  }
+  state.denseTrainingEntries.splice(index, 1);
+  rebuildDenseEstimates();
+  closeModal();
+  saveAndRender("Entreno eliminado");
+}
+
+function openDenseExerciseDetailModal(exerciseId) {
+  const exercise = denseExerciseById(exerciseId);
+  if (!exercise) return;
+  const entries = selectedExerciseLogEntries(exercise.id, 8);
+  const best = entries.length ? [...entries].sort((a, b) => denseEntryScore(b) - denseEntryScore(a))[0] : null;
+  const suggestion = denseProgressionSuggestion(exercise);
+  nodes.modalCard.dataset.modalKind = "exercise-detail";
+  nodes.modalEyebrow.textContent = denseNatureLabel(exercise.nature).split("·")[0].trim();
+  nodes.modalTitle.textContent = exercise.name;
+  nodes.modalBody.innerHTML = `
+    <div class="exercise-detail-modal">
+      <div class="exercise-detail-hero">
+        <div class="exercise-detail-tags">
+          <span class="mini-tag is-blue">${escapeHtml(denseNatureLabel(exercise.nature).split("·")[0].trim())}</span>
+          <span class="mini-tag is-green">BEST ${escapeHtml(best ? denseEntryValue(best) : "sin marca")}</span>
+        </div>
+        <p>${escapeHtml(denseExerciseHint(exercise))}</p>
+      </div>
+      ${renderDenseProgressionSuggestion(exercise, suggestion)}
+      <section class="exercise-detail-section">
+        <div class="section-subhead">
+          <strong>Mis marcas</strong>
+          <span>${entries.length ? `${entries.length} recientes` : "sin histórico"}</span>
+        </div>
+        <div class="exercise-detail-list">
+          ${
+            entries.length
+              ? entries.map((entry, index) => exerciseDetailRow(entry, index)).join("")
+              : `<article class="dense-selected-log-empty"><span class="tiny-icon"><i data-lucide="${exercise.icon || "dumbbell"}"></i></span><div><strong>No ranked yet</strong><span>Registra una marca y aparecerá aquí.</span></div></article>`
+          }
+        </div>
+      </section>
+      <section class="exercise-detail-levels">
+        <strong>Strength levels</strong>
+        ${denseExerciseLevels(exercise, best).map((item) => `<div><span>${escapeHtml(item.label)}</span><b>${escapeHtml(item.value)}</b></div>`).join("")}
+      </section>
+      <div class="modal-actions">
+        <button class="text-button" type="button" data-action="open-dense-exercise-modal" data-exercise="${escapeAttr(exercise.id)}"><i data-lucide="plus"></i>Registrar</button>
+      </div>
+    </div>
+  `;
+  openModal();
+}
+
+function exerciseDetailRow(entry, index) {
+  const medal = index < 3 ? `#${index + 1}` : `${index + 1}`;
+  return `
+    <article class="exercise-detail-row ${index < 3 ? "is-podium" : ""}">
+      <span class="exercise-rank">${escapeHtml(medal)}</span>
+      <div>
+        <strong>${escapeHtml(entry.scheme)} · ${escapeHtml(denseEntryValue(entry))}</strong>
+        <span>${escapeHtml(entry.date)} · ${escapeHtml(entry.effort || "N")}</span>
+      </div>
+      <b>${escapeHtml(denseEntryScore(entry) ? `${roundTo(denseEntryScore(entry), 1)} pts` : "-")}</b>
+    </article>
+  `;
+}
+
+function denseExerciseLevels(exercise, best) {
+  const base = best?.total_reps || best?.total_hold_seconds || Math.max(1, denseDefaultTotalReps(exercise, denseAllowedSchemes(exercise)[0]) || 1);
+  const unit = best?.total_hold_seconds ? "s" : "reps";
+  return [
+    { label: "Lv 1 Base", value: `${Math.max(1, Math.round(base * 0.7))} ${unit}` },
+    { label: "Lv 2 Solid", value: `${Math.max(1, Math.round(base))} ${unit}` },
+    { label: "Lv 3 Strong", value: `${Math.max(1, Math.round(base * 1.2))} ${unit}` },
+    { label: "Lv 4 Elite", value: `${Math.max(1, Math.round(base * 1.45))} ${unit}` },
+  ];
+}
+
 function saveDenseTrainingForm(form) {
   const data = Object.fromEntries(new FormData(form).entries());
   const exercise = findDenseExerciseById(data.exerciseId);
@@ -2456,7 +2610,9 @@ function saveDenseTrainingForm(form) {
   }
   if (entry.bodyweight_kg) state.bodyweightLogs[entry.date] = entry.bodyweight_kg;
   delete state.settings.denseDraftEntryId;
+  const savedFromModal = nodes.modal.open && nodes.modalBody.contains(form);
   form.reset();
+  if (savedFromModal) closeModal();
   saveAndRender(existingIndex >= 0 ? "Marca Dense actualizada" : "Marca Dense guardada");
   if (existingIndex < 0) setTimeout(() => openDenseFeedbackModal(entry.id), 0);
 }
@@ -2562,11 +2718,15 @@ function pickDenseExercise(exerciseId) {
   if (!exercise) return;
   state.settings.denseSelectedExerciseId = exercise.id;
   delete state.settings.denseDraftEntryId;
+  if (nodes.modal.open && nodes.modalCard.dataset.modalKind === "dense-set") {
+    openDenseTrainingModal({ exerciseId: exercise.id });
+    return;
+  }
   renderSession();
   renderDenseTraining();
   renderDensePrs();
   refreshIcons();
-  document.querySelector("#denseTrainingPanel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  openDenseTrainingModal({ exerciseId: exercise.id });
 }
 
 function loadDenseEntry(entryId) {
@@ -2577,10 +2737,7 @@ function loadDenseEntry(entryId) {
   }
   state.settings.denseSelectedExerciseId = entry.exercise_id;
   state.settings.denseDraftEntryId = entry.id;
-  persistUiOnly();
-  setTimeout(() => {
-    document.querySelector("#denseTrainingPanel")?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, 0);
+  openDenseTrainingModal({ entryId: entry.id });
   toast("Marca Dense cargada");
 }
 
@@ -3009,12 +3166,20 @@ function denseSchemeOption(scheme, currentScheme) {
   `;
 }
 
-function denseEffortOption(value, label, currentValue) {
+function denseEffortOption(value, label, currentValue, verbose = false) {
   const selected = value === currentValue;
+  const readable = {
+    VE: "Very Easy",
+    E: "Easy",
+    N: "Normal",
+    H: "Hard",
+    VH: "Very Hard",
+    fallo: "Fail",
+  }[value] || value;
   return `
     <label class="effort-option ${selected ? "is-selected" : ""}" style="--effort-color:${denseEffortColor(value)}">
       <input type="radio" name="effort" value="${escapeAttr(value)}" ${selected ? "checked" : ""} />
-      <span>${escapeHtml(value)}</span>
+      <span>${escapeHtml(verbose ? readable : value)}</span>
       <small>${escapeHtml(label.split("·")[1]?.trim() || label)}</small>
     </label>
   `;
@@ -3364,6 +3529,11 @@ function openModal() {
 
 function closeModal() {
   if (nodes.modalTitle.textContent === "Quick Timer") pauseQuickTimer(false);
+  if (nodes.modalCard.dataset.modalKind === "dense-set") {
+    delete state.settings.denseDraftEntryId;
+    saveState();
+  }
+  delete nodes.modalCard.dataset.modalKind;
   nodes.modal.close();
 }
 
@@ -3661,31 +3831,78 @@ function denseQuickExercises() {
 
 function todayWorkoutCard(entry) {
   const exercise = denseExerciseById(entry.exercise_id);
+  const volume = entry.tonnage_kg ? `${roundTo(entry.tonnage_kg / 1000, 1)}t` : entry.total_reps ? `${entry.total_reps} reps` : entry.total_hold_seconds ? `${entry.total_hold_seconds}s` : "-";
   return `
-    <article class="today-workout-card" style="--item-color:${denseCategoryColor(exercise.category)}">
-      <span class="tiny-icon"><i data-lucide="${exercise.icon || "dumbbell"}"></i></span>
-      <div>
-        <strong>${escapeHtml(entry.exercise_name)}</strong>
-        <span>${escapeHtml(entry.scheme)} · ${escapeHtml(denseEntryValue(entry))}</span>
+    <article class="today-workout-card workout-set-card is-complete" style="--item-color:${denseCategoryColor(exercise.category)}" data-action="open-dense-exercise-detail" data-exercise="${escapeAttr(entry.exercise_id)}">
+      <div class="workout-set-main">
+        <div class="workout-set-tags">
+          <span class="mini-tag is-amber"><i data-lucide="trophy"></i>${denseEntryIsPr(entry) ? "NEW PR" : "DONE"}</span>
+          <span class="mini-tag is-blue">${escapeHtml(denseNatureLabel(entry.nature).split("·")[0].trim())}</span>
+          <span class="mini-tag">${escapeHtml(entry.effort || "N")}</span>
+        </div>
+        <strong>${escapeHtml(entry.exercise_name)} <small>${escapeHtml(entry.scheme)}</small></strong>
+        <span>${escapeHtml(denseEntryValue(entry))} · ${escapeHtml(entry.effort || "N")}</span>
       </div>
-      <button class="icon-button" type="button" data-action="load-dense-entry" data-entry="${escapeAttr(entry.id)}" title="Editar marca" aria-label="Editar ${escapeAttr(entry.exercise_name)}">
-        <i data-lucide="edit-3"></i>
-      </button>
+      <div class="workout-set-volume">
+        <span>Volume</span>
+        <strong>${escapeHtml(volume)}</strong>
+      </div>
+      <div class="workout-set-actions">
+        <button class="icon-button is-danger" type="button" data-action="confirm-delete-dense-entry" data-entry="${escapeAttr(entry.id)}" title="Eliminar" aria-label="Eliminar ${escapeAttr(entry.exercise_name)}">
+          <i data-lucide="trash-2"></i>
+        </button>
+        <button class="icon-button" type="button" data-action="open-dense-entry-modal" data-entry="${escapeAttr(entry.id)}" title="Editar" aria-label="Editar ${escapeAttr(entry.exercise_name)}">
+          <i data-lucide="edit-3"></i>
+        </button>
+        <button class="icon-button is-hot" type="button" data-action="open-dense-entry-modal" data-entry="${escapeAttr(entry.id)}" title="Completo" aria-label="Completo ${escapeAttr(entry.exercise_name)}">
+          <i data-lucide="square-check"></i>
+        </button>
+      </div>
     </article>
   `;
 }
 
+function denseEntryIsPr(entry) {
+  const score = denseEntryScore(entry);
+  if (!score) return false;
+  return !getDenseEntries().some((item) => item.id !== entry.id && item.exercise_id === entry.exercise_id && item.scheme === entry.scheme && denseEntryScore(item) > score);
+}
+
 function plannedWorkoutCard(exercise) {
   return `
-    <article class="today-workout-card is-planned" style="--item-color:${denseCategoryColor(exercise.category)}">
-      <span class="tiny-icon"><i data-lucide="${exercise.icon || "dumbbell"}"></i></span>
-      <div>
+    <article class="today-workout-card workout-set-card is-planned" style="--item-color:${denseCategoryColor(exercise.category)}" data-action="open-dense-exercise-detail" data-exercise="${escapeAttr(exercise.id)}">
+      <div class="workout-set-main">
+        <div class="workout-set-tags">
+          <span class="mini-tag is-blue">${escapeHtml(denseNatureLabel(exercise.nature).split("·")[0].trim())}</span>
+          <span class="mini-tag is-amber">PROGRAMADO</span>
+        </div>
         <strong>${escapeHtml(exercise.name)}</strong>
-        <span>${escapeHtml(denseCategoryLabel(exercise.category))} · previsto · ${escapeHtml(denseNatureLabel(exercise.nature))}</span>
+        <span>${escapeHtml(denseCategoryLabel(exercise.category))} · ${escapeHtml(denseExerciseHint(exercise))}</span>
       </div>
-      <button class="icon-button" type="button" data-action="pick-dense-exercise" data-exercise="${escapeAttr(exercise.id)}" title="Registrar ejercicio" aria-label="Registrar ${escapeAttr(exercise.name)}">
-        <i data-lucide="plus"></i>
-      </button>
+      <div class="workout-set-volume">
+        <span>Target</span>
+        <strong>${escapeHtml(denseAllowedSchemes(exercise)[0] || "-")}</strong>
+      </div>
+      <div class="workout-set-actions">
+        <button class="icon-button" type="button" data-action="open-dense-exercise-modal" data-exercise="${escapeAttr(exercise.id)}" title="Rellenar entreno" aria-label="Rellenar ${escapeAttr(exercise.name)}">
+          <i data-lucide="edit-3"></i>
+        </button>
+        <button class="icon-button is-hot" type="button" data-action="open-dense-exercise-modal" data-exercise="${escapeAttr(exercise.id)}" title="Completar" aria-label="Completar ${escapeAttr(exercise.name)}">
+          <i data-lucide="square-check"></i>
+        </button>
+      </div>
+    </article>
+  `;
+}
+
+function addWorkoutCard() {
+  return `
+    <article class="today-workout-card workout-set-card workout-add-card" data-action="open-dense-exercise-modal" data-exercise="${escapeAttr(state.settings.denseSelectedExerciseId || "pull_up")}">
+      <span class="add-card-icon"><i data-lucide="plus"></i></span>
+      <div>
+        <strong>Agregar ejercicio</strong>
+        <span>Programa o registra una marca Dense para este día.</span>
+      </div>
     </article>
   `;
 }
