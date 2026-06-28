@@ -194,6 +194,32 @@ i[data-lucide] {
   gap: 8px;
 }
 
+.density-segmented {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(74px, 1fr));
+  min-height: 38px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(10, 11, 9, 0.55);
+}
+
+.density-segmented button {
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  padding: 0 12px;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.density-segmented button.is-active {
+  background: rgba(104, 214, 111, 0.2);
+  color: #b7fb48;
+}
+
 .density-fab {
   display: none;
 }
@@ -1172,12 +1198,47 @@ i[data-lucide] {
   gap: 12px;
 }
 
+.workout-widget-stack {
+  display: grid;
+  gap: 12px;
+}
+
+.workout-widget {
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 20px;
+  background:
+    linear-gradient(135deg, rgba(104, 214, 111, 0.04), transparent 42%),
+    rgba(24, 25, 21, 0.88);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  padding: 14px;
+}
+
+.week-viewer-widget {
+  position: relative;
+  z-index: 12;
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+}
+
+.week-selector-row {
+  display: grid;
+  grid-template-columns: 38px minmax(174px, 240px) 38px;
+  gap: 0;
+  width: max-content;
+  max-width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(42, 43, 37, 0.9);
+  overflow: visible;
+}
+
 .workout-day-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 14px;
 }
 
 .workout-day-head h2 {
@@ -1201,9 +1262,12 @@ i[data-lucide] {
 
 .workout-score {
   display: grid;
+  grid-template-rows: auto auto;
+  align-content: center;
+  gap: 2px;
   min-width: 58px;
   min-height: 54px;
-  place-items: center;
+  justify-items: center;
   border: 1px solid rgba(104, 214, 111, 0.42);
   border-radius: var(--radius);
   background:
@@ -1224,15 +1288,7 @@ i[data-lucide] {
   letter-spacing: 0.12em;
 }
 
-.workout-week-strip {
-  display: grid;
-  grid-template-columns: 34px minmax(150px, 220px) 34px minmax(0, 1fr);
-  gap: 8px;
-  align-items: center;
-  margin-bottom: 14px;
-}
-
-.week-nav-button,
+.week-edge-button,
 .weekday-button {
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -1241,34 +1297,58 @@ i[data-lucide] {
   cursor: pointer;
 }
 
-.week-nav-button {
+.week-edge-button {
   display: grid;
-  width: 34px;
-  height: 38px;
+  width: 38px;
+  min-height: 46px;
   place-items: center;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--dim);
+}
+
+.week-edge-button:hover {
+  color: var(--green);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.week-selector {
+  position: relative;
+  min-width: 0;
+}
+
+.week-selector > summary {
+  list-style: none;
+}
+
+.week-selector > summary::-webkit-details-marker {
+  display: none;
 }
 
 .week-chip {
   display: grid;
   grid-template-columns: 18px minmax(0, 1fr);
-  gap: 4px 8px;
+  gap: 8px;
   align-items: center;
-  min-height: 38px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: #24251f;
-  padding: 6px 9px;
+  min-height: 46px;
+  border-right: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.03);
+  cursor: pointer;
+  padding: 6px 12px;
 }
 
 .week-chip i {
-  grid-row: span 2;
   width: 17px;
   height: 17px;
-  color: var(--green);
+  color: var(--text);
 }
 
+.week-chip span,
 .week-chip strong,
-.week-chip span {
+.week-chip em {
+  display: block;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1276,16 +1356,81 @@ i[data-lucide] {
 }
 
 .week-chip strong {
-  font-size: 0.82rem;
+  color: var(--text);
+  font-size: 0.9rem;
   line-height: 1;
 }
 
-.week-chip span {
+.week-chip em {
   color: #b7fb48;
   font-size: 0.62rem;
+  font-style: normal;
   font-weight: 950;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
+}
+
+.week-menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: -39px;
+  z-index: 30;
+  display: grid;
+  width: min(360px, calc(100vw - 48px));
+  max-height: min(560px, 64vh);
+  gap: 2px;
+  overflow-y: auto;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 16px;
+  background:
+    linear-gradient(135deg, rgba(104, 214, 111, 0.12), transparent 34%),
+    rgba(36, 38, 32, 0.96);
+  box-shadow: 0 22px 54px rgba(0, 0, 0, 0.56);
+  backdrop-filter: blur(18px);
+  padding: 10px;
+}
+
+.week-menu-option {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 44px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  padding: 0 10px;
+  text-align: left;
+}
+
+.week-menu-option span {
+  font-size: 0.94rem;
+  font-weight: 900;
+}
+
+.week-menu-option em {
+  border: 1px solid rgba(183, 251, 72, 0.48);
+  border-radius: 6px;
+  color: #b7fb48;
+  font-size: 0.58rem;
+  font-style: normal;
+  font-weight: 950;
+  letter-spacing: 0.12em;
+  padding: 3px 6px;
+}
+
+.week-menu-option i {
+  width: 17px;
+  height: 17px;
+  color: #b7fb48;
+}
+
+.week-menu-option.is-selected,
+.week-menu-option:hover {
+  background: rgba(104, 214, 111, 0.18);
+  color: #b7fb48;
 }
 
 .weekday-strip {
@@ -1298,16 +1443,17 @@ i[data-lucide] {
 .weekday-button {
   position: relative;
   display: grid;
-  min-height: 38px;
+  aspect-ratio: 1.18;
+  min-height: 46px;
   place-items: center;
   color: var(--muted);
-  font-size: 0.86rem;
+  font-size: 0.9rem;
   font-weight: 950;
 }
 
 .weekday-button.is-selected {
   border-color: rgba(104, 214, 111, 0.72);
-  background: rgba(104, 214, 111, 0.2);
+  background: rgba(104, 214, 111, 0.24);
   color: #b7fb48;
 }
 
@@ -1329,17 +1475,40 @@ i[data-lucide] {
 
 .weekday-button i {
   position: absolute;
-  top: 3px;
-  right: 4px;
-  color: var(--green);
-  font-size: 0.56rem;
-  font-style: normal;
+  inset: auto 6px 5px auto;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: currentColor;
 }
 
-.workout-daily-summary {
+.workout-sync-line {
+  display: grid;
+  gap: 3px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.workout-sync-line span {
+  color: var(--dim);
+  font-size: 0.58rem;
+  font-weight: 950;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.workout-sync-line strong {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.76rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workout-summary-widget {
   display: grid;
   gap: 10px;
-  margin-bottom: 14px;
 }
 
 .workout-title-line {
@@ -3386,14 +3555,6 @@ button:focus-visible {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .workout-week-strip {
-    grid-template-columns: 34px minmax(138px, 1fr) 34px;
-  }
-
-  .weekday-strip {
-    grid-column: 1 / -1;
-  }
-
   .exercise-picker-controls {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -3447,6 +3608,7 @@ button:focus-visible {
 
   .topbar {
     position: sticky;
+    grid-template-columns: minmax(0, 1fr) auto;
     z-index: 60;
     min-height: 58px;
     padding: 8px;
@@ -3479,20 +3641,22 @@ button:focus-visible {
     gap: 6px;
   }
 
+  .density-segmented {
+    grid-template-columns: repeat(2, minmax(58px, 1fr));
+    min-height: 34px;
+  }
+
+  .density-segmented button {
+    padding: 0 8px;
+    font-size: 0.72rem;
+  }
+
   .top-actions [data-action="toggle-density"] {
     display: none;
   }
 
   .density-fab {
-    position: fixed;
-    right: 16px;
-    bottom: calc(74px + env(safe-area-inset-bottom, 0px));
-    display: inline-grid;
-    z-index: 70;
-    border-color: rgba(104, 214, 111, 0.48);
-    background: rgba(29, 38, 29, 0.94);
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.42);
-    backdrop-filter: blur(14px);
+    display: none;
   }
 
   .icon-button {
@@ -3565,8 +3729,13 @@ button:focus-visible {
     font-size: 0.76rem;
   }
 
-  .workout-day-head {
-    margin-bottom: 10px;
+  .workout-widget-stack {
+    gap: 10px;
+  }
+
+  .workout-widget {
+    border-radius: 18px;
+    padding: 10px;
   }
 
   .workout-day-head h2 {
@@ -3582,9 +3751,29 @@ button:focus-visible {
     min-height: 46px;
   }
 
-  .workout-week-strip {
-    gap: 6px;
-    margin-bottom: 10px;
+  .week-selector-row {
+    grid-template-columns: 34px minmax(156px, 1fr) 34px;
+    width: 100%;
+  }
+
+  .week-edge-button {
+    width: 34px;
+    min-height: 42px;
+  }
+
+  .week-chip {
+    min-height: 42px;
+    padding-inline: 9px;
+  }
+
+  .week-chip strong {
+    font-size: 0.82rem;
+  }
+
+  .week-menu {
+    left: -35px;
+    width: min(360px, calc(100vw - 32px));
+    max-height: 66vh;
   }
 
   .weekday-strip {
@@ -3593,7 +3782,7 @@ button:focus-visible {
   }
 
   .weekday-button {
-    min-height: 34px;
+    min-height: 38px;
     font-size: 0.78rem;
   }
 
@@ -3845,16 +4034,28 @@ button:focus-visible {
     padding: 8px;
   }
 
-  body[data-density="compact"] .workout-day-head,
-  body[data-density="compact"] .workout-week-strip,
-  body[data-density="compact"] .workout-daily-summary {
-    margin-bottom: 7px;
+  body[data-density="compact"] .workout-widget-stack {
+    gap: 7px;
+  }
+
+  body[data-density="compact"] .workout-widget {
+    padding: 8px;
+    border-radius: 14px;
+  }
+
+  body[data-density="compact"] .week-viewer-widget,
+  body[data-density="compact"] .workout-summary-widget {
+    gap: 7px;
   }
 
   body[data-density="compact"] .weekday-button,
-  body[data-density="compact"] .week-nav-button,
+  body[data-density="compact"] .week-edge-button,
   body[data-density="compact"] .week-chip {
-    min-height: 30px;
+    min-height: 34px;
+  }
+
+  body[data-density="compact"] .workout-day-head h2 {
+    font-size: 1.55rem;
   }
 
   body[data-density="compact"] .workout-summary-metric {

@@ -733,7 +733,12 @@ document.addEventListener("input", handleInput);
 document.addEventListener("submit", handleSubmit);
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js").catch(() => {});
+    navigator.serviceWorker.register("./sw.js").then((registration) => registration.update()).catch(() => {});
+  });
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (window.__bitTrackerReloading) return;
+    window.__bitTrackerReloading = true;
+    window.location.reload();
   });
 }
 nodes.todayChip.addEventListener("click", () => {
@@ -763,6 +768,9 @@ function render() {
     button.title = compact ? "Modo normal" : "Modo compacto";
     button.setAttribute("aria-label", button.title);
     button.innerHTML = `<i data-lucide="${compact ? "maximize-2" : "minimize-2"}"></i>`;
+  });
+  document.querySelectorAll("[data-action='set-density']").forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.density === (state.settings.uiDensity || "normal"));
   });
 
   renderHero();
@@ -1159,69 +1167,101 @@ function renderTrainingMode() {
 function renderMesocycle() {
   const entries = denseEntriesForDate(dateKey(selectedDate)).sort((a, b) => (a.created_at || "").localeCompare(b.created_at || ""));
   const weekDays = trainingWeekDays(selectedDate);
-  const weekIndex = trainingWeekIndex(selectedDate);
+  const weekIndex = Math.min(52, trainingWeekIndex(selectedDate));
+  const currentWeekIndex = Math.min(52, trainingWeekIndex(today));
+  const isCurrentWeek = selectedDate.getFullYear() === today.getFullYear() && weekIndex === currentWeekIndex;
   const planned = plannedExercisesForDate(selectedDate);
   const totalReps = entries.reduce((sum, entry) => sum + (entry.total_reps || 0), 0);
   const volume = entries.reduce((sum, entry) => sum + (entry.tonnage_kg || 0), 0);
   const blocks = entries.reduce((sum, entry) => sum + denseEquivalentSets(entry), 0);
   const headline = entries[0]?.exercise_name || planned[0]?.name || "Sin sesión programada";
   const status = entries.length ? "LOGGED" : planned.length ? "PLANNED" : "EMPTY";
+  const latest = latestDenseEntry();
+  const latestDate = latest?.date ? parseDate(latest.date) : null;
+  const latestHint =
+    latest && latest.date !== dateKey(selectedDate)
+      ? `${formatMonthDay(latestDate)} · ${latest.exercise_name} · ${latest.scheme}`
+      : latest
+        ? `${latest.exercise_name} · ${latest.scheme}`
+        : "sin marcas locales";
   nodes.mesocyclePanel.innerHTML = `
-    <div class="workout-day-head">
-      <div>
-        <p class="eyebrow">Workout</p>
-        <h2>${capitalize(formatWeekday(selectedDate))}</h2>
-        <span>${formatMonthDay(selectedDate)}</span>
-      </div>
-      <div class="workout-day-badges">
-        <span class="workout-score"><strong>${scoreForDate(selectedDate)}</strong><small>EXR</small></span>
-        <button class="icon-button" type="button" data-action="go-today" title="Hoy" aria-label="Hoy"><i data-lucide="calendar-clock"></i></button>
-        <button class="icon-button" type="button" data-action="open-quick-timer" title="Tools" aria-label="Tools"><i data-lucide="timer"></i></button>
-      </div>
-    </div>
-    <div class="workout-week-strip">
-      <button class="week-nav-button" type="button" data-action="shift-day" data-shift="-7" title="Semana anterior" aria-label="Semana anterior">
-        <i data-lucide="chevron-left"></i>
-      </button>
-      <div class="week-chip">
-        <i data-lucide="calendar-days"></i>
-        <strong>Week ${weekIndex} of 52</strong>
-        <span>${sameWeek(selectedDate, today) ? "current" : "selected"}</span>
-      </div>
-      <button class="week-nav-button" type="button" data-action="shift-day" data-shift="7" title="Semana siguiente" aria-label="Semana siguiente">
-        <i data-lucide="chevron-right"></i>
-      </button>
-      <div class="weekday-strip">
-        ${weekDays.map((day) => workoutDayButton(day)).join("")}
-      </div>
-    </div>
-    <div class="workout-daily-summary">
-      <div class="workout-title-line">
-        <span class="tiny-icon" style="--item-color:var(--green)"><i data-lucide="${entries.length ? "flame" : planned.length ? "clipboard-list" : "calendar-plus"}"></i></span>
-        <strong>${escapeHtml(shortWeekday(selectedDate))} · ${escapeHtml(headline)}</strong>
-        <span class="mini-tag ${entries.length ? "is-green" : planned.length ? "is-amber" : ""}">${status}</span>
-      </div>
-      <div class="progress-track"><i style="width:${entries.length ? 100 : planned.length ? 35 : 8}%"></i></div>
-      <div class="workout-metric-row">
-        ${workoutSummaryMetric(volume ? `${roundTo(volume / 1000, 1)}t` : "-", "vol")}
-        ${workoutSummaryMetric(roundTo(blocks, 1), "blocks")}
-        ${workoutSummaryMetric(totalReps || "-", "reps")}
-      </div>
-    </div>
-    <div class="today-workout-list">
-      ${
-        entries.length
-          ? entries.map((entry) => todayWorkoutCard(entry)).join("")
-          : planned.length
-            ? planned.map((exercise) => plannedWorkoutCard(exercise)).join("")
-          : `<article class="today-workout-empty">
-              <span class="tiny-icon" style="--item-color:var(--green)"><i data-lucide="plus"></i></span>
-              <div>
-                <strong>Empieza el día de entreno</strong>
-                <span>Selecciona un ejercicio, elige esquema Dense y guarda tu marca.</span>
-              </div>
-            </article>`
-      }
+    <div class="workout-widget-stack">
+      <section class="workout-widget week-viewer-widget" aria-label="Semana de entrenamiento">
+        <div class="week-selector-row">
+          <button class="week-edge-button" type="button" data-action="shift-day" data-shift="-7" title="Semana anterior" aria-label="Semana anterior">
+            <i data-lucide="chevron-left"></i>
+          </button>
+          <details class="week-selector">
+            <summary class="week-chip">
+              <i data-lucide="calendar-days"></i>
+              <span>
+                <strong>Week ${weekIndex} of 52</strong>
+                <em>${isCurrentWeek ? "CURRENT" : selectedDate.getFullYear()}</em>
+              </span>
+            </summary>
+            <div class="week-menu">
+              ${yearWeekOptions(weekIndex, currentWeekIndex)}
+            </div>
+          </details>
+          <button class="week-edge-button" type="button" data-action="shift-day" data-shift="7" title="Semana siguiente" aria-label="Semana siguiente">
+            <i data-lucide="chevron-right"></i>
+          </button>
+        </div>
+        <div class="weekday-strip">
+          ${weekDays.map((day) => workoutDayButton(day)).join("")}
+        </div>
+      </section>
+
+      <section class="workout-widget workout-day-widget" aria-label="Día seleccionado">
+        <div class="workout-day-head">
+          <div>
+            <p class="eyebrow">Workout</p>
+            <h2>${capitalize(formatWeekday(selectedDate))}</h2>
+            <span>${formatMonthDay(selectedDate)}</span>
+          </div>
+          <div class="workout-day-badges">
+            <span class="workout-score"><strong>${scoreForDate(selectedDate)}</strong><small>EXR</small></span>
+            <button class="icon-button" type="button" data-action="go-today" title="Hoy" aria-label="Hoy"><i data-lucide="calendar-clock"></i></button>
+            <button class="icon-button" type="button" data-action="open-quick-timer" title="Tools" aria-label="Tools"><i data-lucide="timer"></i></button>
+          </div>
+        </div>
+        <div class="workout-sync-line">
+          <span>Última marca local</span>
+          <strong>${escapeHtml(latestHint)}</strong>
+        </div>
+      </section>
+
+      <section class="workout-widget workout-summary-widget" aria-label="Resumen del día">
+        <div class="workout-title-line">
+          <span class="tiny-icon" style="--item-color:var(--green)"><i data-lucide="${entries.length ? "flame" : planned.length ? "clipboard-list" : "calendar-plus"}"></i></span>
+          <strong>${escapeHtml(shortWeekday(selectedDate))} · ${escapeHtml(headline)}</strong>
+          <span class="mini-tag ${entries.length ? "is-green" : planned.length ? "is-amber" : ""}">${status}</span>
+        </div>
+        <div class="progress-track"><i style="width:${entries.length ? 100 : planned.length ? 35 : 8}%"></i></div>
+        <div class="workout-metric-row">
+          ${workoutSummaryMetric(volume ? `${roundTo(volume / 1000, 1)}t` : "-", "vol")}
+          ${workoutSummaryMetric(roundTo(blocks, 1), "blocks")}
+          ${workoutSummaryMetric(totalReps || "-", "reps")}
+        </div>
+      </section>
+
+      <section class="workout-widget workout-list-widget" aria-label="Entrenos del día">
+        <div class="today-workout-list">
+          ${
+            entries.length
+              ? entries.map((entry) => todayWorkoutCard(entry)).join("")
+              : planned.length
+                ? planned.map((exercise) => plannedWorkoutCard(exercise)).join("")
+              : `<article class="today-workout-empty">
+                  <span class="tiny-icon" style="--item-color:var(--green)"><i data-lucide="plus"></i></span>
+                  <div>
+                    <strong>Empieza el día de entreno</strong>
+                    <span>Selecciona un ejercicio, elige esquema Dense y guarda tu marca.</span>
+                  </div>
+                </article>`
+          }
+        </div>
+      </section>
     </div>
   `;
 }
@@ -1810,10 +1850,12 @@ function handleClick(event) {
   if (action === "set-choice-value") setChoiceValue(target);
   if (action === "switch-view") switchView(target.dataset.view);
   if (action === "toggle-density") toggleUiDensity();
+  if (action === "set-density") setUiDensity(target.dataset.density);
   if (action === "set-training-mode") setTrainingMode(target.dataset.mode);
   if (action === "set-training-analytics-tab") setTrainingAnalyticsTab(target.dataset.tab);
   if (action === "set-training-analytics-window") setTrainingAnalyticsWindow(target.dataset.window);
   if (action === "shift-day") shiftDay(Number(target.dataset.shift));
+  if (action === "select-year-week") selectYearWeek(Number(target.dataset.week));
   if (action === "go-today") goToday();
   if (action === "shift-calendar-month") shiftCalendarMonth(Number(target.dataset.shift));
   if (action === "calendar-today") goToday();
@@ -1922,6 +1964,12 @@ function toggleUiDensity() {
   toast(state.settings.uiDensity === "compact" ? "Modo compacto" : "Modo normal");
 }
 
+function setUiDensity(density) {
+  if (!["normal", "compact"].includes(density)) return;
+  state.settings.uiDensity = density;
+  persistUiOnly();
+}
+
 function setTrainingAnalyticsTab(tab) {
   if (!trainingAnalyticsTabs.some(([value]) => value === tab)) return;
   state.settings.trainingAnalyticsTab = tab;
@@ -1945,6 +1993,15 @@ function shiftDay(amount) {
   state.settings.selectedDate = dateKey(selectedDate);
   state.settings.calendarAnchor = monthKey(selectedDate);
   saveAndRender();
+}
+
+function selectYearWeek(weekNumber) {
+  const week = clamp(Math.round(weekNumber || 1), 1, 52);
+  const weekdayIndex = (selectedDate.getDay() + 6) % 7;
+  selectedDate = addDays(yearWeekStart(selectedDate.getFullYear(), week), weekdayIndex);
+  state.settings.selectedDate = dateKey(selectedDate);
+  state.settings.calendarAnchor = monthKey(selectedDate);
+  saveAndRender(`Week ${week}`);
 }
 
 function goToday() {
@@ -3633,6 +3690,27 @@ function workoutSummaryMetric(value, label) {
   `;
 }
 
+function yearWeekOptions(selectedWeek, currentWeek) {
+  return Array.from({ length: 52 }, (_, index) => index + 1)
+    .map((week) => {
+      const selected = week === selectedWeek;
+      const current = week === currentWeek;
+      return `
+        <button
+          class="week-menu-option ${selected ? "is-selected" : ""} ${current ? "is-current" : ""}"
+          type="button"
+          data-action="select-year-week"
+          data-week="${week}"
+        >
+          <span>Week ${week}</span>
+          ${current ? "<em>CURRENT</em>" : ""}
+          ${selected ? '<i data-lucide="check"></i>' : ""}
+        </button>
+      `;
+    })
+    .join("");
+}
+
 function workoutDayButton(day) {
   const key = dateKey(day);
   const entries = denseEntriesForDate(key);
@@ -3648,8 +3726,7 @@ function workoutDayButton(day) {
       title="${escapeAttr(formatLongDate(day))}"
       aria-label="${escapeAttr(formatLongDate(day))}"
     >
-      <span>${shortWeekday(day)}</span>
-      ${hasWork ? `<i>${entries.length ? entries.length : planned.length}</i>` : ""}
+      <span>${denseWeekdayLetter(day)}</span>
     </button>
   `;
 }
@@ -4689,6 +4766,11 @@ function trainingWeekIndex(date) {
   return Math.max(1, Math.ceil((daysBetween(yearStart, date) + ((yearStart.getDay() + 6) % 7) + 1) / 7));
 }
 
+function yearWeekStart(year, weekNumber) {
+  const week = clamp(Math.round(weekNumber || 1), 1, 52);
+  return addDays(weekStart(new Date(year, 0, 1)), (week - 1) * 7);
+}
+
 function monthStart(date) {
   return new Date(date.getFullYear(), date.getMonth(), 1);
 }
@@ -4747,6 +4829,10 @@ function formatWeekday(date) {
 
 function shortWeekday(date) {
   return new Intl.DateTimeFormat("es", { weekday: "short" }).format(date).replace(".", "");
+}
+
+function denseWeekdayLetter(date) {
+  return ["M", "T", "W", "T", "F", "S", "S"][(date.getDay() + 6) % 7];
 }
 
 function formatMonthDay(date) {

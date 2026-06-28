@@ -1,9 +1,9 @@
-const CACHE_NAME = "bittracker-mobile-20260627-post-session-01";
+const CACHE_NAME = "bittracker-mobile-20260628-week-widget-01";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=20260627-post-session-01",
-  "./app.js?v=20260627-post-session-01",
+  "./styles.css?v=20260628-week-widget-01",
+  "./app.js?v=20260628-week-widget-01",
   "./manifest.webmanifest?v=20260627-mobile-01",
   "./icon.svg"
 ];
@@ -24,6 +24,27 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
+  const url = new URL(event.request.url);
+  const isAppAsset =
+    url.origin === self.location.origin &&
+    (event.request.mode === "navigate" ||
+      url.pathname.endsWith("/") ||
+      url.pathname.endsWith("/index.html") ||
+      url.pathname.endsWith("/styles.css") ||
+      url.pathname.endsWith("/app.js") ||
+      url.pathname.endsWith("/manifest.webmanifest"));
+  if (isAppAsset) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          return response;
+        })
+        .catch(() => caches.match(event.request).then((cached) => cached || caches.match("./index.html")))
+    );
+    return;
+  }
   event.respondWith(
     caches.match(event.request).then((cached) => {
       if (cached) return cached;
