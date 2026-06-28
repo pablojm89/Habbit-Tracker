@@ -1218,7 +1218,9 @@ i[data-lucide] {
   position: relative;
   z-index: 12;
   display: grid;
-  gap: 10px;
+  grid-template-columns: minmax(190px, 260px) minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
   padding: 10px;
 }
 
@@ -1226,7 +1228,7 @@ i[data-lucide] {
   display: grid;
   grid-template-columns: 38px minmax(174px, 240px) 38px;
   gap: 0;
-  width: max-content;
+  width: 100%;
   max-width: 100%;
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -1435,7 +1437,7 @@ i[data-lucide] {
 
 .weekday-strip {
   display: grid;
-  grid-template-columns: repeat(7, minmax(42px, 1fr));
+  grid-template-columns: repeat(7, minmax(32px, 1fr));
   gap: 6px;
   min-width: 0;
 }
@@ -1443,7 +1445,7 @@ i[data-lucide] {
 .weekday-button {
   position: relative;
   display: grid;
-  aspect-ratio: 1.18;
+  min-width: 0;
   min-height: 46px;
   place-items: center;
   color: var(--muted);
@@ -3808,6 +3810,12 @@ button:focus-visible {
     padding: 10px;
   }
 
+  .week-viewer-widget {
+    grid-template-columns: minmax(150px, 178px) minmax(0, 1fr);
+    gap: 6px;
+    padding: 8px;
+  }
+
   .workout-day-head h2 {
     font-size: 1.85rem;
   }
@@ -3822,38 +3830,51 @@ button:focus-visible {
   }
 
   .week-selector-row {
-    grid-template-columns: 34px minmax(156px, 1fr) 34px;
+    grid-template-columns: 30px minmax(0, 1fr) 30px;
     width: 100%;
   }
 
   .week-edge-button {
-    width: 34px;
-    min-height: 42px;
+    width: 30px;
+    min-height: 40px;
   }
 
   .week-chip {
-    min-height: 42px;
-    padding-inline: 9px;
+    grid-template-columns: 16px minmax(0, 1fr);
+    gap: 6px;
+    min-height: 40px;
+    padding-inline: 7px;
   }
 
   .week-chip strong {
-    font-size: 0.82rem;
+    font-size: 0.74rem;
+  }
+
+  .week-chip em {
+    font-size: 0.55rem;
+    letter-spacing: 0.1em;
+  }
+
+  .week-chip i {
+    width: 15px;
+    height: 15px;
   }
 
   .week-menu {
-    left: -35px;
+    left: 0;
     width: min(360px, calc(100vw - 32px));
     max-height: 66vh;
   }
 
   .weekday-strip {
     grid-template-columns: repeat(7, minmax(0, 1fr));
-    gap: 5px;
+    gap: 4px;
   }
 
   .weekday-button {
-    min-height: 38px;
-    font-size: 0.78rem;
+    min-height: 40px;
+    border-radius: 8px;
+    font-size: 0.74rem;
   }
 
   .workout-title-line {
@@ -4116,6 +4137,10 @@ button:focus-visible {
   body[data-density="compact"] .week-viewer-widget,
   body[data-density="compact"] .workout-summary-widget {
     gap: 7px;
+  }
+
+  body[data-density="compact"] .week-viewer-widget {
+    grid-template-columns: minmax(138px, 166px) minmax(0, 1fr);
   }
 
   body[data-density="compact"] .weekday-button,
