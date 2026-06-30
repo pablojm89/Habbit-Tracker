@@ -1086,10 +1086,16 @@ nodes.todayChip.addEventListener("click", () => {
 });
 nodes.openBackup.addEventListener("click", () => switchView("review"));
 
+// Temporary: run the app as a training-only tool (habits/panel/review hidden).
+// Flip to false to bring the habit tracker back.
+const TRAINING_ONLY = true;
+
 render();
 
 function render() {
-  const activeView = state.settings.view || "dashboard";
+  let activeView = state.settings.view || "dashboard";
+  if (TRAINING_ONLY && activeView !== "training") activeView = "training";
+  document.documentElement.classList.toggle("training-only", TRAINING_ONLY);
   document.body.dataset.density = state.settings.uiDensity || "normal";
   document.querySelectorAll(".view").forEach((view) => {
     view.classList.toggle("is-active", view.id === `view-${activeView}`);
@@ -1098,7 +1104,7 @@ function render() {
     button.classList.toggle("is-active", button.dataset.view === activeView);
   });
 
-  nodes.seasonLabel.textContent = `BitTracker · ${activeHabits().length} hábitos activos`;
+  nodes.seasonLabel.textContent = TRAINING_ONLY ? "Training" : `BitTracker · ${activeHabits().length} hábitos activos`;
   nodes.todayChip.textContent = formatShortDate(selectedDate);
   document.querySelectorAll("[data-action='toggle-density']").forEach((button) => {
     const compact = (state.settings.uiDensity || "normal") === "compact";
@@ -1542,10 +1548,7 @@ function renderMesocycle() {
     <div class="workout-widget-stack">
       <section class="workout-widget workout-summary-card" aria-label="Resumen del día">
         <div class="workout-day-head">
-          <div class="workout-day-title">
-            <h2>${capitalize(formatWeekday(selectedDate))}</h2>
-            <span>${formatMonthDay(selectedDate)}</span>
-          </div>
+          <h2 class="workout-day-title">${capitalize(formatWeekday(selectedDate))} <span>${formatMonthDay(selectedDate)}</span></h2>
           <div class="workout-day-badges">
             <span class="workout-score"><strong>${scoreForDate(selectedDate)}</strong><small>EXR</small></span>
             <button class="icon-button" type="button" data-action="go-today" title="Hoy" aria-label="Hoy"><i data-lucide="calendar-clock"></i></button>
@@ -4429,6 +4432,24 @@ function denseQuickExercises() {
   return [...unique.values()].slice(0, 6);
 }
 
+function denseEffortBadge(effort) {
+  const labels = { VE: "Muy fácil", E: "Fácil", N: "Normal", H: "Difícil", VH: "Muy difícil", fallo: "Fallo" };
+  const value = effort || "N";
+  return `<span class="effort-badge" style="--effort-color:${denseEffortColor(value)}">${escapeHtml(labels[value] || value)}</span>`;
+}
+
+// Bottom line of a logged card: "5D7 (35 reps)" or "5D15 (75s TUT)"
+function denseEntrySummaryLine(entry) {
+  const scheme = entry.scheme || "";
+  if (entry.total_hold_seconds) {
+    const perRound = entry.hold_seconds_per_round || (entry.duration_minutes ? Math.round(entry.total_hold_seconds / entry.duration_minutes) : 0);
+    return `<span class="set-main-metric">${escapeHtml(`${scheme}${perRound || ""}`)} <span class="set-paren">(${entry.total_hold_seconds}s TUT)</span></span>`;
+  }
+  const rpm = Math.round(Number(entry.reps_per_min || entry.reps_per_set || 0));
+  const code = rpm ? `${scheme}${rpm}` : scheme;
+  return `<span class="set-main-metric">${escapeHtml(code)} <span class="set-paren">(${entry.total_reps || 0} reps)</span></span>`;
+}
+
 function todayWorkoutCard(entry) {
   const exercise = denseExerciseById(entry.exercise_id);
   const volume = entry.tonnage_kg ? `${roundTo(entry.tonnage_kg / 1000, 1)}t` : entry.total_reps ? `${entry.total_reps} reps` : entry.total_hold_seconds ? `${entry.total_hold_seconds}s` : "-";
@@ -4438,10 +4459,9 @@ function todayWorkoutCard(entry) {
         <div class="workout-set-tags">
           <span class="mini-tag is-amber"><i data-lucide="trophy"></i>${denseEntryIsPr(entry) ? "NEW PR" : "DONE"}</span>
           <span class="mini-tag is-blue">${escapeHtml(denseNatureLabel(entry.nature).split("·")[0].trim())}</span>
-          <span class="mini-tag">${escapeHtml(entry.effort || "N")}</span>
         </div>
         <strong>${escapeHtml(entry.exercise_name)} <small>${escapeHtml(entry.scheme)}</small></strong>
-        <span>${escapeHtml(denseEntryValue(entry))} · ${escapeHtml(entry.effort || "N")}</span>
+        <span class="workout-set-summary">${denseEntrySummaryLine(entry)} ${denseEffortBadge(entry.effort)}</span>
       </div>
       <div class="workout-set-volume">
         <span>Volume</span>
@@ -4453,9 +4473,6 @@ function todayWorkoutCard(entry) {
         </button>
         <button class="icon-button" type="button" data-action="open-dense-entry-modal" data-entry="${escapeAttr(entry.id)}" title="Editar" aria-label="Editar ${escapeAttr(entry.exercise_name)}">
           <i data-lucide="edit-3"></i>
-        </button>
-        <button class="icon-button is-hot" type="button" data-action="open-dense-entry-modal" data-entry="${escapeAttr(entry.id)}" title="Completo" aria-label="Completo ${escapeAttr(entry.exercise_name)}">
-          <i data-lucide="square-check"></i>
         </button>
       </div>
     </article>
@@ -5557,8 +5574,15 @@ function selectedExerciseLogRow(entry) {
 
 function renderDenseEstimateCards(entry) {
   const estimate = state.denseEstimates?.[entry.exercise_id] || {};
+  // Targets follow your best proven capacity, not the lagging smoothed estimate.
+  const bestMetric = (key) =>
+    Math.max(
+      estimate[key] || 0,
+      entry[key] || 0,
+      ...getDenseEntries().filter((item) => item.exercise_id === entry.exercise_id).map((item) => Number(item[key]) || 0),
+    );
   if (entry.nature === "weighted" || entry.nature === "weighted_calisthenics") {
-    const e1rm = estimate.e1rm_kg || entry.e1rm_kg;
+    const e1rm = bestMetric("e1rm_kg");
     if (!e1rm) return "";
     const bw = entry.bodyweight_kg || latestKnownBodyweight(entry.date) || 0;
     const targets = ["2D5", "5D3", "5D5", "10D3", "10D5", "10D1-2-3", "20D3", "20D5"];
@@ -5579,8 +5603,8 @@ function renderDenseEstimateCards(entry) {
       .join("");
   }
 
-  const capacity = estimate.bodyweight_capacity || entry.bodyweight_capacity;
-  const isoCapacity = estimate.isometric_capacity || entry.isometric_capacity;
+  const capacity = bestMetric("bodyweight_capacity");
+  const isoCapacity = bestMetric("isometric_capacity");
   if (isoCapacity) {
     return bodyweightSchemes
       .map((scheme) => {

@@ -170,6 +170,16 @@ i[data-lucide] {
   display: none;
 }
 
+/* Training-only mode: hide the habit/panel/review navigation entirely */
+.training-only .view-tabs,
+.training-only .mobile-view-tabs {
+  display: none;
+}
+
+.training-only body {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
 .tab-button,
 .icon-button,
 .text-button,
@@ -1243,8 +1253,8 @@ i[data-lucide] {
 
 .workout-summary-card {
   display: grid;
-  gap: 14px;
-  padding: 16px;
+  gap: 10px;
+  padding: 12px;
 }
 
 .workout-summary-card .week-viewer-widget {
@@ -1319,40 +1329,50 @@ i[data-lucide] {
 
 .workout-day-head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
 }
 
-.workout-day-head h2 {
-  font-size: clamp(1.8rem, 5vw, 2.8rem);
-  line-height: 0.98;
+.workout-day-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  font-size: clamp(1.3rem, 4.6vw, 1.7rem);
+  font-weight: 800;
+  line-height: 1;
 }
 
-.workout-day-head span {
-  display: block;
-  margin-top: 4px;
-  color: #b7fb48;
-  font-size: 1rem;
-  font-weight: 950;
+.workout-day-title span {
+  color: var(--lime-soft);
+  font-size: 0.78rem;
+  font-weight: 900;
+  white-space: nowrap;
 }
 
 .workout-day-badges {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
+}
+
+.workout-day-badges .icon-button {
+  width: 32px;
+  height: 32px;
 }
 
 .workout-score {
   display: grid;
   grid-template-rows: auto auto;
   align-content: center;
-  gap: 2px;
-  min-width: 58px;
-  min-height: 54px;
+  gap: 1px;
+  min-width: 44px;
+  min-height: 38px;
+  padding: 0 6px;
   justify-items: center;
   border: 1px solid rgba(168, 230, 53, 0.42);
-  border-radius: var(--radius);
+  border-radius: 9px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(168, 230, 53, 0.18)),
     #202020;
@@ -1360,15 +1380,15 @@ i[data-lucide] {
 
 .workout-score strong {
   color: var(--text);
-  font-size: 1.08rem;
+  font-size: 0.92rem;
   line-height: 1;
 }
 
 .workout-score small {
   color: #b7fb48;
-  font-size: 0.62rem;
+  font-size: 0.52rem;
   font-weight: 950;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
 }
 
 .week-edge-button,
@@ -1755,6 +1775,40 @@ i[data-lucide] {
   color: var(--text);
   font-size: 0.72rem;
   font-weight: 800;
+}
+
+.workout-set-card .workout-set-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px 6px;
+  min-width: 0;
+  overflow: visible;
+  white-space: normal;
+  text-overflow: clip;
+}
+
+.set-main-metric {
+  white-space: nowrap;
+}
+
+.workout-set-summary .set-paren {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.effort-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border: 1px solid color-mix(in srgb, var(--effort-color), transparent 42%);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--effort-color), transparent 86%);
+  color: color-mix(in srgb, var(--effort-color), white 22%);
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
 }
 
 .workout-set-volume {
@@ -4622,17 +4676,17 @@ button:focus-visible {
     padding: 8px;
   }
 
-  .workout-day-head h2 {
-    font-size: 1.85rem;
+  .workout-day-title {
+    font-size: 1.45rem;
   }
 
-  .workout-day-head span {
-    font-size: 0.86rem;
+  .workout-day-title span {
+    font-size: 0.76rem;
   }
 
   .workout-score {
-    min-width: 48px;
-    min-height: 46px;
+    min-width: 42px;
+    min-height: 36px;
   }
 
   .week-selector-row {
@@ -4694,9 +4748,16 @@ button:focus-visible {
   }
 
   .workout-set-tags .mini-tag {
-    min-height: 21px;
-    padding-inline: 6px;
-    font-size: 0.56rem;
+    min-height: 19px;
+    gap: 3px;
+    padding-inline: 5px;
+    font-size: 0.52rem;
+    border-radius: 6px;
+  }
+
+  .workout-set-tags .mini-tag i[data-lucide] {
+    width: 11px;
+    height: 11px;
   }
 
   .workout-set-actions .icon-button {
@@ -5017,13 +5078,16 @@ button:focus-visible {
     padding: 7px;
   }
 
-  body[data-density="compact"] .workout-set-tags .mini-tag:nth-child(n + 3),
-  body[data-density="compact"] .workout-set-main > span {
+  body[data-density="compact"] .workout-set-tags .mini-tag:nth-child(n + 3) {
     display: none;
   }
 
   body[data-density="compact"] .workout-set-main strong {
-    font-size: 0.86rem;
+    font-size: 0.84rem;
+  }
+
+  body[data-density="compact"] .workout-set-summary {
+    font-size: 0.66rem;
   }
 
   body[data-density="compact"] .workout-set-volume {
