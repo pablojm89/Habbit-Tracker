@@ -1710,42 +1710,35 @@ function denseSetModalSummary(exercise, defaults) {
 
 function renderTrainingAnalytics() {
   if (!nodes.trainingAnalyticsPanel) return;
-  const activeTab = state.settings.trainingAnalyticsTab || "balance";
+  const activeTab = state.settings.trainingAnalyticsTab || "progress";
   const activeWindow = state.settings.trainingAnalyticsWindow || "70";
   const entries = trainingAnalyticsEntries(activeWindow);
   const totalSets = entries.reduce((sum, entry) => sum + denseEquivalentSets(entry), 0);
   const uniqueDays = new Set(entries.map((entry) => entry.date)).size;
 
   nodes.trainingAnalyticsPanel.innerHTML = `
-    <div class="section-head">
-      <div>
-        <p class="eyebrow">Training analytics</p>
-        <h2>Volumen, fuerza y balance</h2>
-        <span class="section-meta">${entries.length ? `${entries.length} marcas · ${roundTo(totalSets, 1)} sets eq · ${uniqueDays} días` : "Empieza a logear para activar tendencias."}</span>
-      </div>
-      <span class="mini-tag is-green"><i data-lucide="smartphone"></i>${(state.settings.uiDensity || "normal") === "compact" ? "minimal" : "normal"}</span>
-    </div>
-    <div class="analytics-switch-row">
-      <div class="analytics-tab-strip" role="tablist" aria-label="Training analytics">
-        ${trainingAnalyticsTabs
-          .map(
-            ([value, label, icon]) => `
-              <button class="analytics-tab ${activeTab === value ? "is-active" : ""}" type="button" data-action="set-training-analytics-tab" data-tab="${value}">
-                <i data-lucide="${icon}"></i><span>${label}</span>
-              </button>
-            `,
-          )
-          .join("")}
-      </div>
-      <div class="analytics-window-strip" aria-label="Ventana">
-        ${trainingAnalyticsWindows
-          .map(
-            ([value, label]) => `
-              <button class="seg-button ${activeWindow === value ? "is-active" : ""}" type="button" data-action="set-training-analytics-window" data-window="${value}">${label}</button>
-            `,
-          )
-          .join("")}
-      </div>
+    <header class="info-header">
+      <h2 class="info-title"><i data-lucide="activity"></i>Analytics</h2>
+      <p class="info-subtitle">Volumen, fuerza y balance estructural</p>
+      <span class="info-meta">${entries.length ? `${entries.length} marcas · ${roundTo(totalSets, 1)} sets eq · ${uniqueDays} días` : "Empieza a logear para activar tendencias."}</span>
+    </header>
+    <nav class="analytics-tab-strip" role="tablist" aria-label="Training analytics">
+      ${trainingAnalyticsTabs
+        .map(
+          ([value, label]) => `
+            <button class="analytics-tab ${activeTab === value ? "is-active" : ""}" type="button" role="tab" aria-selected="${activeTab === value}" data-action="set-training-analytics-tab" data-tab="${value}">${escapeHtml(label)}</button>
+          `,
+        )
+        .join("")}
+    </nav>
+    <div class="analytics-window-strip" aria-label="Ventana">
+      ${trainingAnalyticsWindows
+        .map(
+          ([value, label]) => `
+            <button class="seg-button ${activeWindow === value ? "is-active" : ""}" type="button" data-action="set-training-analytics-window" data-window="${value}">${label}</button>
+          `,
+        )
+        .join("")}
     </div>
     <div class="training-analytics-body">
       ${renderTrainingAnalyticsTab(activeTab, entries)}
@@ -1823,6 +1816,8 @@ function renderVolumeAnalytics(entries) {
       ${analyticsStatCard("Tonnage", tonnage ? `${roundTo(tonnage / 1000, 1)}t` : "-", "Carga efectiva estimada", "warehouse")}
       ${analyticsStatCard("Ejercicios", new Set(entries.map((entry) => entry.exercise_id)).size, "Variantes usadas", "dumbbell")}
     </div>
+    ${analyticsTrendChart("tonelaje · últimos 7 días", roundTo(tonnage / 1000, 1), denseDailyTrend((entry) => (entry.tonnage_kg || 0) / 1000, 7), "t")}
+    ${analyticsTrendChart("bloques · últimos 7 días", roundTo(totalSets, 1), denseDailyTrend((entry) => denseEquivalentSets(entry), 7), "")}
     <div class="analytics-card">
       <div class="section-subhead"><strong>Volumen por patrón</strong><span>sets equivalentes</span></div>
       <div class="analytics-bars">
@@ -2228,6 +2223,7 @@ function handleClick(event) {
   if (action === "open-habit-modal") openHabitModal(target.dataset.id);
   if (action === "open-day-note") openDayModal();
   if (action === "open-quick-timer") openQuickTimerModal();
+  if (action === "start-exercise-timer") startExerciseTimer(target.dataset.exercise);
   if (action === "quick-timer-scheme") setQuickTimerScheme(target.dataset.scheme);
   if (action === "quick-timer-hold") setQuickTimerHold(Number(target.dataset.seconds));
   if (action === "quick-timer-start") startQuickTimer();
@@ -2505,6 +2501,26 @@ function openQuickTimerModal() {
   syncQuickTimerFromForm();
   nodes.modalEyebrow.textContent = "Tools";
   nodes.modalTitle.textContent = "Quick Timer";
+  renderQuickTimerModalBody();
+  openModal();
+}
+
+// Open the timer pre-configured for a planned exercise (scheme, rounds, hold)
+function startExerciseTimer(exerciseId) {
+  const exercise = findDenseExerciseById(exerciseId);
+  if (!exercise) {
+    toast("Ejercicio no válido");
+    return;
+  }
+  const scheme = densePlannedScheme(exercise);
+  const base = denseSchemeBase(scheme);
+  if (bodyweightSchemes.includes(base)) quickTimerState.scheme = base;
+  quickTimerState.rounds = denseSchemeMinutes(scheme) || quickTimerState.rounds || 5;
+  quickTimerState.holdSeconds = denseIsIsometric(exercise) ? Number(denseDefaultHoldPerRound(exercise, scheme)) || quickTimerState.holdSeconds || 0 : 0;
+  state.settings.denseSelectedExerciseId = exercise.id;
+  resetQuickTimer(false);
+  nodes.modalEyebrow.textContent = "Tools";
+  nodes.modalTitle.textContent = `Cronómetro · ${exercise.name}`;
   renderQuickTimerModalBody();
   openModal();
 }
@@ -3375,7 +3391,7 @@ function createInitialState() {
       selectedWeekId: mesocycleDefault.weeks[getCurrentCycleWeek()].id,
       selectedSessionId: mesocycleDefault.weeks[getCurrentCycleWeek()].sessions[0].id,
       uiDensity: "normal",
-      trainingAnalyticsTab: "balance",
+      trainingAnalyticsTab: "progress",
       trainingAnalyticsWindow: "70",
       trainingMode: "workout",
     },
@@ -3427,7 +3443,7 @@ function normalizeState(input) {
     denseExerciseSearch: "",
     denseSelectedExerciseId: "pull_up",
     uiDensity: "normal",
-    trainingAnalyticsTab: "balance",
+    trainingAnalyticsTab: "progress",
     trainingAnalyticsWindow: "70",
     trainingMode: "workout",
     ...(input.settings || {}),
@@ -3755,6 +3771,11 @@ function updateDenseSchemeSelection(input) {
   if (repsInput) repsInput.value = reps || "";
   const roundsInput = form.querySelector("[name='rounds']");
   if (roundsInput) roundsInput.value = denseSchemeMinutes(input.value) || "";
+  const holdInput = form.querySelector("[name='holdSecondsPerRound']");
+  if (holdInput && denseIsIsometric(exercise)) {
+    const suggested = denseDefaultHoldPerRound(exercise, input.value);
+    if (suggested) holdInput.value = suggested;
+  }
   updateDenseHoldEstimate(form);
 }
 
@@ -3773,8 +3794,9 @@ function denseRepPerSetFields(exercise, defaults) {
 
 function denseHoldFields(exercise, defaults) {
   if (!denseSupportsHold(exercise)) return "";
+  const holdDefault = defaults.holdSecondsPerRound || (denseIsIsometric(exercise) ? denseDefaultHoldPerRound(exercise, defaults.scheme) : "");
   return `
-    ${field("Hold/ronda s", "holdSecondsPerRound", defaults.holdSecondsPerRound || "", "number")}
+    ${field("Hold/ronda s", "holdSecondsPerRound", holdDefault || "", "number")}
     ${field("Rondas", "rounds", defaults.rounds || denseSchemeMinutes(defaults.scheme) || "", "number")}
     <div class="dense-hold-preview" data-hold-preview>Hold off</div>
   `;
@@ -4428,21 +4450,56 @@ function denseEntryIsPr(entry) {
   return !getDenseEntries().some((item) => item.id !== entry.id && item.exercise_id === entry.exercise_id && item.scheme === entry.scheme && denseEntryScore(item) > score);
 }
 
+function densePlannedScheme(exercise) {
+  const allowed = denseAllowedSchemes(exercise);
+  const last = latestDenseEntryForExercise(exercise.id);
+  if (last && allowed.includes(last.scheme)) return last.scheme;
+  return allowed[0] || (denseIsIsometric(exercise) || exercise.nature === "bodyweight" ? "10D" : "10D5");
+}
+
+function densePlannedTargetValue(exercise, scheme) {
+  if (denseIsIsometric(exercise)) {
+    const seconds = denseDefaultHoldPerRound(exercise, scheme);
+    return seconds ? `${seconds}s/ronda` : "-";
+  }
+  if (denseUsesRepsPerSet(exercise)) {
+    const reps = denseDefaultRepsPerSet(exercise, scheme);
+    return reps ? `${reps} rpm` : "-";
+  }
+  return scheme;
+}
+
+// Last session of the same dense time-block (e.g. last 5D) for this exercise
+function denseLastSessionSummary(exercise, scheme) {
+  const base = denseSchemeBase(scheme);
+  const last = [...getDenseEntries()]
+    .filter((entry) => entry.exercise_id === exercise.id && denseSchemeBase(entry.scheme) === base)
+    .sort((a, b) => (b.created_at || b.date || "").localeCompare(a.created_at || a.date || ""))[0];
+  if (!last) return "Sin marca previa en este bloque";
+  const effort = last.effort || "N";
+  if (last.total_hold_seconds) return `Última ${escapeHtml(last.scheme)} (${last.total_hold_seconds}s) · ${escapeHtml(effort)}`;
+  const rpm = Math.round(Number(last.reps_per_min || last.target_reps_per_min || 0));
+  const schemeLabel = rpm ? `${last.scheme}${rpm}` : last.scheme;
+  return `Última ${escapeHtml(schemeLabel)} (${last.total_reps || 0} reps) · ${escapeHtml(effort)}`;
+}
+
 function plannedWorkoutCard(exercise) {
   const canDelete = exercise.plannedSource === "custom";
+  const scheme = densePlannedScheme(exercise);
+  const target = densePlannedTargetValue(exercise, scheme);
   return `
     <article class="today-workout-card workout-set-card is-planned" style="--item-color:${denseCategoryColor(exercise.category)}" data-action="open-dense-exercise-detail" data-exercise="${escapeAttr(exercise.id)}">
       <div class="workout-set-main">
         <div class="workout-set-tags">
           <span class="mini-tag is-blue">${escapeHtml(denseNatureLabel(exercise.nature).split("·")[0].trim())}</span>
-          <span class="mini-tag is-amber">PROGRAMADO</span>
         </div>
-        <strong>${escapeHtml(exercise.name)}</strong>
-        <span>${escapeHtml(denseCategoryLabel(exercise.category))} · ${escapeHtml(denseExerciseHint(exercise))}</span>
+        <strong>${escapeHtml(exercise.name)} <small>${escapeHtml(scheme)}</small></strong>
+        <span>${denseLastSessionSummary(exercise, scheme)}</span>
       </div>
       <div class="workout-set-volume">
         <span>Target</span>
-        <strong>${escapeHtml(denseAllowedSchemes(exercise)[0] || "-")}</strong>
+        <strong>${escapeHtml(target)}</strong>
+        <small>${escapeHtml(scheme)}</small>
       </div>
       <div class="workout-set-actions">
         ${
@@ -4452,11 +4509,11 @@ function plannedWorkoutCard(exercise) {
               </button>`
             : ""
         }
-        <button class="icon-button" type="button" data-action="open-dense-exercise-modal" data-exercise="${escapeAttr(exercise.id)}" title="Rellenar entreno" aria-label="Rellenar ${escapeAttr(exercise.name)}">
-          <i data-lucide="edit-3"></i>
-        </button>
         <button class="icon-button is-hot" type="button" data-action="open-dense-exercise-modal" data-exercise="${escapeAttr(exercise.id)}" title="Completar" aria-label="Completar ${escapeAttr(exercise.name)}">
           <i data-lucide="square-check"></i>
+        </button>
+        <button class="icon-button is-play" type="button" data-action="start-exercise-timer" data-exercise="${escapeAttr(exercise.id)}" title="Iniciar cronómetro" aria-label="Iniciar cronómetro ${escapeAttr(exercise.name)}">
+          <i data-lucide="play"></i>
         </button>
       </div>
     </article>
@@ -4713,6 +4770,24 @@ function denseDefaultRepsPerSet(exercise, scheme) {
   if (estimate && multiplier) return Math.max(1, Math.floor(estimate * multiplier));
 
   return Math.max(1, Math.round(denseDefaultRpm(exercise, denseSchemeBase(scheme))));
+}
+
+// Suggested hold seconds per round for an isometric, scaled by density (more rest = longer holds)
+function denseDefaultHoldPerRound(exercise, scheme) {
+  const multiplier = bodyweightMultipliers[denseSchemeBase(scheme)];
+  if (!multiplier) return "";
+  const isoCapacity = state.denseEstimates?.[exercise.id]?.isometric_capacity;
+  if (isoCapacity) return Math.max(1, Math.floor(isoCapacity * multiplier));
+  const minutes = denseSchemeMinutes(scheme) || 1;
+  const latestIso = [...getDenseEntries()]
+    .filter((entry) => entry.exercise_id === exercise.id && entry.isometric_capacity)
+    .sort((a, b) => (b.created_at || b.date || "").localeCompare(a.created_at || a.date || ""))[0];
+  if (latestIso?.isometric_capacity) return Math.max(1, Math.floor(latestIso.isometric_capacity * multiplier));
+  const latestSameScheme = [...getDenseEntries()]
+    .filter((entry) => entry.exercise_id === exercise.id && entry.scheme === scheme && (entry.hold_seconds_per_round || entry.total_hold_seconds))
+    .sort((a, b) => (b.created_at || b.date || "").localeCompare(a.created_at || a.date || ""))[0];
+  if (latestSameScheme) return Math.max(1, Math.round(Number(latestSameScheme.hold_seconds_per_round) || Number(latestSameScheme.total_hold_seconds) / minutes));
+  return "";
 }
 
 function denseProgressionSuggestion(exercise) {
@@ -5073,6 +5148,48 @@ function analyticsBar(label, value, max, detail) {
       <strong>${roundTo(value, 1)}</strong>
       <small>${escapeHtml(detail)}</small>
     </div>
+  `;
+}
+
+// Daily totals for the last `days` days (most recent on the right)
+function denseDailyTrend(metricFn, days = 7) {
+  const buckets = {};
+  getDenseEntries().forEach((entry) => {
+    if (!entry.date) return;
+    buckets[entry.date] = (buckets[entry.date] || 0) + (Number(metricFn(entry)) || 0);
+  });
+  const out = [];
+  for (let i = days - 1; i >= 0; i -= 1) {
+    const day = addDays(today, -i);
+    const key = dateKey(day);
+    out.push({ key, short: `${day.getMonth() + 1}/${day.getDate()}`, value: buckets[key] || 0 });
+  }
+  return out;
+}
+
+// Vertical bar trend chart (matches the reference tonnage/blocks trend)
+function analyticsTrendChart(title, total, points, unit = "") {
+  if (!points.length) return "";
+  const max = Math.max(...points.map((p) => p.value), 1);
+  const bars = points
+    .map((p) => {
+      const h = p.value > 0 ? Math.max(6, Math.round((p.value / max) * 100)) : 0;
+      return `
+        <div class="trend-bar ${p.value > 0 ? "is-on" : ""}" title="${escapeAttr(p.short)}: ${roundTo(p.value, 1)}${unit}">
+          <span class="trend-bar-track"><i style="height:${h}%"></i></span>
+          <em>${escapeHtml(p.short)}</em>
+        </div>
+      `;
+    })
+    .join("");
+  return `
+    <article class="analytics-card analytics-trend">
+      <div class="trend-head">
+        <strong>${escapeHtml(String(total))}${escapeHtml(unit)}</strong>
+        <span>${escapeHtml(title)}</span>
+      </div>
+      <div class="trend-chart">${bars}</div>
+    </article>
   `;
 }
 
@@ -5491,11 +5608,11 @@ function denseEntryValue(entry) {
     return `${entry.total_hold_seconds}s TUT · ${entry.hold_seconds_per_round || 0}s/ronda`;
   }
   if (entry.nature === "weighted_calisthenics") {
-    return `${formatKg(entry.visible_added_load_kg)} lastre · e1RM ${formatKg(entry.e1rm_kg)}`;
+    return `${entry.total_reps || 0} reps · ${formatKg(entry.visible_added_load_kg)} lastre · e1RM ${formatKg(entry.e1rm_kg)}`;
   }
   if (entry.nature === "weighted") {
     const db = entry.weight_per_dumbbell_kg ? `${formatKg(entry.weight_per_dumbbell_kg)} x2 · ` : "";
-    return `${db}${formatKg(entry.external_load_kg)} · e1RM ${formatKg(entry.e1rm_kg)}`;
+    return `${entry.total_reps || 0} reps · ${db}${formatKg(entry.external_load_kg)} · e1RM ${formatKg(entry.e1rm_kg)}`;
   }
   if (entry.reps_per_min) {
     const targetRpm = Number(entry.target_reps_per_min || entry.reps_per_set || 0);
