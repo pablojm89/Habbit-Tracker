@@ -3,3 +3,4 @@ tmp/
 *.zip
 .DS_Store
 __preview.html
+__chrome.html
