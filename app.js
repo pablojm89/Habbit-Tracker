@@ -144,6 +144,7 @@ const denseExerciseCategories = [
   ["push", "Empujón"],
   ["pull", "Tirón"],
   ["legs", "Piernas"],
+  ["core", "Core"],
   ["skills", "Skills"],
   ["mobility", "Movilidad"],
 ];
@@ -266,18 +267,6 @@ const denseExerciseCatalog = [
     icon: "move-down",
   },
   {
-    id: "bodyweight_squat",
-    name: "Sentadilla normal",
-    category: "legs",
-    family: "squat_bodyweight",
-    nature: "bodyweight",
-    allowedNatures: ["bodyweight", "weighted"],
-    bodyweightContributionPct: 75,
-    tonnageFactor: 1,
-    alpha: 0.1,
-    icon: "chevrons-down",
-  },
-  {
     id: "tiptoe_squat",
     name: "Sentadilla en puntillas",
     category: "legs",
@@ -386,6 +375,308 @@ const denseExerciseCatalog = [
     tonnageFactor: 1,
     alpha: 0.17,
     icon: "arrow-up-from-line",
+  },
+  {
+    id: "straight_handstand",
+    name: "Straight Handstand",
+    category: "skills",
+    family: "handstand",
+    nature: "skill",
+    isometric: true,
+    allowedNatures: ["skill", "bodyweight"],
+    bodyweightContributionPct: 95,
+    tonnageFactor: 1,
+    alpha: 0.16,
+    icon: "person-standing",
+  },
+  {
+    id: "straddle_handstand",
+    name: "Straddle Handstand",
+    category: "skills",
+    family: "handstand",
+    nature: "skill",
+    isometric: true,
+    allowedNatures: ["skill", "bodyweight"],
+    bodyweightContributionPct: 95,
+    tonnageFactor: 1,
+    alpha: 0.15,
+    icon: "person-standing",
+  },
+  {
+    id: "press_to_handstand",
+    name: "Press To Handstand",
+    category: "skills",
+    family: "handstand",
+    nature: "bodyweight",
+    allowedNatures: ["bodyweight", "skill"],
+    bodyweightContributionPct: 90,
+    tonnageFactor: 1,
+    alpha: 0.17,
+    icon: "arrow-up-from-line",
+  },
+  {
+    id: "natural_leg_extension",
+    name: "Natural Leg Extension",
+    category: "legs",
+    family: "knee_dominant",
+    nature: "bodyweight",
+    allowedNatures: ["bodyweight", "weighted_calisthenics"],
+    bodyweightContributionPct: 60,
+    tonnageFactor: 0.9,
+    alpha: 0.13,
+    icon: "footprints",
+  },
+  {
+    id: "air_squat",
+    name: "Sentadillas sin peso",
+    category: "legs",
+    family: "squat_bodyweight",
+    nature: "bodyweight",
+    allowedNatures: ["bodyweight"],
+    bodyweightContributionPct: 75,
+    tonnageFactor: 1,
+    alpha: 0.1,
+    icon: "chevrons-down",
+  },
+  {
+    id: "back_squat",
+    name: "Back Squat",
+    category: "legs",
+    family: "squat_weighted",
+    nature: "weighted",
+    allowedNatures: ["weighted"],
+    bodyweightContributionPct: 0,
+    tonnageFactor: 1,
+    alpha: 0.18,
+    icon: "chevrons-down",
+  },
+  {
+    id: "sissy_squat",
+    name: "Sissy Squat",
+    category: "legs",
+    family: "knee_dominant",
+    nature: "bodyweight",
+    allowedNatures: ["bodyweight", "weighted_calisthenics"],
+    bodyweightContributionPct: 70,
+    tonnageFactor: 0.9,
+    alpha: 0.12,
+    icon: "chevrons-down",
+  },
+  {
+    id: "back_extension",
+    name: "Back Extension",
+    category: "legs",
+    family: "posterior_chain",
+    nature: "weighted_calisthenics",
+    allowedNatures: ["bodyweight", "weighted_calisthenics"],
+    bodyweightContributionPct: 50,
+    tonnageFactor: 0.85,
+    alpha: 0.12,
+    icon: "fold-horizontal",
+  },
+  {
+    id: "clap_push_up",
+    name: "Flexiones con palmadas",
+    category: "push",
+    family: "pushup",
+    nature: "bodyweight",
+    allowedNatures: ["bodyweight"],
+    bodyweightContributionPct: 64,
+    tonnageFactor: 1,
+    alpha: 0.13,
+    icon: "move-down",
+  },
+  {
+    id: "deficit_push_up",
+    name: "Flexiones con déficit",
+    category: "push",
+    family: "pushup",
+    nature: "bodyweight",
+    allowedNatures: ["bodyweight", "weighted_calisthenics"],
+    bodyweightContributionPct: 68,
+    tonnageFactor: 1,
+    alpha: 0.13,
+    icon: "move-down",
+  },
+  {
+    id: "parallel_bar_dip",
+    name: "Dips en paralelas",
+    category: "push",
+    family: "parallel_dip",
+    nature: "bodyweight",
+    allowedNatures: ["bodyweight", "weighted_calisthenics"],
+    bodyweightContributionPct: 90,
+    tonnageFactor: 1,
+    alpha: 0.14,
+    icon: "circle-dot",
+  },
+  {
+    id: "weighted_parallel_bar_dip",
+    name: "Dips en paralelas con lastre",
+    category: "push",
+    family: "parallel_dip",
+    nature: "weighted_calisthenics",
+    allowedNatures: ["weighted_calisthenics", "bodyweight"],
+    bodyweightContributionPct: 90,
+    tonnageFactor: 1,
+    alpha: 0.15,
+    icon: "circle-dot",
+  },
+  {
+    id: "bench_press",
+    name: "Press banca",
+    category: "push",
+    family: "bench_press",
+    nature: "weighted",
+    allowedNatures: ["weighted"],
+    bodyweightContributionPct: 0,
+    tonnageFactor: 1,
+    alpha: 0.2,
+    icon: "dumbbell",
+  },
+  {
+    id: "machine_leg_extension",
+    name: "Leg Extension máquina",
+    category: "legs",
+    family: "knee_isolation",
+    nature: "weighted",
+    allowedNatures: ["weighted"],
+    bodyweightContributionPct: 0,
+    tonnageFactor: 1,
+    alpha: 0.13,
+    icon: "footprints",
+  },
+  {
+    id: "machine_leg_curl",
+    name: "Curl Isquiosural máquina",
+    category: "legs",
+    family: "hamstring_isolation",
+    nature: "weighted",
+    allowedNatures: ["weighted"],
+    bodyweightContributionPct: 0,
+    tonnageFactor: 1,
+    alpha: 0.13,
+    icon: "fold-horizontal",
+  },
+  {
+    id: "atg_split_squat",
+    name: "ATG Split Squat",
+    category: "legs",
+    family: "atg_split_squat",
+    nature: "bodyweight",
+    allowedNatures: ["bodyweight", "weighted_calisthenics"],
+    bodyweightContributionPct: 80,
+    tonnageFactor: 1,
+    repsPerSide: true,
+    alpha: 0.12,
+    icon: "person-standing",
+  },
+  {
+    id: "weighted_atg_split_squat",
+    name: "ATG Split Squat con peso",
+    category: "legs",
+    family: "atg_split_squat",
+    nature: "weighted_calisthenics",
+    allowedNatures: ["weighted_calisthenics", "bodyweight"],
+    bodyweightContributionPct: 80,
+    tonnageFactor: 1,
+    repsPerSide: true,
+    alpha: 0.13,
+    icon: "person-standing",
+  },
+  {
+    id: "toes_to_bar_strict",
+    name: "Toes to Bar estrictos",
+    category: "core",
+    family: "toes_to_bar",
+    nature: "bodyweight",
+    allowedNatures: ["bodyweight", "weighted_calisthenics"],
+    bodyweightContributionPct: 60,
+    tonnageFactor: 1,
+    alpha: 0.14,
+    icon: "move-up",
+  },
+  {
+    id: "toes_to_bar_kip",
+    name: "Toes to Bar con Kip",
+    category: "core",
+    family: "toes_to_bar",
+    nature: "bodyweight",
+    allowedNatures: ["bodyweight"],
+    bodyweightContributionPct: 55,
+    tonnageFactor: 1,
+    alpha: 0.13,
+    icon: "move-up",
+  },
+  {
+    id: "cuelgue_passive_bilateral",
+    name: "Cuelgue pasivo bilateral",
+    category: "pull",
+    family: "cuelgue",
+    nature: "skill",
+    isometric: true,
+    allowedNatures: ["skill", "bodyweight"],
+    bodyweightContributionPct: 100,
+    tonnageFactor: 1,
+    alpha: 0.1,
+    icon: "grip-horizontal",
+    video: "https://www.youtube.com/watch?v=gUcP3jabEG4",
+  },
+  {
+    id: "cuelgue_active",
+    name: "Cuelgue activo",
+    category: "pull",
+    family: "cuelgue",
+    nature: "skill",
+    isometric: true,
+    allowedNatures: ["skill", "bodyweight"],
+    bodyweightContributionPct: 100,
+    tonnageFactor: 1,
+    alpha: 0.12,
+    icon: "grip-horizontal",
+    video: "https://www.youtube.com/watch?v=u_l2NdCKsq8",
+  },
+  {
+    id: "cuelgue_active_ig",
+    name: "Cuelgue activo (tutorial Instagram)",
+    category: "pull",
+    family: "cuelgue",
+    nature: "skill",
+    isometric: true,
+    allowedNatures: ["skill", "bodyweight"],
+    bodyweightContributionPct: 100,
+    tonnageFactor: 1,
+    alpha: 0.13,
+    icon: "grip-horizontal",
+    video: "https://youtu.be/ikeMnaKCcEw",
+  },
+  {
+    id: "cuelgue_passive_one_hand",
+    name: "Cuelgue pasivo a una mano",
+    category: "pull",
+    family: "cuelgue",
+    nature: "skill",
+    isometric: true,
+    allowedNatures: ["skill", "bodyweight"],
+    bodyweightContributionPct: 100,
+    tonnageFactor: 1,
+    alpha: 0.15,
+    icon: "grip-horizontal",
+    video: "https://www.youtube.com/watch?v=HTeehUuV_6c",
+  },
+  {
+    id: "cuelgue_active_one_hand",
+    name: "Cuelgue activo a una mano",
+    category: "pull",
+    family: "cuelgue",
+    nature: "skill",
+    isometric: true,
+    allowedNatures: ["skill", "bodyweight"],
+    bodyweightContributionPct: 100,
+    tonnageFactor: 1,
+    alpha: 0.17,
+    icon: "grip-horizontal",
+    video: "https://www.youtube.com/watch?v=5NuxVKK5PVk",
   },
   ...leverSkillExercises("front_lever", "Front Lever", 88),
   ...leverSkillExercises("back_lever", "Back Lever", 88),
@@ -1952,6 +2243,8 @@ function handleClick(event) {
   if (action === "open-dense-exercise-modal") openDenseTrainingModal({ exerciseId: target.dataset.exercise });
   if (action === "open-workout-exercise-picker") openWorkoutExercisePickerModal();
   if (action === "add-planned-exercise") addPlannedExerciseToSelectedDate(target.dataset.exercise);
+  if (action === "toggle-exercise-group") toggleExerciseGroup(target.dataset.group);
+  if (action === "toggle-exercise-video") toggleExerciseVideo(target.dataset.exercise);
   if (action === "open-dense-exercise-detail") openDenseExerciseDetailModal(target.dataset.exercise);
   if (action === "confirm-delete-dense-entry") openDenseDeleteConfirm(target.dataset.entry);
   if (action === "delete-dense-entry") deleteDenseEntry(target.dataset.entry);
@@ -2483,6 +2776,37 @@ function openWorkoutExercisePickerModal() {
   openModal();
 }
 
+// Exercise families shown as a collapsible group of progressions in the picker.
+const denseExerciseGroupConfig = {
+  front_lever: { label: "Front Lever", icon: "move-horizontal" },
+  back_lever: { label: "Back Lever", icon: "rotate-ccw" },
+  front_lever_pull: { label: "Front Lever Pull", icon: "move-horizontal" },
+  back_lever_pull: { label: "Back Lever Pull", icon: "rotate-ccw" },
+  cuelgue: { label: "Cuelgue", icon: "grip-horizontal" },
+};
+const expandedExerciseGroups = new Set();
+let expandedVideoExerciseId = null;
+
+function denseVideoEmbedUrl(url) {
+  if (!url) return "";
+  try {
+    const parsed = new URL(url);
+    let id = "";
+    if (parsed.hostname.includes("youtu.be")) id = parsed.pathname.slice(1);
+    else if (parsed.searchParams.get("v")) id = parsed.searchParams.get("v");
+    else if (parsed.pathname.includes("/embed/")) id = parsed.pathname.split("/embed/")[1];
+    id = (id || "").split(/[?&/]/)[0];
+    return id ? `https://www.youtube-nocookie.com/embed/${id}` : "";
+  } catch {
+    return "";
+  }
+}
+
+function toggleExerciseVideo(exerciseId) {
+  expandedVideoExerciseId = expandedVideoExerciseId === exerciseId ? null : exerciseId;
+  refreshDenseExercisePickerSurface();
+}
+
 function workoutExercisePickerMarkup() {
   const category = state.settings.denseExerciseCategory || "all";
   const sort = state.settings.denseExerciseSort || "recent";
@@ -2509,14 +2833,50 @@ function workoutExercisePickerMarkup() {
         </label>
       </div>
       <div class="exercise-picker-list">
-        ${
-          exercises.length
-            ? exercises.map((exercise) => denseExercisePickCard(exercise, "", "add-planned-exercise")).join("")
-            : `<article class="exercise-pick-empty">No hay ejercicios con ese filtro.</article>`
-        }
+        ${denseWorkoutPickerListMarkup(exercises, search.trim().toLowerCase())}
       </div>
     </section>
   `;
+}
+
+function denseWorkoutPickerListMarkup(exercises, query) {
+  if (!exercises.length) return `<article class="exercise-pick-empty">No hay ejercicios con ese filtro.</article>`;
+  const items = [];
+  const groups = {};
+  exercises.forEach((exercise) => {
+    const cfg = denseExerciseGroupConfig[exercise.family];
+    if (cfg) {
+      if (!groups[exercise.family]) {
+        groups[exercise.family] = { family: exercise.family, ...cfg, children: [] };
+        items.push({ type: "group", group: groups[exercise.family] });
+      }
+      groups[exercise.family].children.push(exercise);
+    } else {
+      items.push({ type: "exercise", exercise });
+    }
+  });
+  return items
+    .map((item) => {
+      if (item.type === "exercise") return denseExercisePickCard(item.exercise, "", "add-planned-exercise");
+      const group = item.group;
+      const children = [...group.children].sort((a, b) => (a.alpha || 0) - (b.alpha || 0));
+      const expanded = expandedExerciseGroups.has(group.family) || Boolean(query);
+      const color = denseCategoryColor(children[0].category);
+      return `
+        <div class="exercise-group ${expanded ? "is-open" : ""}">
+          <button class="exercise-group-head" type="button" data-action="toggle-exercise-group" data-group="${escapeAttr(group.family)}" aria-expanded="${expanded}">
+            <span class="tiny-icon" style="--item-color:${color}"><i data-lucide="${group.icon}"></i></span>
+            <span class="exercise-group-text">
+              <strong>${escapeHtml(group.label)}</strong>
+              <small>${children.length} progresiones</small>
+            </span>
+            <i class="exercise-group-chevron" data-lucide="${expanded ? "chevron-up" : "chevron-down"}"></i>
+          </button>
+          ${expanded ? `<div class="exercise-group-children">${children.map((exercise) => denseExercisePickCard(exercise, "", "add-planned-exercise")).join("")}</div>` : ""}
+        </div>
+      `;
+    })
+    .join("");
 }
 
 function refreshDenseExercisePickerSurface() {
@@ -2533,6 +2893,13 @@ function refreshDenseExercisePickerSurface() {
   }
   renderDenseTraining();
   refreshIcons();
+}
+
+function toggleExerciseGroup(family) {
+  if (!family) return;
+  if (expandedExerciseGroups.has(family)) expandedExerciseGroups.delete(family);
+  else expandedExerciseGroups.add(family);
+  refreshDenseExercisePickerSurface();
 }
 
 function addPlannedExerciseToSelectedDate(exerciseId) {
@@ -3302,9 +3669,11 @@ function denseExercisePickCard(exercise, selectedId, action = "pick-dense-exerci
   const selected = exercise.id === selectedId;
   const last = stats.lastEntry ? `${stats.daysSince === 0 ? "hoy" : `hace ${stats.daysSince}d`}` : "sin marcas";
   const actionIcon = action === "add-planned-exercise" ? "plus" : "check";
+  const videoEmbed = denseVideoEmbedUrl(exercise.video);
+  const videoOpen = videoEmbed && expandedVideoExerciseId === exercise.id;
   return `
     <article
-      class="exercise-pick-card ${selected ? "is-selected" : ""}"
+      class="exercise-pick-card ${selected ? "is-selected" : ""} ${videoEmbed ? "has-video" : ""} ${videoOpen ? "is-video-open" : ""}"
       data-exercise-card
       data-search="${escapeAttr(`${exercise.name} ${exercise.family} ${denseCategoryLabel(exercise.category)}`.toLowerCase())}"
       data-exercise="${escapeAttr(exercise.id)}"
@@ -3317,6 +3686,11 @@ function denseExercisePickCard(exercise, selectedId, action = "pick-dense-exerci
         </span>
         <i data-lucide="${actionIcon}"></i>
       </button>
+      ${
+        videoEmbed
+          ? `<button class="icon-button exercise-video-btn ${videoOpen ? "is-hot" : ""}" type="button" data-action="toggle-exercise-video" data-exercise="${escapeAttr(exercise.id)}" title="${videoOpen ? "Ocultar vídeo" : "Ver vídeo"}" aria-label="Ver vídeo ${escapeAttr(exercise.name)}"><i data-lucide="${videoOpen ? "x" : "play"}"></i></button>`
+          : ""
+      }
       <button
         class="icon-button exercise-fav ${favorite ? "is-hot" : ""}"
         type="button"
@@ -3325,6 +3699,11 @@ function denseExercisePickCard(exercise, selectedId, action = "pick-dense-exerci
         title="${favorite ? "Quitar favorito" : "Marcar favorito"}"
         aria-label="${favorite ? "Quitar favorito" : "Marcar favorito"} ${escapeAttr(exercise.name)}"
       ><i data-lucide="star"></i></button>
+      ${
+        videoOpen
+          ? `<div class="exercise-pick-video"><iframe src="${escapeAttr(videoEmbed)}" title="Vídeo ${escapeAttr(exercise.name)}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe></div>`
+          : ""
+      }
     </article>
   `;
 }
@@ -4176,7 +4555,7 @@ function denseExerciseFromPlannedName(name = "") {
   if (normalized.includes("remo")) return denseExerciseById("ring_row");
   if (normalized.includes("press militar")) return denseExerciseById("seated_db_overhead_press");
   if (normalized.includes("press") || normalized.includes("banca")) return denseExerciseById("floor_push_up");
-  if (normalized.includes("sentadilla") || normalized.includes("squat")) return denseExerciseById("bodyweight_squat");
+  if (normalized.includes("sentadilla") || normalized.includes("squat")) return denseExerciseById("air_squat");
   if (normalized.includes("zancada") || normalized.includes("split")) return denseExerciseById("pistol_squat");
   if (normalized.includes("movilidad") || normalized.includes("cadera")) return denseExerciseById("seated_bent_leg_good_morning");
   return null;
@@ -4246,6 +4625,7 @@ function denseCategoryColor(category) {
   if (category === "legs") return "var(--green)";
   if (category === "skills") return "var(--purple)";
   if (category === "mobility") return "var(--cyan)";
+  if (category === "core") return "var(--amber)";
   return "var(--teal)";
 }
 
