@@ -1941,7 +1941,21 @@ function renderBalanceAnalytics(entries) {
   const patternMap = densePatternMap(entries);
   const rows = densePatternRows(entries).slice(0, 10);
   const maxSets = Math.max(...rows.map((row) => row.sets), 1);
+  // Upper vs lower body, by category (skills, core and mobility excluded)
+  const catSets = {};
+  entries.forEach((entry) => {
+    const category = denseExerciseById(entry.exercise_id)?.category || "other";
+    catSets[category] = (catSets[category] || 0) + denseEquivalentSets(entry);
+  });
+  const upperSets = (catSets.push || 0) + (catSets.pull || 0);
+  const lowerSets = catSets.legs || 0;
   return `
+    <article class="analytics-card balance-upper-lower">
+      <div class="section-subhead"><strong>Tren superior / inferior</strong><span>sets equivalentes</span></div>
+      <div class="ratio-list">
+        ${ratioRow("Superior / Inferior", upperSets, lowerSets, "superior", "inferior", "0.8-1.6")}
+      </div>
+    </article>
     <div class="balance-layout">
       <article class="analytics-card">
         <div class="section-subhead"><strong>Set balance</strong><span>patrones principales</span></div>
@@ -3015,6 +3029,8 @@ function openDenseExerciseDetailModal(exerciseId) {
   const entries = selectedExerciseLogEntries(exercise.id, 8);
   const best = entries.length ? [...entries].sort((a, b) => denseEntryScore(b) - denseEntryScore(a))[0] : null;
   const suggestion = denseProgressionSuggestion(exercise);
+  const videoEmbed = denseVideoEmbedUrl(exercise.video);
+  const predictionCards = best ? renderDenseEstimateCards(best) : "";
   nodes.modalCard.dataset.modalKind = "exercise-detail";
   nodes.modalEyebrow.textContent = denseNatureLabel(exercise.nature).split("·")[0].trim();
   nodes.modalTitle.textContent = exercise.name;
@@ -3027,7 +3043,20 @@ function openDenseExerciseDetailModal(exerciseId) {
         </div>
         <p>${escapeHtml(denseExerciseHint(exercise))}</p>
       </div>
+      ${
+        videoEmbed
+          ? `<div class="exercise-detail-video"><iframe src="${escapeAttr(videoEmbed)}" title="Vídeo ${escapeAttr(exercise.name)}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe></div>`
+          : ""
+      }
       ${renderDenseProgressionSuggestion(exercise, suggestion)}
+      ${
+        predictionCards
+          ? `<section class="exercise-detail-section">
+              <div class="section-subhead"><strong>Objetivo por densidad</strong><span>según tu capacidad</span></div>
+              <div class="dense-estimate-grid">${predictionCards}</div>
+            </section>`
+          : ""
+      }
       <section class="exercise-detail-section">
         <div class="section-subhead">
           <strong>Mis marcas</strong>
@@ -3685,11 +3714,10 @@ function denseExercisePickCard(exercise, selectedId, action = "pick-dense-exerci
   const selected = exercise.id === selectedId;
   const last = stats.lastEntry ? `${stats.daysSince === 0 ? "hoy" : `hace ${stats.daysSince}d`}` : "sin marcas";
   const actionIcon = action === "add-planned-exercise" ? "plus" : "check";
-  const videoEmbed = denseVideoEmbedUrl(exercise.video);
-  const videoOpen = videoEmbed && expandedVideoExerciseId === exercise.id;
+  const hasVideo = Boolean(denseVideoEmbedUrl(exercise.video));
   return `
     <article
-      class="exercise-pick-card ${selected ? "is-selected" : ""} ${videoEmbed ? "has-video" : ""} ${videoOpen ? "is-video-open" : ""}"
+      class="exercise-pick-card ${selected ? "is-selected" : ""}"
       data-exercise-card
       data-search="${escapeAttr(`${exercise.name} ${exercise.family} ${denseCategoryLabel(exercise.category)}`.toLowerCase())}"
       data-exercise="${escapeAttr(exercise.id)}"
@@ -3697,16 +3725,11 @@ function denseExercisePickCard(exercise, selectedId, action = "pick-dense-exerci
       <button class="exercise-pick-main" type="button" data-action="${escapeAttr(action)}" data-exercise="${escapeAttr(exercise.id)}">
         <span class="tiny-icon" style="--item-color:${denseCategoryColor(exercise.category)}"><i data-lucide="${exercise.icon || "dumbbell"}"></i></span>
         <span>
-          <strong>${escapeHtml(exercise.name)}</strong>
+          <strong>${escapeHtml(exercise.name)}${hasVideo ? ' <i class="exercise-video-dot" data-lucide="play"></i>' : ""}</strong>
           <small>${escapeHtml(denseCategoryLabel(exercise.category))} · ${stats.count} marcas · ${last}</small>
         </span>
         <i data-lucide="${actionIcon}"></i>
       </button>
-      ${
-        videoEmbed
-          ? `<button class="icon-button exercise-video-btn ${videoOpen ? "is-hot" : ""}" type="button" data-action="toggle-exercise-video" data-exercise="${escapeAttr(exercise.id)}" title="${videoOpen ? "Ocultar vídeo" : "Ver vídeo"}" aria-label="Ver vídeo ${escapeAttr(exercise.name)}"><i data-lucide="${videoOpen ? "x" : "play"}"></i></button>`
-          : ""
-      }
       <button
         class="icon-button exercise-fav ${favorite ? "is-hot" : ""}"
         type="button"
@@ -3715,11 +3738,6 @@ function denseExercisePickCard(exercise, selectedId, action = "pick-dense-exerci
         title="${favorite ? "Quitar favorito" : "Marcar favorito"}"
         aria-label="${favorite ? "Quitar favorito" : "Marcar favorito"} ${escapeAttr(exercise.name)}"
       ><i data-lucide="star"></i></button>
-      ${
-        videoOpen
-          ? `<div class="exercise-pick-video"><iframe src="${escapeAttr(videoEmbed)}" title="Vídeo ${escapeAttr(exercise.name)}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe></div>`
-          : ""
-      }
     </article>
   `;
 }
