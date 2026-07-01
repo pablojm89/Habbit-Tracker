@@ -2301,6 +2301,7 @@ function handleChange(event) {
   if (event.target.matches("#importFile")) importJson(event.target.files?.[0]);
   if (event.target.matches("#denseTrainingForm input[name='scheme']")) updateDenseSchemeSelection(event.target);
   if (event.target.matches("#denseTrainingForm input[name='readiness']")) updateDenseReadinessSelection(event.target);
+  if (event.target.matches("#denseTrainingForm input[name='effort']")) updateDenseEffortSelection(event.target);
   if (event.target.matches("[data-action-input='session-note']")) {
     const sessionId = event.target.dataset.session;
     const log = getSessionLog(sessionId);
@@ -3854,6 +3855,14 @@ function updateDenseReadinessSelection(input) {
   if (!form) return;
   form.querySelectorAll(".readiness-option").forEach((option) => option.classList.toggle("is-selected", option.contains(input)));
   applyDenseFormTargets(form);
+}
+
+// Radio "selected" highlight is JS-driven (like the scheme picker) because
+// :has(input:checked) gets stuck on the default option in the effort grid here.
+function updateDenseEffortSelection(input) {
+  const form = input.closest("#denseTrainingForm");
+  if (!form) return;
+  form.querySelectorAll(".effort-option").forEach((option) => option.classList.toggle("is-selected", option.contains(input)));
 }
 
 function updateDenseTotalFromRepsPerSet(input) {

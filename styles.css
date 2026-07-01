@@ -2928,12 +2928,10 @@ button:active:not(:disabled),
     var(--glow-lime);
 }
 
-.scheme-option:has(input:checked) strong,
 .scheme-option.is-selected strong {
   color: var(--lime-ink);
 }
 
-.scheme-option:has(input:checked) small,
 .scheme-option.is-selected small {
   color: rgba(12, 21, 3, 0.66);
 }
@@ -3004,7 +3002,6 @@ button:active:not(:disabled),
   background-color: #1e201b;
 }
 
-.effort-option:has(input:checked),
 .effort-option.is-selected {
   border-color: color-mix(in srgb, var(--effort-color), transparent 38%);
   background:
@@ -3014,7 +3011,6 @@ button:active:not(:disabled),
     0 0 26px color-mix(in srgb, var(--effort-color), transparent 72%);
 }
 
-.effort-option:has(input:checked) span,
 .effort-option.is-selected span {
   color: color-mix(in srgb, var(--effort-color), white 30%);
 }
