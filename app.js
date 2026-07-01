@@ -3785,16 +3785,24 @@ function updateDenseSchemeSelection(input) {
   if (!form) return;
   form.querySelectorAll(".scheme-option").forEach((option) => option.classList.toggle("is-selected", option.contains(input)));
   const exercise = denseExerciseById(form.querySelector("[name='exerciseId']")?.value);
+  if (!exercise) return;
+  const scheme = input.value;
+  // Deterministic targets: toggling schemes and coming back must yield the same
+  // number (the suggested scheme restores the progression proposal).
+  const suggestion = denseProgressionSuggestion(exercise);
   const repsPerSetInput = form.querySelector("[name='repsPerSet']");
-  if (repsPerSetInput) repsPerSetInput.value = denseDefaultRepsPerSet(exercise, input.value) || "";
-  const reps = repsPerSetInput ? denseTotalFromRepsPerSet(repsPerSetInput.value, input.value) : denseDefaultTotalReps(exercise, input.value);
+  if (repsPerSetInput) repsPerSetInput.value = denseFormTargetRepsPerSet(exercise, scheme, suggestion) || "";
+  const reps = repsPerSetInput ? denseTotalFromRepsPerSet(repsPerSetInput.value, scheme) : denseDefaultTotalReps(exercise, scheme);
   const repsInput = form.querySelector("[name='totalReps']");
   if (repsInput) repsInput.value = reps || "";
   const roundsInput = form.querySelector("[name='rounds']");
-  if (roundsInput) roundsInput.value = denseSchemeMinutes(input.value) || "";
+  if (roundsInput) {
+    roundsInput.value =
+      (suggestion && suggestion.scheme === scheme && suggestion.rounds) || denseSchemeMinutes(scheme) || "";
+  }
   const holdInput = form.querySelector("[name='holdSecondsPerRound']");
   if (holdInput && denseIsIsometric(exercise)) {
-    const suggested = denseDefaultHoldPerRound(exercise, input.value);
+    const suggested = denseFormTargetHoldPerRound(exercise, scheme, suggestion);
     if (suggested) holdInput.value = suggested;
   }
   updateDenseHoldEstimate(form);
@@ -4823,6 +4831,41 @@ function denseDefaultHoldPerRound(exercise, scheme) {
     .sort((a, b) => (b.created_at || b.date || "").localeCompare(a.created_at || a.date || ""))[0];
   if (latestSameScheme) return Math.max(1, Math.round(Number(latestSameScheme.hold_seconds_per_round) || Number(latestSameScheme.total_hold_seconds) / minutes));
   return "";
+}
+
+// Best proven capacity for an exercise: the max across the smoothed estimate and
+// every logged entry. Same source the "Objetivo por densidad" table uses so the
+// form and the analytics agree.
+function denseBestCapacity(exerciseId, key) {
+  const estimate = Number(state.denseEstimates?.[exerciseId]?.[key]) || 0;
+  const fromEntries = getDenseEntries()
+    .filter((item) => item.exercise_id === exerciseId)
+    .map((item) => Number(item[key]) || 0);
+  return Math.max(estimate, ...fromEntries, 0);
+}
+
+// Deterministic per-scheme reps/min target for the log form. Keeps the value
+// stable when the user toggles schemes: the suggested scheme restores the
+// progression proposal exactly; other schemes derive from best proven capacity.
+function denseFormTargetRepsPerSet(exercise, scheme, suggestion) {
+  if (suggestion && suggestion.type === "reps" && suggestion.scheme === scheme && suggestion.repsPerSet) {
+    return suggestion.repsPerSet;
+  }
+  const capacity = denseBestCapacity(exercise.id, "bodyweight_capacity");
+  const multiplier = bodyweightMultipliers[denseSchemeBase(scheme)];
+  if (capacity && multiplier) return Math.max(1, Math.floor(capacity * multiplier));
+  return denseDefaultRepsPerSet(exercise, scheme);
+}
+
+// Same idea for isometric hold seconds per round.
+function denseFormTargetHoldPerRound(exercise, scheme, suggestion) {
+  if (suggestion && suggestion.type === "hold" && suggestion.scheme === scheme && suggestion.holdSecondsPerRound) {
+    return suggestion.holdSecondsPerRound;
+  }
+  const capacity = denseBestCapacity(exercise.id, "isometric_capacity");
+  const multiplier = bodyweightMultipliers[denseSchemeBase(scheme)];
+  if (capacity && multiplier) return Math.max(1, Math.floor(capacity * multiplier));
+  return denseDefaultHoldPerRound(exercise, scheme);
 }
 
 function denseProgressionSuggestion(exercise) {
