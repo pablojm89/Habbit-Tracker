@@ -1492,8 +1492,8 @@ button:active:not(:disabled),
 
 .workout-summary-card {
   display: grid;
-  gap: 10px;
-  padding: 12px;
+  gap: 6px;
+  padding: 10px;
 }
 
 .workout-summary-card .week-viewer-widget {
@@ -1502,34 +1502,34 @@ button:active:not(:disabled),
 
 .workout-progress {
   display: grid;
-  gap: 9px;
+  gap: 5px;
 }
 
 .workout-progress-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 6px;
 }
 
 .workout-progress-label {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   color: var(--text);
-  font-size: 0.96rem;
+  font-size: 0.84rem;
   font-weight: 800;
 }
 
 .workout-progress-label i {
-  width: 17px;
-  height: 17px;
+  width: 15px;
+  height: 15px;
   color: var(--green);
 }
 
 .workout-progress-time {
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: 0.64rem;
   font-weight: 950;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -1549,9 +1549,9 @@ button:active:not(:disabled),
   z-index: 12;
   display: grid;
   grid-template-columns: minmax(190px, 260px) minmax(0, 1fr);
-  gap: 8px;
+  gap: 6px;
   align-items: center;
-  padding: 10px;
+  padding: 6px;
 }
 
 .week-selector-row {
@@ -1778,7 +1778,7 @@ button:active:not(:disabled),
 .weekday-strip {
   display: grid;
   grid-template-columns: repeat(7, minmax(32px, 1fr));
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
 }
 
@@ -1786,10 +1786,10 @@ button:active:not(:disabled),
   position: relative;
   display: grid;
   min-width: 0;
-  min-height: 46px;
+  min-height: 38px;
   place-items: center;
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: 0.78rem;
   font-weight: 950;
 }
 
@@ -1885,7 +1885,7 @@ button:active:not(:disabled),
 }
 
 .progress-track {
-  height: 9px;
+  height: 6px;
   border-radius: 999px;
   background: #10110e;
   overflow: hidden;
@@ -1903,13 +1903,13 @@ button:active:not(:disabled),
 .workout-metric-row {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  gap: 6px;
 }
 
 .workout-summary-metric {
   display: grid;
   place-items: center;
-  min-height: 50px;
+  min-height: 38px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: #1d1e1a;
@@ -1917,13 +1917,13 @@ button:active:not(:disabled),
 
 .workout-summary-metric strong {
   color: #b7fb48;
-  font-size: 1.05rem;
+  font-size: 0.92rem;
   line-height: 1;
 }
 
 .workout-summary-metric span {
   color: var(--muted);
-  font-size: 0.64rem;
+  font-size: 0.56rem;
   font-weight: 950;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -1931,8 +1931,8 @@ button:active:not(:disabled),
 
 /* Weekly failure challenge (1 push / pull / lower to failure per week) */
 .weekly-failure-card {
-  margin-top: 12px;
-  padding: 11px 12px;
+  margin-top: 0;
+  padding: 7px 8px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: rgba(255, 255, 255, 0.02);
@@ -1947,29 +1947,29 @@ button:active:not(:disabled),
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 9px;
+  margin-bottom: 5px;
 }
 
 .weekly-failure-head span {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 5px;
   color: var(--text);
-  font-size: 0.74rem;
+  font-size: 0.66rem;
   font-weight: 900;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
 .weekly-failure-head span i {
-  width: 15px;
-  height: 15px;
+  width: 13px;
+  height: 13px;
   color: var(--lime-soft);
 }
 
 .weekly-failure-head small {
   color: var(--dim);
-  font-size: 0.62rem;
+  font-size: 0.56rem;
   font-weight: 850;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1978,24 +1978,24 @@ button:active:not(:disabled),
 .weekly-failure-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 7px;
+  gap: 5px;
 }
 
 .failure-chip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  min-height: 34px;
+  gap: 4px;
+  min-height: 27px;
   border: 1px solid var(--line);
   border-radius: 9px;
-  font-size: 0.76rem;
+  font-size: 0.66rem;
   font-weight: 850;
 }
 
 .failure-chip i {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
 }
 
 .failure-chip.is-done {
@@ -3090,6 +3090,13 @@ button:active:not(:disabled),
 
 .dense-form-grid .field {
   grid-column: span 2;
+}
+
+.dense-fixed-target input[readonly] {
+  border-color: rgba(168, 230, 53, 0.34);
+  background: rgba(168, 230, 53, 0.08);
+  color: var(--lime-soft);
+  font-weight: 900;
 }
 
 .dense-form-grid .dense-field-exercise {
@@ -5261,8 +5268,8 @@ button:focus-visible {
 
   .week-viewer-widget {
     grid-template-columns: minmax(150px, 178px) minmax(0, 1fr);
-    gap: 6px;
-    padding: 8px;
+    gap: 4px;
+    padding: 5px;
   }
 
   .workout-day-title {
@@ -5285,13 +5292,13 @@ button:focus-visible {
 
   .week-edge-button {
     width: 30px;
-    min-height: 40px;
+    min-height: 34px;
   }
 
   .week-chip {
     grid-template-columns: 16px minmax(0, 1fr);
     gap: 6px;
-    min-height: 40px;
+    min-height: 34px;
     padding-inline: 7px;
   }
 
@@ -5321,9 +5328,9 @@ button:focus-visible {
   }
 
   .weekday-button {
-    min-height: 40px;
+    min-height: 34px;
     border-radius: 8px;
-    font-size: 0.74rem;
+    font-size: 0.68rem;
   }
 
   .workout-set-card {
@@ -5744,7 +5751,12 @@ button:focus-visible {
 
   body[data-density="compact"] .week-viewer-widget,
   body[data-density="compact"] .workout-summary-widget {
-    gap: 7px;
+    gap: 5px;
+  }
+
+  body[data-density="compact"] .workout-summary-card {
+    gap: 5px;
+    padding: 8px;
   }
 
   body[data-density="compact"] .week-viewer-widget {
@@ -5754,7 +5766,7 @@ button:focus-visible {
   body[data-density="compact"] .weekday-button,
   body[data-density="compact"] .week-edge-button,
   body[data-density="compact"] .week-chip {
-    min-height: 34px;
+    min-height: 30px;
   }
 
   body[data-density="compact"] .workout-day-head h2 {
@@ -5762,7 +5774,16 @@ button:focus-visible {
   }
 
   body[data-density="compact"] .workout-summary-metric {
-    min-height: 36px;
+    min-height: 32px;
+  }
+
+  body[data-density="compact"] .weekly-failure-card {
+    padding: 6px;
+  }
+
+  body[data-density="compact"] .failure-chip {
+    min-height: 24px;
+    font-size: 0.6rem;
   }
 
   body[data-density="compact"] .analytics-stat-card strong {

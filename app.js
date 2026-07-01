@@ -6,6 +6,7 @@ const DEFAULT_CLOUD_SYNC_TOKEN = "bt_2026_mi_token_largo_cambialo";
 const today = startOfDay(new Date());
 let cloudConfig = loadCloudConfig();
 let cloudSyncTimer = null;
+let cloudRestoreChecked = false;
 let quickTimerState = {
   scheme: "5D",
   rounds: 5,
@@ -1283,9 +1284,16 @@ function onSwipePointerUp(event) {
   }, 80);
   const width = gesture.card.offsetWidth || 1;
   if (gesture.offset <= -width * SWIPE_FULL_FRACTION) {
+    const del = gesture.wrap.querySelector(".swipe-delete-bg");
+    if (del?.dataset.action?.startsWith("confirm-delete")) {
+      gesture.wrap.classList.remove("is-open");
+      gesture.card.style.transform = "";
+      gesture.card.style.opacity = "";
+      setTimeout(() => del.click(), 90);
+      return;
+    }
     gesture.card.style.transform = "translateX(-110%)";
     gesture.card.style.opacity = "0";
-    const del = gesture.wrap.querySelector(".swipe-delete-bg");
     setTimeout(() => del?.click(), 190);
     return;
   }
@@ -1318,13 +1326,17 @@ nodes.todayChip.addEventListener("click", () => {
   state.settings.selectedDate = dateKey(selectedDate);
   saveAndRender("Hoy");
 });
-nodes.openBackup.addEventListener("click", () => switchView("review"));
+nodes.openBackup.addEventListener("click", () => {
+  if (TRAINING_ONLY) openCloudToolsModal();
+  else switchView("review");
+});
 
 // Temporary: run the app as a training-only tool (habits/panel/review hidden).
 // Flip to false to bring the habit tracker back.
 const TRAINING_ONLY = true;
 
 render();
+queueInitialCloudRestore();
 
 function render() {
   let activeView = state.settings.view || "dashboard";
@@ -2535,7 +2547,7 @@ function renderData() {
       </article>
       <article class="backup-box is-wide">
         <strong>Cloud / Google Sheets</strong>
-        <p class="tiny-copy">Pega aqui la URL del Web App de Apps Script. La app enviara cada cambio como snapshot y tablas normalizadas.</p>
+        <p class="tiny-copy">Pega aqui la URL del Web App de Apps Script. La app enviara cada cambio como snapshot y puede restaurar el ultimo RawState.</p>
         <form id="cloudSyncForm" class="cloud-sync-form">
           <label class="field">
             <span>Endpoint URL</span>
@@ -2552,12 +2564,42 @@ function renderData() {
           <div class="inline-actions" style="justify-content:flex-start; margin-top:10px">
             <button class="text-button is-hot" type="submit"><i data-lucide="save"></i>Guardar cloud</button>
             <button class="text-button" type="button" data-action="sync-now"><i data-lucide="refresh-cw"></i>Sync ahora</button>
+            <button class="text-button" type="button" data-action="restore-cloud"><i data-lucide="cloud-download"></i>Restaurar Cloud</button>
           </div>
-          <p class="tiny-copy" id="cloudSyncStatus">${escapeHtml(cloudSyncStatus.text)}</p>
+          <p class="tiny-copy" id="cloudSyncStatus" data-cloud-sync-status>${escapeHtml(cloudSyncStatus.text)}</p>
         </form>
       </article>
     </div>
   `;
+}
+
+function openCloudToolsModal() {
+  const localStats = stateDataSummary(state);
+  nodes.modalCard.dataset.modalKind = "cloud-tools";
+  nodes.modalEyebrow.textContent = "Backup";
+  nodes.modalTitle.textContent = "Cloud / Datos";
+  nodes.modalBody.innerHTML = `
+    <div class="backup-grid">
+      <article class="backup-box">
+        <strong>Este dispositivo</strong>
+        <p class="tiny-copy">${escapeHtml(localStats)}</p>
+        <div class="inline-actions" style="justify-content:flex-start; margin-top:10px">
+          <button class="text-button" type="button" data-action="export-json"><i data-lucide="download"></i>JSON</button>
+          <button class="text-button" type="button" data-action="copy-json"><i data-lucide="copy"></i>Copiar</button>
+        </div>
+      </article>
+      <article class="backup-box is-wide">
+        <strong>Google Sheets</strong>
+        <p class="tiny-copy">Restaura el ultimo snapshot guardado en RawState. Util para la app instalada cuando arranca sin datos locales.</p>
+        <div class="inline-actions" style="justify-content:flex-start; margin-top:10px">
+          <button class="text-button is-hot" type="button" data-action="restore-cloud"><i data-lucide="cloud-download"></i>Restaurar Cloud</button>
+          <button class="text-button" type="button" data-action="sync-now"><i data-lucide="refresh-cw"></i>Sync ahora</button>
+        </div>
+        <p class="tiny-copy" data-cloud-sync-status>${escapeHtml(cloudSyncStatus.text)}</p>
+      </article>
+    </div>
+  `;
+  openModal();
 }
 
 function handleClick(event) {
@@ -2638,6 +2680,8 @@ function handleClick(event) {
   if (action === "export-json") exportJson();
   if (action === "copy-json") copyJson();
   if (action === "sync-now") syncCloudState("manual");
+  if (action === "restore-cloud") restoreCloudState({ reason: "manual" });
+  if (action === "open-cloud-tools") openCloudToolsModal();
   if (action === "factory-reset") factoryReset();
 }
 
@@ -3379,6 +3423,7 @@ function addPlannedExerciseToSelectedDate(exerciseId) {
 }
 
 function openDenseDeleteConfirm(entryId) {
+  closeAllSwipes();
   const entry = getDenseEntries().find((item) => item.id === entryId);
   if (!entry) {
     toast("No encuentro esa marca");
@@ -3405,6 +3450,7 @@ function openDenseDeleteConfirm(entryId) {
 }
 
 function openPlannedExerciseDeleteConfirm(planIndex) {
+  closeAllSwipes();
   const key = dateKey(selectedDate);
   const exercise = findDenseExerciseById(state.denseDayPlans?.[key]?.[planIndex]);
   if (!exercise) return;
@@ -3552,7 +3598,11 @@ function saveDenseTrainingForm(form) {
   const isometric = denseIsIsometric(exercise);
   const scheme = data.scheme || (exercise.nature === "bodyweight" || isometric ? "10D" : "10D5");
   const durationMinutes = denseSchemeMinutes(scheme) || 0;
-  const targetRepsPerMin = isometric ? 0 : positiveNumber(data.repsPerSet) || denseSchemePrescriptionAverage(scheme) || 0;
+  const targetRepsPerMin = isometric
+    ? 0
+    : denseIsLoadExercise(exercise)
+      ? denseDefaultRepsPerSet(exercise, scheme) || 0
+      : positiveNumber(data.repsPerSet) || denseSchemePrescriptionAverage(scheme) || 0;
   const targetTotalReps = isometric ? 0 : denseTotalFromRepsPerSet(targetRepsPerMin, scheme) || 0;
   const totalReps = isometric ? 0 : positiveNumber(data.totalReps);
   const rounds = positiveNumber(data.rounds) || durationMinutes || null;
@@ -3941,6 +3991,26 @@ function migrateV1(old) {
   return fresh;
 }
 
+function stateHasTrainingData(candidate = state) {
+  return Boolean(
+    (candidate.denseTrainingEntries || candidate.trainingEntries || []).length ||
+      Object.keys(candidate.denseDayPlans || {}).length ||
+      Object.keys(candidate.bodyweightLogs || {}).length ||
+      Object.keys(candidate.denseEstimates || {}).length ||
+      (candidate.denseExerciseFavorites || []).length,
+  );
+}
+
+function stateDataSummary(candidate = state) {
+  return `${(candidate.denseTrainingEntries || candidate.trainingEntries || []).length} marcas Dense · ${Object.keys(candidate.denseDayPlans || {}).length} dias planificados · ${Object.keys(candidate.bodyweightLogs || {}).length} pesos`;
+}
+
+function queueInitialCloudRestore() {
+  if (cloudRestoreChecked || stateHasTrainingData(state) || !cloudConfig.enabled || !cloudConfig.endpointUrl) return;
+  cloudRestoreChecked = true;
+  window.setTimeout(() => restoreCloudState({ reason: "startup", silent: true }), 600);
+}
+
 function saveAndRender(message) {
   saveState();
   render();
@@ -3990,8 +4060,111 @@ function saveCloudSyncForm(form) {
 
 function scheduleCloudSync(reason) {
   if (!cloudConfig.enabled || !cloudConfig.endpointUrl) return;
+  if (reason === "auto" && !stateHasTrainingData(state)) {
+    queueInitialCloudRestore();
+    cloudSyncStatus = { state: "idle", text: "Cloud protegido: restaura antes de sincronizar vacio." };
+    updateCloudSyncStatus();
+    return;
+  }
   clearTimeout(cloudSyncTimer);
   cloudSyncTimer = setTimeout(() => syncCloudState(reason), 900);
+}
+
+function cloudPullUrl(extraParams = {}) {
+  const url = new URL(cloudConfig.endpointUrl);
+  url.searchParams.set("action", "latest");
+  if (cloudConfig.token) url.searchParams.set("token", cloudConfig.token);
+  Object.entries(extraParams).forEach(([key, value]) => {
+    if (value != null && value !== "") url.searchParams.set(key, value);
+  });
+  return url.toString();
+}
+
+async function fetchCloudSnapshot() {
+  try {
+    const response = await fetch(cloudPullUrl(), { method: "GET", cache: "no-store" });
+    const text = await response.text();
+    let result = {};
+    try {
+      result = JSON.parse(text);
+    } catch {
+      throw new Error("Respuesta Cloud no JSON");
+    }
+    if (!response.ok || result.ok === false) throw new Error(result.error || `HTTP ${response.status}`);
+    return result.snapshot || null;
+  } catch (error) {
+    const corsLike = error instanceof TypeError || /failed to fetch|networkerror|cors/i.test(error.message || "");
+    if (!corsLike) throw error;
+    const result = await fetchCloudSnapshotJsonp();
+    if (result.ok === false) throw new Error(result.error || "Cloud restore fallo");
+    return result.snapshot || null;
+  }
+}
+
+function fetchCloudSnapshotJsonp() {
+  return new Promise((resolve, reject) => {
+    const callback = `__bitTrackerCloudPull_${Date.now()}_${Math.round(Math.random() * 100000)}`;
+    const script = document.createElement("script");
+    const cleanup = () => {
+      delete window[callback];
+      script.remove();
+    };
+    const timer = window.setTimeout(() => {
+      cleanup();
+      reject(new Error("Cloud restore timeout"));
+    }, 12000);
+    window[callback] = (result) => {
+      window.clearTimeout(timer);
+      cleanup();
+      resolve(result || {});
+    };
+    script.onerror = () => {
+      window.clearTimeout(timer);
+      cleanup();
+      reject(new Error("Cloud restore no pudo cargar JSONP"));
+    };
+    script.src = cloudPullUrl({ callback });
+    document.head.appendChild(script);
+  });
+}
+
+async function restoreCloudState({ reason = "manual", silent = false } = {}) {
+  if (!cloudConfig.endpointUrl) {
+    cloudSyncStatus = { state: "error", text: "Falta endpoint de Cloud." };
+    updateCloudSyncStatus();
+    if (!silent) toast("Falta endpoint Cloud");
+    return false;
+  }
+
+  cloudSyncStatus = { state: "syncing", text: "Restaurando desde Cloud..." };
+  updateCloudSyncStatus();
+
+  try {
+    const snapshot = await fetchCloudSnapshot();
+    if (!snapshot?.state) {
+      cloudSyncStatus = { state: "idle", text: "Cloud sin snapshots para restaurar." };
+      updateCloudSyncStatus();
+      if (!silent) toast("Cloud sin datos");
+      return false;
+    }
+
+    const restored = normalizeState(snapshot.state);
+    state = restored;
+    selectedDate = parseDate(state.settings.selectedDate || snapshot.selectedDate || dateKey(today));
+    state.settings.selectedDate = dateKey(selectedDate);
+    localStorage.setItem(STORE_KEY, JSON.stringify(state));
+    cloudSyncStatus = { state: "ok", text: `Cloud restaurado · ${formatLogDate(snapshot.syncedAt || new Date().toISOString())}` };
+    render();
+    updateCloudSyncStatus();
+    if (!silent) toast("Cloud restaurado");
+    return true;
+  } catch (error) {
+    cloudSyncStatus = { state: "error", text: `Cloud restore fallo: ${error.message}` };
+    updateCloudSyncStatus();
+    if (!silent) toast("Cloud restore falló");
+    if (reason === "startup") cloudRestoreChecked = false;
+    return false;
+  }
 }
 
 async function syncCloudState(reason = "manual") {
@@ -3999,6 +4172,13 @@ async function syncCloudState(reason = "manual") {
     cloudSyncStatus = { state: "error", text: "Falta endpoint de Cloud." };
     updateCloudSyncStatus();
     toast("Falta endpoint Cloud");
+    return;
+  }
+
+  if (reason !== "manual" && !stateHasTrainingData(state)) {
+    queueInitialCloudRestore();
+    cloudSyncStatus = { state: "idle", text: "Cloud protegido: no envio estado vacio automaticamente." };
+    updateCloudSyncStatus();
     return;
   }
 
@@ -4058,8 +4238,9 @@ async function syncCloudState(reason = "manual") {
 }
 
 function updateCloudSyncStatus() {
-  const node = document.querySelector("#cloudSyncStatus");
-  if (node) node.textContent = cloudSyncStatus.text;
+  document.querySelectorAll("#cloudSyncStatus, [data-cloud-sync-status]").forEach((node) => {
+    node.textContent = cloudSyncStatus.text;
+  });
 }
 
 function scoreBox(label, value, icon) {
@@ -4276,6 +4457,14 @@ function updateDenseTotalFromRepsPerSet(input) {
 
 function denseRepPerSetFields(exercise, defaults) {
   if (!denseUsesRepsPerSet(exercise)) return "";
+  if (denseIsLoadExercise(exercise)) {
+    return `
+      <label class="field dense-fixed-target">
+        <span>Reps fijas esquema</span>
+        <input type="number" name="repsPerSet" value="${escapeAttr(String(defaults.repsPerSet ?? ""))}" step="any" min="0" readonly aria-readonly="true" />
+      </label>
+    `;
+  }
   return field("Reps por set/min", "repsPerSet", defaults.repsPerSet, "number");
 }
 
@@ -4952,7 +5141,7 @@ function todayWorkoutCard(entry) {
       </div>
     </article>
   `;
-  return swipeDeleteWrap(card, `data-action="delete-dense-entry" data-entry="${escapeAttr(entry.id)}"`, entry.exercise_name);
+  return swipeDeleteWrap(card, `data-action="confirm-delete-dense-entry" data-entry="${escapeAttr(entry.id)}"`, entry.exercise_name);
 }
 
 function denseEntryIsPr(entry) {
@@ -5023,7 +5212,7 @@ function plannedWorkoutCard(exercise) {
     </article>
   `;
   if (!canDelete) return card;
-  return swipeDeleteWrap(card, `data-action="delete-planned-exercise" data-plan-index="${exercise.planIndex}"`, exercise.name);
+  return swipeDeleteWrap(card, `data-action="confirm-delete-planned-exercise" data-plan-index="${exercise.planIndex}"`, exercise.name);
 }
 
 function addWorkoutCard() {
@@ -5216,13 +5405,7 @@ function denseEffortColor(effort) {
 
 function denseAllowedSchemes(exercise) {
   if (exercise.allowedSchemes?.length) return exercise.allowedSchemes;
-  if (exercise.nature === "weighted") {
-    if (exercise.loadPattern === "dumbbell_pair") return ["2D5", "2D10", "5D3", "5D5", "5D10", "10D3", "10D5", "10D10", "20D3", "20D5"];
-    return ["2D5", "2D10", "5D3", "5D5", "10D3", "10D5", "20D3", "20D5"];
-  }
-  if (exercise.nature === "weighted_calisthenics") {
-    return ["2D5", "5D1", "5D3", "5D5", "10D1", "10D3", "10D5", "10D1-2-3", "20D1", "20D3", "20D5"];
-  }
+  if (denseIsLoadExercise(exercise)) return weightedSchemes;
   return bodyweightSchemes;
 }
 
@@ -5274,21 +5457,20 @@ function denseDefaultRepsPerSet(exercise, scheme) {
   if (!denseUsesRepsPerSet(exercise)) return "";
   const minutes = denseSchemeMinutes(scheme);
   if (!minutes) return "";
+  if (denseIsLoadExercise(exercise)) {
+    return denseSchemePrescriptionAverage(scheme) || Math.max(1, Math.round(denseDefaultRpm(exercise, denseSchemeBase(scheme))));
+  }
   let raw;
-  if (exercise.nature === "weighted" || exercise.nature === "weighted_calisthenics") {
-    raw = denseSchemePrescriptionAverage(scheme) || Math.max(1, Math.round(denseDefaultRpm(exercise, denseSchemeBase(scheme))));
+  const latestSameScheme = [...getDenseEntries()]
+    .filter((entry) => entry.exercise_id === exercise.id && entry.scheme === scheme && entry.total_reps)
+    .sort((a, b) => (b.created_at || b.date || "").localeCompare(a.created_at || a.date || ""))[0];
+  if (latestSameScheme) {
+    const target = Number(latestSameScheme.target_reps_per_min || latestSameScheme.reps_per_set || 0);
+    raw = target > 0 ? target : Math.max(1, Math.round(Number(latestSameScheme.total_reps) / minutes));
   } else {
-    const latestSameScheme = [...getDenseEntries()]
-      .filter((entry) => entry.exercise_id === exercise.id && entry.scheme === scheme && entry.total_reps)
-      .sort((a, b) => (b.created_at || b.date || "").localeCompare(a.created_at || a.date || ""))[0];
-    if (latestSameScheme) {
-      const target = Number(latestSameScheme.target_reps_per_min || latestSameScheme.reps_per_set || 0);
-      raw = target > 0 ? target : Math.max(1, Math.round(Number(latestSameScheme.total_reps) / minutes));
-    } else {
-      const estimate = state.denseEstimates?.[exercise.id]?.bodyweight_capacity;
-      const multiplier = bodyweightMultipliers[denseSchemeBase(scheme)];
-      raw = estimate && multiplier ? Math.max(1, Math.floor(estimate * multiplier)) : Math.max(1, Math.round(denseDefaultRpm(exercise, denseSchemeBase(scheme))));
-    }
+    const estimate = state.denseEstimates?.[exercise.id]?.bodyweight_capacity;
+    const multiplier = bodyweightMultipliers[denseSchemeBase(scheme)];
+    raw = estimate && multiplier ? Math.max(1, Math.floor(estimate * multiplier)) : Math.max(1, Math.round(denseDefaultRpm(exercise, denseSchemeBase(scheme))));
   }
   return Math.max(1, Math.round(denseCapRpm(exercise, raw)));
 }
@@ -5329,6 +5511,7 @@ function denseBestCapacity(exerciseId, key) {
 // stable when the user toggles schemes: the suggested scheme restores the
 // progression proposal exactly; other schemes derive from best proven capacity.
 function denseFormTargetRepsPerSet(exercise, scheme, suggestion) {
+  if (denseIsLoadExercise(exercise)) return denseDefaultRepsPerSet(exercise, scheme);
   if (suggestion && suggestion.type === "reps" && suggestion.scheme === scheme && suggestion.repsPerSet) {
     return suggestion.repsPerSet;
   }
@@ -5651,6 +5834,10 @@ function denseUsesRepsPerSet(exercise) {
 
 function denseIsIsometric(exercise) {
   return Boolean(exercise && exercise.isometric);
+}
+
+function denseIsLoadExercise(exercise) {
+  return exercise?.nature === "weighted" || exercise?.nature === "weighted_calisthenics";
 }
 
 function denseSupportsHold(exercise) {

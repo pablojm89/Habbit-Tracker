@@ -70,6 +70,26 @@ function doPost(e) {
   }
 }
 
+function doGet(e) {
+  try {
+    const params = (e && e.parameter) || {};
+    const expectedToken = PropertiesService.getScriptProperties().getProperty("BITTRACKER_SYNC_TOKEN");
+    if (expectedToken && params.token !== expectedToken) {
+      return jsonOutput({ ok: false, error: "unauthorized" });
+    }
+
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const snapshot = latestSnapshot(ss);
+    return jsonOutput({
+      ok: true,
+      snapshot,
+      hasSnapshot: Boolean(snapshot && snapshot.state),
+    }, params.callback);
+  } catch (error) {
+    return jsonOutput({ ok: false, error: String(error && error.message ? error.message : error) }, e && e.parameter && e.parameter.callback);
+  }
+}
+
 function setupStaticSheets(ss) {
   writeTable(ss, SHEETS.working, ["dense_scheme", "starting_pct", "working_pct", "max_pct"], WORKING_PERCENTAGES, false);
   writeTable(ss, SHEETS.bw, ["scheme_key", "multiplier"], BODYWEIGHT_MULTIPLIERS, false);
@@ -93,6 +113,40 @@ function setupStaticSheets(ss) {
     ],
     false,
   );
+}
+
+function latestSnapshot(ss) {
+  const sheet = ss.getSheetByName(SHEETS.snapshots);
+  if (!sheet || sheet.getLastRow() < 2) return null;
+  const header = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const indexes = {
+    syncedAt: header.indexOf("synced_at"),
+    source: header.indexOf("source"),
+    reason: header.indexOf("reason"),
+    version: header.indexOf("version"),
+    selectedDate: header.indexOf("selected_date"),
+    payloadJson: header.indexOf("payload_json"),
+  };
+  if (indexes.payloadJson < 0) return null;
+
+  for (let row = sheet.getLastRow(); row >= 2; row -= 1) {
+    const values = sheet.getRange(row, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const raw = values[indexes.payloadJson];
+    if (!raw) continue;
+    try {
+      return {
+        syncedAt: indexes.syncedAt >= 0 ? values[indexes.syncedAt] : "",
+        source: indexes.source >= 0 ? values[indexes.source] : "",
+        reason: indexes.reason >= 0 ? values[indexes.reason] : "",
+        version: indexes.version >= 0 ? values[indexes.version] : "",
+        selectedDate: indexes.selectedDate >= 0 ? values[indexes.selectedDate] : "",
+        state: JSON.parse(raw),
+      };
+    } catch (_error) {
+      // Sigue buscando un snapshot anterior válido.
+    }
+  }
+  return null;
 }
 
 const MAX_SNAPSHOTS = 200;
@@ -391,6 +445,10 @@ function ensureHeader(sheet, header) {
   sheet.setFrozenRows(1);
 }
 
-function jsonOutput(value) {
-  return ContentService.createTextOutput(JSON.stringify(value)).setMimeType(ContentService.MimeType.JSON);
+function jsonOutput(value, callback) {
+  const json = JSON.stringify(value);
+  if (callback && /^[A-Za-z_$][\w$]*(\.[A-Za-z_$][\w$]*)*$/.test(callback)) {
+    return ContentService.createTextOutput(`${callback}(${json});`).setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+  return ContentService.createTextOutput(json).setMimeType(ContentService.MimeType.JSON);
 }
