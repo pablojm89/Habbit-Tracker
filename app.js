@@ -1085,46 +1085,109 @@ function closeAllSwipes(except) {
   });
 }
 
+// ── View swipe: change day (Workout) / analytics tab, on non-card areas ──
+const VIEW_SWIPE_THRESHOLD = 58;
+const VIEW_SWIPE_IGNORE = "button, a, input, select, textarea, details, summary, .swipe-wrap, .training-mode-tabs, .weekday-strip, .week-selector, .analytics-tab-strip, .quick-timer, dialog, .modal";
+let viewSwipe = null;
+
+function animateSwipePanel(panel, dir) {
+  if (!panel) return;
+  panel.style.animation = "none";
+  void panel.offsetWidth; // reflow so the animation replays
+  panel.style.animation = `swipe-in-${dir > 0 ? "next" : "prev"} 0.26s var(--ease-out)`;
+}
+
+function onViewSwipeNavigate(dx) {
+  const mode = state.settings.trainingMode || "workout";
+  const dir = dx < 0 ? 1 : -1; // swipe left -> next
+  if (mode === "workout") {
+    shiftDay(dir);
+    animateSwipePanel(nodes.mesocyclePanel, dir);
+  } else if (mode === "analytics") {
+    const tabs = trainingAnalyticsTabs.map((tab) => tab[0]);
+    const current = state.settings.trainingAnalyticsTab || "progress";
+    const index = tabs.indexOf(current);
+    const next = clamp(index + dir, 0, tabs.length - 1);
+    if (next !== index) {
+      setTrainingAnalyticsTab(tabs[next]);
+      animateSwipePanel(nodes.trainingAnalyticsPanel, dir);
+    }
+  }
+}
+
 function onSwipePointerDown(event) {
   if (event.pointerType === "mouse" && event.button !== 0) return;
   const card = event.target.closest(".swipe-wrap > .today-workout-card");
-  if (!card) {
-    closeAllSwipes();
+  if (card) {
+    const wrap = card.parentElement;
+    swipeGesture = {
+      card,
+      wrap,
+      startX: event.clientX,
+      startY: event.clientY,
+      base: wrap.classList.contains("is-open") ? -SWIPE_REST : 0,
+      axis: null,
+      offset: 0,
+      id: event.pointerId,
+    };
     return;
   }
-  const wrap = card.parentElement;
-  swipeGesture = {
-    card,
-    wrap,
-    startX: event.clientX,
-    startY: event.clientY,
-    base: wrap.classList.contains("is-open") ? -SWIPE_REST : 0,
-    axis: null,
-    offset: 0,
-    id: event.pointerId,
-  };
+  closeAllSwipes();
+  // Start a view-level swipe when the touch lands on neutral training area.
+  const mode = state.settings.trainingMode || "workout";
+  if ((mode === "workout" || mode === "analytics") && event.target.closest("#view-training") && !event.target.closest(VIEW_SWIPE_IGNORE)) {
+    viewSwipe = { startX: event.clientX, startY: event.clientY, axis: null, dx: 0, id: event.pointerId };
+  }
 }
 
 function onSwipePointerMove(event) {
-  if (!swipeGesture || event.pointerId !== swipeGesture.id) return;
-  const dx = event.clientX - swipeGesture.startX;
-  const dy = event.clientY - swipeGesture.startY;
-  if (!swipeGesture.axis) {
-    if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
-    swipeGesture.axis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
-    if (swipeGesture.axis === "x") swipeGesture.wrap.classList.add("is-dragging");
-  }
-  if (swipeGesture.axis !== "x") {
-    swipeGesture = null; // vertical intent -> let the page scroll
+  if (swipeGesture && event.pointerId === swipeGesture.id) {
+    const dx = event.clientX - swipeGesture.startX;
+    const dy = event.clientY - swipeGesture.startY;
+    if (!swipeGesture.axis) {
+      if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+      swipeGesture.axis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+      if (swipeGesture.axis === "x") swipeGesture.wrap.classList.add("is-dragging");
+    }
+    if (swipeGesture.axis !== "x") {
+      swipeGesture = null; // vertical intent -> let the page scroll
+      return;
+    }
+    const offset = Math.max(-swipeGesture.card.offsetWidth, Math.min(0, swipeGesture.base + dx));
+    swipeGesture.offset = offset;
+    swipeGesture.card.style.transform = `translateX(${offset}px)`;
+    event.preventDefault();
     return;
   }
-  const offset = Math.max(-swipeGesture.card.offsetWidth, Math.min(0, swipeGesture.base + dx));
-  swipeGesture.offset = offset;
-  swipeGesture.card.style.transform = `translateX(${offset}px)`;
-  event.preventDefault();
+  if (viewSwipe && event.pointerId === viewSwipe.id) {
+    const dx = event.clientX - viewSwipe.startX;
+    const dy = event.clientY - viewSwipe.startY;
+    if (!viewSwipe.axis) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      viewSwipe.axis = Math.abs(dx) > Math.abs(dy) * 1.3 ? "x" : "y";
+    }
+    if (viewSwipe.axis !== "x") {
+      viewSwipe = null; // vertical intent -> let the page scroll
+      return;
+    }
+    viewSwipe.dx = dx;
+    event.preventDefault();
+  }
 }
 
 function onSwipePointerUp(event) {
+  if (viewSwipe && event.pointerId === viewSwipe.id) {
+    const swipe = viewSwipe;
+    viewSwipe = null;
+    if (swipe.axis === "x" && Math.abs(swipe.dx) >= VIEW_SWIPE_THRESHOLD) {
+      window.__swipeJustSwiped = true;
+      setTimeout(() => {
+        window.__swipeJustSwiped = false;
+      }, 80);
+      onViewSwipeNavigate(swipe.dx);
+    }
+    return;
+  }
   if (!swipeGesture || event.pointerId !== swipeGesture.id) return;
   const gesture = swipeGesture;
   swipeGesture = null;
