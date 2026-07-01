@@ -3376,6 +3376,10 @@ button:active:not(:disabled),
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.timer-custom-hold {
+  margin-top: 8px;
+}
+
 .timer-option {
   min-height: 46px;
   border: 1px solid var(--line);

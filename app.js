@@ -2499,7 +2499,10 @@ function handleInput(event) {
     updateDenseTotalFromRepsPerSet(event.target);
   }
   if (event.target.matches("[data-action-input='quick-timer-rounds']")) {
-    setQuickTimerRounds(event.target.value);
+    setQuickTimerRoundsLive(event.target.value);
+  }
+  if (event.target.matches("[data-action-input='quick-timer-hold-custom']")) {
+    setQuickTimerHoldLive(event.target.value);
   }
   if (event.target.matches("#denseTrainingForm [name='holdSecondsPerRound'], #denseTrainingForm [name='rounds']")) {
     updateDenseHoldEstimate(event.target.closest("#denseTrainingForm"));
@@ -2727,11 +2730,14 @@ function startExerciseTimer(exerciseId) {
     toast("Ejercicio no válido");
     return;
   }
-  const scheme = densePlannedScheme(exercise);
+  const suggestion = denseProgressionSuggestion(exercise);
+  const scheme = suggestion?.scheme || densePlannedScheme(exercise);
   const base = denseSchemeBase(scheme);
   if (bodyweightSchemes.includes(base)) quickTimerState.scheme = base;
-  quickTimerState.rounds = denseSchemeMinutes(scheme) || quickTimerState.rounds || 5;
-  quickTimerState.holdSeconds = denseIsIsometric(exercise) ? Number(denseDefaultHoldPerRound(exercise, scheme)) || quickTimerState.holdSeconds || 0 : 0;
+  quickTimerState.rounds = Number(suggestion?.rounds) || denseSchemeMinutes(scheme) || quickTimerState.rounds || 5;
+  // Match the recommended hold (e.g. 5D23s) rather than a generic default.
+  const suggestedHold = suggestion?.type === "hold" ? Number(suggestion.holdSecondsPerRound) : Number(denseFormTargetHoldPerRound(exercise, scheme, suggestion));
+  quickTimerState.holdSeconds = denseIsIsometric(exercise) ? suggestedHold || Number(denseDefaultHoldPerRound(exercise, scheme)) || quickTimerState.holdSeconds || 0 : 0;
   state.settings.denseSelectedExerciseId = exercise.id;
   resetQuickTimer(false);
   nodes.modalEyebrow.textContent = "Tools";
@@ -2765,6 +2771,10 @@ function renderQuickTimerModalBody() {
         <div class="timer-option-grid is-hold">
           ${[0, 5, 10, 20, 30, 40, 60].map((seconds) => timerOptionButton("quick-timer-hold", seconds, seconds ? `${seconds}s` : "Off", quickTimerState.holdSeconds === seconds)).join("")}
         </div>
+        <label class="field timer-custom-hold">
+          <span>Hold custom (s)</span>
+          <input data-action-input="quick-timer-hold-custom" type="number" min="0" max="600" step="1" value="${escapeAttr(quickTimerState.holdSeconds || "")}" placeholder="ej. 23" />
+        </label>
       </section>
       <div class="quick-timer-summary">
         <span>${quickTimerState.rounds} rondas</span>
@@ -2832,6 +2842,40 @@ function setQuickTimerHold(seconds) {
   renderQuickTimerModalBody();
 }
 
+// Live update from a number input: patch the readout without rebuilding the
+// inputs (so multi-digit typing like "23" doesn't lose focus after each key).
+function setQuickTimerRoundsLive(value) {
+  quickTimerState.rounds = clamp(Math.round(Number(value) || 1), 1, 120);
+  if (!quickTimerState.running) {
+    quickTimerState.remainingSeconds = quickTimerTotalSeconds();
+    quickTimerState.currentRound = 1;
+  }
+  patchQuickTimerReadout();
+}
+
+function setQuickTimerHoldLive(value) {
+  quickTimerState.holdSeconds = clamp(Math.round(Number(value) || 0), 0, 600);
+  if (!quickTimerState.running) quickTimerState.remainingSeconds = quickTimerTotalSeconds();
+  patchQuickTimerReadout();
+}
+
+function patchQuickTimerReadout() {
+  const body = nodes.modalBody;
+  if (!body || !body.querySelector(".quick-timer")) return;
+  const remaining = quickTimerState.remainingSeconds || quickTimerTotalSeconds();
+  const disp = body.querySelector(".quick-timer-display strong");
+  const sub = body.querySelector(".quick-timer-display span");
+  const summary = body.querySelector(".quick-timer-summary");
+  if (disp) disp.textContent = formatTimerSeconds(remaining);
+  if (sub) {
+    sub.textContent = `Round ${Math.min(quickTimerState.currentRound, quickTimerState.rounds)} / ${quickTimerState.rounds}${quickTimerState.holdSeconds ? ` · ${quickTimerState.holdSeconds}s hold` : ""}`;
+  }
+  if (summary) {
+    const holdTotal = quickTimerState.holdSeconds ? quickTimerState.holdSeconds * quickTimerState.rounds : 0;
+    summary.innerHTML = `<span>${quickTimerState.rounds} rondas</span><span>${quickTimerState.holdSeconds ? `${holdTotal}s TUT objetivo` : "modo reps/EMOM"}</span>`;
+  }
+}
+
 function quickTimerTotalSeconds() {
   return Math.max(1, quickTimerState.rounds || denseSchemeMinutes(quickTimerState.scheme) || 1) * 60;
 }
@@ -2843,6 +2887,8 @@ function startQuickTimer() {
   quickTimerState.startedAt = Date.now();
   clearInterval(quickTimerState.intervalId);
   quickTimerState.intervalId = setInterval(tickQuickTimer, 1000);
+  // Cue the start of the first hold so the beeps mark the full first TUT window.
+  playTimerBeep(quickTimerState.holdSeconds > 0 ? 780 : 880);
   renderQuickTimerModalBody();
 }
 
@@ -2850,12 +2896,23 @@ function tickQuickTimer() {
   quickTimerState.remainingSeconds = Math.max(0, quickTimerState.remainingSeconds - 1);
   const elapsed = quickTimerTotalSeconds() - quickTimerState.remainingSeconds;
   quickTimerState.currentRound = clamp(Math.floor(elapsed / 60) + 1, 1, quickTimerState.rounds);
-  if (quickTimerState.metronome || quickTimerState.remainingSeconds % 60 === 0) playTimerBeep(quickTimerState.remainingSeconds % 60 === 0 ? 880 : 440);
+  const hold = quickTimerState.holdSeconds;
+  const secIntoRound = elapsed % 60;
+  const atRoundBoundary = secIntoRound === 0;
+  if (quickTimerState.metronome) {
+    playTimerBeep(440);
+  } else if (hold > 0 && quickTimerState.remainingSeconds > 0) {
+    // Isometric mode: cue the start and the end of each hold (TUT window).
+    if (hold < 60 && secIntoRound === hold) playTimerBeep(1180); // end of hold
+    else if (atRoundBoundary) playTimerBeep(780); // next hold starts
+  } else if (atRoundBoundary) {
+    playTimerBeep(880); // round boundary (reps/EMOM)
+  }
   if (quickTimerState.remainingSeconds <= 0) {
     pauseQuickTimer(false);
-    playTimerBeep(1040);
+    playTimerBeep(1180);
   }
-  if (nodes.modal.open && nodes.modalTitle.textContent === "Quick Timer") renderQuickTimerModalBody();
+  if (nodes.modal.open && nodes.modalBody.querySelector(".quick-timer")) renderQuickTimerModalBody();
 }
 
 function pauseQuickTimer(renderBody = true) {
@@ -5078,6 +5135,9 @@ function denseDefaultHoldPerRound(exercise, scheme) {
     .filter((entry) => entry.exercise_id === exercise.id && entry.scheme === scheme && (entry.hold_seconds_per_round || entry.total_hold_seconds))
     .sort((a, b) => (b.created_at || b.date || "").localeCompare(a.created_at || a.date || ""))[0];
   if (latestSameScheme) return Math.max(1, Math.round(Number(latestSameScheme.hold_seconds_per_round) || Number(latestSameScheme.total_hold_seconds) / minutes));
+  // No history yet: seed a sensible starter hold so fresh isometrics (e.g. a new
+  // cuelgue) aren't left empty. Scaled by density like a modest capacity of ~38s.
+  if (denseIsIsometric(exercise)) return Math.max(1, Math.floor(38 * multiplier));
   return "";
 }
 
