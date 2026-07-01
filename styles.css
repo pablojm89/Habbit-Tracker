@@ -1788,13 +1788,22 @@ i[data-lucide] {
   text-overflow: clip;
 }
 
-.set-main-metric {
+/* Override the blanket ".today-workout-card span { display:block }" so the
+   metric, parenthesis and effort badge sit inline on one line. */
+.workout-set-summary .set-main-metric {
+  display: inline;
   white-space: nowrap;
 }
 
 .workout-set-summary .set-paren {
+  display: inline;
   color: var(--muted);
   font-weight: 700;
+}
+
+.workout-set-summary .effort-badge {
+  display: inline-flex;
+  vertical-align: middle;
 }
 
 .effort-badge {
@@ -4755,9 +4764,11 @@ button:focus-visible {
     border-radius: 6px;
   }
 
-  .workout-set-tags .mini-tag i[data-lucide] {
+  .workout-set-tags .mini-tag i[data-lucide],
+  .workout-set-tags .mini-tag svg {
     width: 11px;
     height: 11px;
+    flex: 0 0 auto;
   }
 
   .workout-set-actions .icon-button {
@@ -5074,32 +5085,81 @@ button:focus-visible {
   }
 
   body[data-density="compact"] .workout-set-card {
-    min-height: 72px;
-    padding: 7px;
+    min-height: 0;
+    padding: 6px 8px;
+    border-radius: 13px;
+    align-items: center;
+  }
+
+  body[data-density="compact"] .workout-set-main {
+    gap: 3px;
+  }
+
+  body[data-density="compact"] .workout-set-tags {
+    gap: 4px;
+    flex-wrap: nowrap;
+    overflow: hidden;
   }
 
   body[data-density="compact"] .workout-set-tags .mini-tag:nth-child(n + 3) {
     display: none;
   }
 
-  body[data-density="compact"] .workout-set-main strong {
-    font-size: 0.84rem;
+  body[data-density="compact"] .workout-set-tags .mini-tag {
+    min-height: 16px;
+    gap: 2px;
+    padding: 0 5px;
+    font-size: 0.5rem;
+    border-radius: 5px;
   }
 
-  body[data-density="compact"] .workout-set-summary {
-    font-size: 0.66rem;
+  body[data-density="compact"] .workout-set-tags .mini-tag i[data-lucide],
+  body[data-density="compact"] .workout-set-tags .mini-tag svg {
+    width: 9px;
+    height: 9px;
+    flex: 0 0 auto;
+  }
+
+  body[data-density="compact"] .workout-set-main strong {
+    font-size: 0.82rem;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  body[data-density="compact"] .workout-set-card .workout-set-summary {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 0.64rem;
+  }
+
+  body[data-density="compact"] .workout-set-summary .set-main-metric {
+    white-space: nowrap;
+  }
+
+  body[data-density="compact"] .workout-set-summary .effort-badge {
+    margin-left: 5px;
+    vertical-align: middle;
+    padding: 0 5px;
+    font-size: 0.52rem;
   }
 
   body[data-density="compact"] .workout-set-volume {
-    padding-inline: 5px;
+    padding-inline: 6px;
+  }
+
+  body[data-density="compact"] .workout-set-volume span {
+    font-size: 0.54rem;
   }
 
   body[data-density="compact"] .workout-set-volume strong {
-    font-size: 0.82rem;
+    font-size: 0.78rem;
   }
 
   body[data-density="compact"] .workout-set-actions .icon-button {
-    width: 34px;
+    width: 32px;
   }
 
   body[data-density="compact"] .week-viewer-widget,
