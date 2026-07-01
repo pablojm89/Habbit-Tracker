@@ -1928,6 +1928,52 @@ button:active:not(:disabled),
   gap: 10px;
 }
 
+/* Swipe-to-delete: card slides left to reveal a red delete action */
+.swipe-wrap {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  touch-action: pan-y;
+}
+
+.swipe-wrap > .today-workout-card {
+  position: relative;
+  z-index: 1;
+  touch-action: pan-y;
+  will-change: transform;
+}
+
+.swipe-wrap.is-dragging > .today-workout-card {
+  transition: none;
+}
+
+.swipe-delete-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 9px;
+  width: 100%;
+  margin: 0;
+  padding: 0 24px;
+  border: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #4d1310 0%, #a8352d 58%, #d8574f 100%);
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 850;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+.swipe-delete-bg i {
+  width: 22px;
+  height: 22px;
+  stroke-width: 2.4;
+}
+
 .today-workout-card,
 .today-workout-empty,
 .selected-exercise-panel {

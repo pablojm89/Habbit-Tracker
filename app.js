@@ -1069,6 +1069,94 @@ document.addEventListener("click", handleClick);
 document.addEventListener("change", handleChange);
 document.addEventListener("input", handleInput);
 document.addEventListener("submit", handleSubmit);
+
+// ── Swipe-to-delete on workout cards (iOS-style) ─────────────────────────
+const SWIPE_REST = 82; // resting reveal when snapped open
+const SWIPE_OPEN_TRIGGER = 52; // drag past this snaps open
+const SWIPE_FULL_FRACTION = 0.45; // drag past this fraction of width deletes
+let swipeGesture = null;
+
+function closeAllSwipes(except) {
+  document.querySelectorAll(".swipe-wrap.is-open").forEach((wrap) => {
+    if (wrap === except) return;
+    wrap.classList.remove("is-open");
+    const card = wrap.querySelector(".today-workout-card");
+    if (card) card.style.transform = "";
+  });
+}
+
+function onSwipePointerDown(event) {
+  if (event.pointerType === "mouse" && event.button !== 0) return;
+  const card = event.target.closest(".swipe-wrap > .today-workout-card");
+  if (!card) {
+    closeAllSwipes();
+    return;
+  }
+  const wrap = card.parentElement;
+  swipeGesture = {
+    card,
+    wrap,
+    startX: event.clientX,
+    startY: event.clientY,
+    base: wrap.classList.contains("is-open") ? -SWIPE_REST : 0,
+    axis: null,
+    offset: 0,
+    id: event.pointerId,
+  };
+}
+
+function onSwipePointerMove(event) {
+  if (!swipeGesture || event.pointerId !== swipeGesture.id) return;
+  const dx = event.clientX - swipeGesture.startX;
+  const dy = event.clientY - swipeGesture.startY;
+  if (!swipeGesture.axis) {
+    if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+    swipeGesture.axis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+    if (swipeGesture.axis === "x") swipeGesture.wrap.classList.add("is-dragging");
+  }
+  if (swipeGesture.axis !== "x") {
+    swipeGesture = null; // vertical intent -> let the page scroll
+    return;
+  }
+  const offset = Math.max(-swipeGesture.card.offsetWidth, Math.min(0, swipeGesture.base + dx));
+  swipeGesture.offset = offset;
+  swipeGesture.card.style.transform = `translateX(${offset}px)`;
+  event.preventDefault();
+}
+
+function onSwipePointerUp(event) {
+  if (!swipeGesture || event.pointerId !== swipeGesture.id) return;
+  const gesture = swipeGesture;
+  swipeGesture = null;
+  gesture.wrap.classList.remove("is-dragging");
+  if (gesture.axis !== "x") return;
+  // Swallow the click this drag would otherwise fire on the card.
+  window.__swipeJustSwiped = true;
+  setTimeout(() => {
+    window.__swipeJustSwiped = false;
+  }, 80);
+  const width = gesture.card.offsetWidth || 1;
+  if (gesture.offset <= -width * SWIPE_FULL_FRACTION) {
+    gesture.card.style.transform = "translateX(-110%)";
+    gesture.card.style.opacity = "0";
+    const del = gesture.wrap.querySelector(".swipe-delete-bg");
+    setTimeout(() => del?.click(), 190);
+    return;
+  }
+  if (gesture.offset <= -SWIPE_OPEN_TRIGGER) {
+    closeAllSwipes(gesture.wrap);
+    gesture.wrap.classList.add("is-open");
+    gesture.card.style.transform = `translateX(-${SWIPE_REST}px)`;
+  } else {
+    gesture.wrap.classList.remove("is-open");
+    gesture.card.style.transform = "";
+  }
+}
+
+document.addEventListener("pointerdown", onSwipePointerDown, { passive: true });
+document.addEventListener("pointermove", onSwipePointerMove, { passive: false });
+document.addEventListener("pointerup", onSwipePointerUp);
+document.addEventListener("pointercancel", onSwipePointerUp);
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("./sw.js").then((registration) => registration.update()).catch(() => {});
@@ -2230,6 +2318,19 @@ function renderData() {
 }
 
 function handleClick(event) {
+  // A horizontal swipe just fired a synthetic click on the card — ignore it.
+  if (window.__swipeJustSwiped) {
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
+  // Tapping an open (swiped) card anywhere but the reveal closes it.
+  const openWrap = event.target.closest(".swipe-wrap.is-open");
+  if (openWrap && !event.target.closest(".swipe-delete-bg")) {
+    closeAllSwipes();
+    return;
+  }
+
   const viewTarget = event.target.closest(".tab-button[data-view]");
   if (viewTarget) {
     switchView(viewTarget.dataset.view);
@@ -4515,10 +4616,22 @@ function denseEntrySummaryLine(entry) {
   return `<span class="set-main-metric">${escapeHtml(code)} <span class="set-paren">(${entry.total_reps || 0} reps)</span></span>`;
 }
 
+// Wrap a card so it can be swiped left to reveal a delete action (iOS-style).
+function swipeDeleteWrap(cardHtml, deleteAttrs, label) {
+  return `
+    <div class="swipe-wrap" data-swipe>
+      <button class="swipe-delete-bg" type="button" tabindex="-1" ${deleteAttrs} aria-label="Eliminar ${escapeAttr(label)}">
+        <i data-lucide="trash-2"></i><span>Eliminar</span>
+      </button>
+      ${cardHtml}
+    </div>
+  `;
+}
+
 function todayWorkoutCard(entry) {
   const exercise = denseExerciseById(entry.exercise_id);
   const volume = entry.tonnage_kg ? `${roundTo(entry.tonnage_kg / 1000, 1)}t` : entry.total_reps ? `${entry.total_reps} reps` : entry.total_hold_seconds ? `${entry.total_hold_seconds}s` : "-";
-  return `
+  const card = `
     <article class="today-workout-card workout-set-card is-complete" style="--item-color:${denseCategoryColor(exercise.category)}" data-action="open-dense-exercise-detail" data-exercise="${escapeAttr(entry.exercise_id)}">
       <div class="workout-set-main">
         <div class="workout-set-tags">
@@ -4533,15 +4646,13 @@ function todayWorkoutCard(entry) {
         <strong>${escapeHtml(volume)}</strong>
       </div>
       <div class="workout-set-actions">
-        <button class="icon-button is-danger" type="button" data-action="confirm-delete-dense-entry" data-entry="${escapeAttr(entry.id)}" title="Eliminar" aria-label="Eliminar ${escapeAttr(entry.exercise_name)}">
-          <i data-lucide="trash-2"></i>
-        </button>
         <button class="icon-button" type="button" data-action="open-dense-entry-modal" data-entry="${escapeAttr(entry.id)}" title="Editar" aria-label="Editar ${escapeAttr(entry.exercise_name)}">
           <i data-lucide="edit-3"></i>
         </button>
       </div>
     </article>
   `;
+  return swipeDeleteWrap(card, `data-action="delete-dense-entry" data-entry="${escapeAttr(entry.id)}"`, entry.exercise_name);
 }
 
 function denseEntryIsPr(entry) {
@@ -4587,7 +4698,7 @@ function plannedWorkoutCard(exercise) {
   const canDelete = exercise.plannedSource === "custom";
   const scheme = densePlannedScheme(exercise);
   const target = densePlannedTargetValue(exercise, scheme);
-  return `
+  const card = `
     <article class="today-workout-card workout-set-card is-planned" style="--item-color:${denseCategoryColor(exercise.category)}" data-action="open-dense-exercise-detail" data-exercise="${escapeAttr(exercise.id)}">
       <div class="workout-set-main">
         <div class="workout-set-tags">
@@ -4602,13 +4713,6 @@ function plannedWorkoutCard(exercise) {
         <small>${escapeHtml(scheme)}</small>
       </div>
       <div class="workout-set-actions">
-        ${
-          canDelete
-            ? `<button class="icon-button is-danger" type="button" data-action="confirm-delete-planned-exercise" data-plan-index="${exercise.planIndex}" title="Quitar del día" aria-label="Quitar ${escapeAttr(exercise.name)} del día">
-                <i data-lucide="trash-2"></i>
-              </button>`
-            : ""
-        }
         <button class="icon-button is-hot" type="button" data-action="open-dense-exercise-modal" data-exercise="${escapeAttr(exercise.id)}" title="Completar" aria-label="Completar ${escapeAttr(exercise.name)}">
           <i data-lucide="square-check"></i>
         </button>
@@ -4618,6 +4722,8 @@ function plannedWorkoutCard(exercise) {
       </div>
     </article>
   `;
+  if (!canDelete) return card;
+  return swipeDeleteWrap(card, `data-action="delete-planned-exercise" data-plan-index="${exercise.planIndex}"`, exercise.name);
 }
 
 function addWorkoutCard() {
