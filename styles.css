@@ -213,32 +213,10 @@ button:active:not(:disabled),
   }
 }
 
-/* Directional slide-in when swiping between days / analytics tabs */
-@keyframes swipe-in-next {
-  from {
-    opacity: 0;
-    transform: translateX(26px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-@keyframes swipe-in-prev {
-  from {
-    opacity: 0;
-    transform: translateX(-26px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
 /* Let horizontal swipes reach JS while vertical scroll stays native */
 #view-training {
   touch-action: pan-y;
+  overflow-x: clip;
 }
 
 @media (prefers-reduced-motion: reduce) {

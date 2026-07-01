@@ -1091,29 +1091,74 @@ const VIEW_SWIPE_THRESHOLD = 58;
 const VIEW_SWIPE_IGNORE = "button, a, input, select, textarea, details, summary, .training-mode-tabs, .weekday-strip, .week-selector, .analytics-tab-strip, .quick-timer, dialog, .modal";
 let viewSwipe = null;
 
-function animateSwipePanel(panel, dir) {
-  if (!panel) return;
-  panel.style.animation = "none";
-  void panel.offsetWidth; // reflow so the animation replays
-  panel.style.animation = `swipe-in-${dir > 0 ? "next" : "prev"} 0.26s var(--ease-out)`;
+function viewSwipePanel() {
+  return (state.settings.trainingMode || "workout") === "analytics" ? nodes.trainingAnalyticsPanel : nodes.mesocyclePanel;
 }
 
-function onViewSwipeNavigate(dx) {
+// Returns the navigate function for a swipe direction, or null if it would be a
+// no-op (e.g. already at the first/last analytics tab).
+function resolveViewSwipe(dir) {
   const mode = state.settings.trainingMode || "workout";
-  const dir = dx < 0 ? 1 : -1; // swipe left -> next
-  if (mode === "workout") {
-    shiftDay(dir);
-    animateSwipePanel(nodes.mesocyclePanel, dir);
-  } else if (mode === "analytics") {
+  if (mode === "workout") return () => shiftDay(dir);
+  if (mode === "analytics") {
     const tabs = trainingAnalyticsTabs.map((tab) => tab[0]);
-    const current = state.settings.trainingAnalyticsTab || "progress";
-    const index = tabs.indexOf(current);
+    const index = tabs.indexOf(state.settings.trainingAnalyticsTab || "progress");
     const next = clamp(index + dir, 0, tabs.length - 1);
-    if (next !== index) {
-      setTrainingAnalyticsTab(tabs[next]);
-      animateSwipePanel(nodes.trainingAnalyticsPanel, dir);
-    }
+    if (next === index) return null;
+    return () => setTrainingAnalyticsTab(tabs[next]);
   }
+  return null;
+}
+
+// Slide the current panel out while the freshly-rendered one slides in from the
+// opposite side — a real carousel transition instead of a hard jump.
+function slidePanelTransition(panel, dir, navigate, dragDx = 0) {
+  const parent = panel?.parentElement;
+  if (!parent) {
+    navigate();
+    return;
+  }
+  const width = parent.getBoundingClientRect().width || window.innerWidth || 1;
+  const prevPos = parent.style.position;
+  parent.style.position = "relative";
+  const ghost = panel.cloneNode(true);
+  Object.assign(ghost.style, {
+    position: "absolute",
+    top: `${panel.offsetTop}px`,
+    left: `${panel.offsetLeft}px`,
+    width: `${panel.offsetWidth}px`,
+    margin: "0",
+    transform: `translateX(${dragDx}px)`,
+    transition: "transform 0.3s var(--ease-out), opacity 0.3s var(--ease-out)",
+    pointerEvents: "none",
+    zIndex: "3",
+  });
+  parent.appendChild(ghost);
+  navigate(); // re-renders the real panel with the new day/tab
+  panel.style.transition = "none";
+  panel.style.transform = `translateX(${dir * width}px)`;
+  requestAnimationFrame(() => {
+    ghost.style.transform = `translateX(${-dir * width}px)`;
+    ghost.style.opacity = "0";
+    panel.style.transition = "transform 0.3s var(--ease-out)";
+    panel.style.transform = "translateX(0)";
+  });
+  setTimeout(() => {
+    ghost.remove();
+    panel.style.transition = "";
+    panel.style.transform = "";
+    parent.style.position = prevPos;
+  }, 340);
+}
+
+function snapViewPanelBack(panel) {
+  if (!panel) return;
+  panel.style.transition = "transform 0.24s var(--ease-out)";
+  panel.style.transform = "translateX(0)";
+  setTimeout(() => {
+    panel.style.transition = "";
+    panel.style.transform = "";
+  }, 260);
 }
 
 function onSwipePointerDown(event) {
@@ -1143,7 +1188,7 @@ function onSwipePointerDown(event) {
   // Start a view-level swipe when the touch lands on neutral training area.
   const mode = state.settings.trainingMode || "workout";
   if ((mode === "workout" || mode === "analytics") && event.target.closest("#view-training") && !event.target.closest(VIEW_SWIPE_IGNORE)) {
-    viewSwipe = { startX: event.clientX, startY: event.clientY, axis: null, dx: 0, id: event.pointerId };
+    viewSwipe = { startX: event.clientX, startY: event.clientY, axis: null, dx: 0, id: event.pointerId, panel: viewSwipePanel() };
   }
 }
 
@@ -1178,6 +1223,10 @@ function onSwipePointerMove(event) {
       return;
     }
     viewSwipe.dx = dx;
+    if (viewSwipe.panel) {
+      viewSwipe.panel.style.transition = "none";
+      viewSwipe.panel.style.transform = `translateX(${dx}px)`;
+    }
     event.preventDefault();
   }
 }
@@ -1186,12 +1235,17 @@ function onSwipePointerUp(event) {
   if (viewSwipe && event.pointerId === viewSwipe.id) {
     const swipe = viewSwipe;
     viewSwipe = null;
-    if (swipe.axis === "x" && Math.abs(swipe.dx) >= VIEW_SWIPE_THRESHOLD) {
+    if (swipe.axis !== "x") return;
+    const dir = swipe.dx < 0 ? 1 : -1;
+    const navigate = Math.abs(swipe.dx) >= VIEW_SWIPE_THRESHOLD ? resolveViewSwipe(dir) : null;
+    if (navigate) {
       window.__swipeJustSwiped = true;
       setTimeout(() => {
         window.__swipeJustSwiped = false;
       }, 80);
-      onViewSwipeNavigate(swipe.dx);
+      slidePanelTransition(swipe.panel, dir, navigate, swipe.dx);
+    } else {
+      snapViewPanelBack(swipe.panel);
     }
     return;
   }
