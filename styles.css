@@ -2019,6 +2019,41 @@ button:active:not(:disabled),
   gap: 10px;
 }
 
+/* Day carousel: only the exercise zone slides; prev/next days are preloaded and
+   flank the current one so you see the target day slide in. */
+.day-carousel {
+  overflow: clip;
+  overflow-clip-margin: 22px;
+}
+
+.day-carousel-track {
+  position: relative;
+  will-change: transform;
+}
+
+.day-slide {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+.day-slide.is-prev,
+.day-slide.is-next {
+  position: absolute;
+  top: 0;
+  width: 100%;
+}
+
+.day-slide.is-prev {
+  right: 100%;
+  margin-right: 12px;
+}
+
+.day-slide.is-next {
+  left: 100%;
+  margin-left: 12px;
+}
+
 /* Swipe-to-delete: card slides left to reveal a red delete action */
 .swipe-wrap {
   position: relative;

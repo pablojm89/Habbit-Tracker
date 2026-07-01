@@ -1091,10 +1091,6 @@ const VIEW_SWIPE_THRESHOLD = 58;
 const VIEW_SWIPE_IGNORE = "button, a, input, select, textarea, details, summary, .training-mode-tabs, .weekday-strip, .week-selector, .analytics-tab-strip, .quick-timer, dialog, .modal";
 let viewSwipe = null;
 
-function viewSwipePanel() {
-  return (state.settings.trainingMode || "workout") === "analytics" ? nodes.trainingAnalyticsPanel : nodes.mesocyclePanel;
-}
-
 // Returns the navigate function for a swipe direction, or null if it would be a
 // no-op (e.g. already at the first/last analytics tab).
 function resolveViewSwipe(dir) {
@@ -1187,8 +1183,15 @@ function onSwipePointerDown(event) {
   closeAllSwipes();
   // Start a view-level swipe when the touch lands on neutral training area.
   const mode = state.settings.trainingMode || "workout";
-  if ((mode === "workout" || mode === "analytics") && event.target.closest("#view-training") && !event.target.closest(VIEW_SWIPE_IGNORE)) {
-    viewSwipe = { startX: event.clientX, startY: event.clientY, axis: null, dx: 0, id: event.pointerId, panel: viewSwipePanel() };
+  if (mode === "workout") {
+    // Only the exercise carousel slides (the day summary stays put).
+    const carousel = event.target.closest("#view-training .day-carousel");
+    const track = carousel?.querySelector(".day-carousel-track");
+    if (track && !event.target.closest(VIEW_SWIPE_IGNORE)) {
+      viewSwipe = { kind: "carousel", track, carousel, startX: event.clientX, startY: event.clientY, axis: null, dx: 0, id: event.pointerId };
+    }
+  } else if (mode === "analytics" && event.target.closest("#view-training") && !event.target.closest(VIEW_SWIPE_IGNORE)) {
+    viewSwipe = { kind: "panel", panel: nodes.trainingAnalyticsPanel, startX: event.clientX, startY: event.clientY, axis: null, dx: 0, id: event.pointerId };
   }
 }
 
@@ -1223,9 +1226,10 @@ function onSwipePointerMove(event) {
       return;
     }
     viewSwipe.dx = dx;
-    if (viewSwipe.panel) {
-      viewSwipe.panel.style.transition = "none";
-      viewSwipe.panel.style.transform = `translateX(${dx}px)`;
+    const el = viewSwipe.kind === "carousel" ? viewSwipe.track : viewSwipe.panel;
+    if (el) {
+      el.style.transition = "none";
+      el.style.transform = `translateX(${dx}px)`;
     }
     event.preventDefault();
   }
@@ -1238,7 +1242,25 @@ function onSwipePointerUp(event) {
     if (swipe.axis !== "x") return;
     const dir = swipe.dx < 0 ? 1 : -1;
     const navigate = Math.abs(swipe.dx) >= VIEW_SWIPE_THRESHOLD ? resolveViewSwipe(dir) : null;
-    if (navigate) {
+    if (swipe.kind === "carousel") {
+      if (navigate) {
+        window.__swipeJustSwiped = true;
+        setTimeout(() => {
+          window.__swipeJustSwiped = false;
+        }, 80);
+        // Slide to the preloaded neighbor, then re-render centered on the new day.
+        swipe.track.style.transition = "transform 0.28s var(--ease-out)";
+        swipe.track.style.transform = `translateX(${dir > 0 ? "-100%" : "100%"})`;
+        setTimeout(navigate, 280);
+      } else {
+        swipe.track.style.transition = "transform 0.24s var(--ease-out)";
+        swipe.track.style.transform = "translateX(0)";
+        setTimeout(() => {
+          swipe.track.style.transition = "";
+          swipe.track.style.transform = "";
+        }, 260);
+      }
+    } else if (navigate) {
       window.__swipeJustSwiped = true;
       setTimeout(() => {
         window.__swipeJustSwiped = false;
@@ -1786,6 +1808,29 @@ function renderWeeklyFailureCard(weekDayKeys, isCurrentWeek) {
   `;
 }
 
+// The exercise stack for a single day (logged + planned + add). Used to build the
+// prev/current/next slides of the day carousel.
+function daySlideContent(date) {
+  const key = dateKey(date);
+  const entries = denseEntriesForDate(key).sort((a, b) => (a.created_at || "").localeCompare(b.created_at || ""));
+  const planned = plannedExercisesForDate(date);
+  const loggedCounts = {};
+  entries.forEach((entry) => {
+    loggedCounts[entry.exercise_id] = (loggedCounts[entry.exercise_id] || 0) + 1;
+  });
+  const fulfilledCounts = {};
+  const visiblePlanned = planned.filter((exercise) => {
+    const logged = loggedCounts[exercise.id] || 0;
+    const used = fulfilledCounts[exercise.id] || 0;
+    if (used < logged) {
+      fulfilledCounts[exercise.id] = used + 1;
+      return false;
+    }
+    return true;
+  });
+  return `${entries.map((entry) => todayWorkoutCard(entry)).join("")}${visiblePlanned.map((exercise) => plannedWorkoutCard(exercise)).join("")}${addWorkoutCard()}`;
+}
+
 function renderMesocycle() {
   const entries = denseEntriesForDate(dateKey(selectedDate)).sort((a, b) => (a.created_at || "").localeCompare(b.created_at || ""));
   const weekDays = trainingWeekDays(selectedDate);
@@ -1879,9 +1924,13 @@ function renderMesocycle() {
         ${renderWeeklyFailureCard(weekDayKeys, isCurrentWeek)}
       </section>
 
-      ${entries.map((entry) => todayWorkoutCard(entry)).join("")}
-      ${visiblePlanned.map((exercise) => plannedWorkoutCard(exercise)).join("")}
-      ${addWorkoutCard()}
+      <div class="day-carousel" data-day-carousel>
+        <div class="day-carousel-track">
+          <div class="day-slide is-prev">${daySlideContent(addDays(selectedDate, -1))}</div>
+          <div class="day-slide">${daySlideContent(selectedDate)}</div>
+          <div class="day-slide is-next">${daySlideContent(addDays(selectedDate, 1))}</div>
+        </div>
+      </div>
     </div>
   `;
 }
