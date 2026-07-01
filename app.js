@@ -1074,6 +1074,7 @@ document.addEventListener("submit", handleSubmit);
 const SWIPE_REST = 82; // resting reveal when snapped open
 const SWIPE_OPEN_TRIGGER = 52; // drag past this snaps open
 const SWIPE_FULL_FRACTION = 0.45; // drag past this fraction of width deletes
+const CARD_DELETE_EDGE = 68; // delete-swipe must start within this many px of the card's right edge
 let swipeGesture = null;
 
 function closeAllSwipes(except) {
@@ -1087,7 +1088,7 @@ function closeAllSwipes(except) {
 
 // ── View swipe: change day (Workout) / analytics tab, on non-card areas ──
 const VIEW_SWIPE_THRESHOLD = 58;
-const VIEW_SWIPE_IGNORE = "button, a, input, select, textarea, details, summary, .swipe-wrap, .training-mode-tabs, .weekday-strip, .week-selector, .analytics-tab-strip, .quick-timer, dialog, .modal";
+const VIEW_SWIPE_IGNORE = "button, a, input, select, textarea, details, summary, .training-mode-tabs, .weekday-strip, .week-selector, .analytics-tab-strip, .quick-timer, dialog, .modal";
 let viewSwipe = null;
 
 function animateSwipePanel(panel, dir) {
@@ -1118,19 +1119,25 @@ function onViewSwipeNavigate(dx) {
 function onSwipePointerDown(event) {
   if (event.pointerType === "mouse" && event.button !== 0) return;
   const card = event.target.closest(".swipe-wrap > .today-workout-card");
+  // Only grab the delete gesture when the swipe starts from the card's right
+  // edge (or the card is already open). The middle stays free for day/tab swipes.
   if (card) {
     const wrap = card.parentElement;
-    swipeGesture = {
-      card,
-      wrap,
-      startX: event.clientX,
-      startY: event.clientY,
-      base: wrap.classList.contains("is-open") ? -SWIPE_REST : 0,
-      axis: null,
-      offset: 0,
-      id: event.pointerId,
-    };
-    return;
+    const rect = card.getBoundingClientRect();
+    const fromEdge = event.clientX >= rect.right - CARD_DELETE_EDGE;
+    if (fromEdge || wrap.classList.contains("is-open")) {
+      swipeGesture = {
+        card,
+        wrap,
+        startX: event.clientX,
+        startY: event.clientY,
+        base: wrap.classList.contains("is-open") ? -SWIPE_REST : 0,
+        axis: null,
+        offset: 0,
+        id: event.pointerId,
+      };
+      return;
+    }
   }
   closeAllSwipes();
   // Start a view-level swipe when the touch lands on neutral training area.
