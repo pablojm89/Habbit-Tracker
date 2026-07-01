@@ -1923,6 +1923,91 @@ button:active:not(:disabled),
   text-transform: uppercase;
 }
 
+/* Weekly failure challenge (1 push / pull / lower to failure per week) */
+.weekly-failure-card {
+  margin-top: 12px;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.weekly-failure-card.is-complete {
+  border-color: rgba(168, 230, 53, 0.4);
+  background: rgba(168, 230, 53, 0.06);
+}
+
+.weekly-failure-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 9px;
+}
+
+.weekly-failure-head span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--text);
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.weekly-failure-head span i {
+  width: 15px;
+  height: 15px;
+  color: var(--lime-soft);
+}
+
+.weekly-failure-head small {
+  color: var(--dim);
+  font-size: 0.62rem;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.weekly-failure-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 7px;
+}
+
+.failure-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  font-size: 0.76rem;
+  font-weight: 850;
+}
+
+.failure-chip i {
+  width: 14px;
+  height: 14px;
+}
+
+.failure-chip.is-done {
+  border-color: rgba(168, 230, 53, 0.5);
+  background: rgba(168, 230, 53, 0.14);
+  color: var(--lime-soft);
+}
+
+.failure-chip.is-pending {
+  border-color: rgba(228, 175, 84, 0.45);
+  background: rgba(228, 175, 84, 0.08);
+  color: color-mix(in srgb, var(--amber), var(--text) 34%);
+}
+
+.failure-chip.is-pending i {
+  color: var(--amber);
+}
+
 .today-workout-list {
   display: grid;
   gap: 10px;

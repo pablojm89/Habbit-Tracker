@@ -1596,6 +1596,72 @@ function renderTrainingMode() {
   `;
 }
 
+// Total tonnage moved per calendar day (bodyweight counts via contribution %).
+function denseTonnageByDate() {
+  const map = {};
+  getDenseEntries().forEach((entry) => {
+    if (!entry.date) return;
+    map[entry.date] = (map[entry.date] || 0) + (Number(entry.tonnage_kg) || 0);
+  });
+  return map;
+}
+
+// Rolling daily tonnage goal: average of your recent real training days, so the
+// bar reads "did I move a typical solid day's load" and self-adjusts as you grow.
+function denseTonnageGoal(excludeDate) {
+  const map = denseTonnageByDate();
+  const recent = Object.entries(map)
+    .filter(([day, tonnage]) => tonnage > 0 && day !== excludeDate)
+    .sort(([a], [b]) => b.localeCompare(a))
+    .slice(0, 10)
+    .map(([, tonnage]) => tonnage);
+  if (!recent.length) return 0;
+  return Math.round(recent.reduce((sum, tonnage) => sum + tonnage, 0) / recent.length);
+}
+
+// Which movement groups were taken to failure this week (dense wants ~1 failure
+// test per pattern per week — enough to calibrate without grinding).
+function denseWeeklyFailureStatus(weekDayKeys) {
+  const status = { push: false, pull: false, legs: false };
+  getDenseEntries().forEach((entry) => {
+    if (!weekDayKeys.includes(entry.date)) return;
+    if (!(entry.failed || entry.effort === "fallo")) return;
+    denseGroupKeys(denseExerciseById(entry.exercise_id)).forEach((group) => {
+      if (group in status) status[group] = true;
+    });
+  });
+  return status;
+}
+
+function renderWeeklyFailureCard(weekDayKeys, isCurrentWeek) {
+  const status = denseWeeklyFailureStatus(weekDayKeys);
+  const groups = [
+    ["push", "Empuje"],
+    ["pull", "Tirón"],
+    ["legs", "Pierna"],
+  ];
+  const pending = groups.filter(([key]) => !status[key]).length;
+  const headNote = pending === 0 ? "completado" : isCurrentWeek ? `${pending} por retar` : `${pending} sin fallo`;
+  return `
+    <div class="weekly-failure-card ${pending === 0 ? "is-complete" : ""}">
+      <div class="weekly-failure-head">
+        <span><i data-lucide="target"></i>Fallo semanal</span>
+        <small>${headNote}</small>
+      </div>
+      <div class="weekly-failure-grid">
+        ${groups
+          .map(
+            ([key, label]) => `
+              <span class="failure-chip ${status[key] ? "is-done" : "is-pending"}">
+                <i data-lucide="${status[key] ? "check" : "flame"}"></i>${label}
+              </span>`,
+          )
+          .join("")}
+      </div>
+    </div>
+  `;
+}
+
 function renderMesocycle() {
   const entries = denseEntriesForDate(dateKey(selectedDate)).sort((a, b) => (a.created_at || "").localeCompare(b.created_at || ""));
   const weekDays = trainingWeekDays(selectedDate);
@@ -1621,17 +1687,19 @@ function renderMesocycle() {
   const volume = entries.reduce((sum, entry) => sum + (entry.tonnage_kg || 0), 0);
   const blocks = entries.reduce((sum, entry) => sum + denseEquivalentSets(entry), 0);
   const totalMinutes = entries.reduce((sum, entry) => sum + (Number(entry.duration_minutes) || 0), 0);
-  const goalMinutes = 60;
-  const timePct = Math.min(100, Math.round((totalMinutes / goalMinutes) * 100));
+  const totalHold = entries.reduce((sum, entry) => sum + (Number(entry.total_hold_seconds) || 0), 0);
+  const tonnageGoal = denseTonnageGoal(dateKey(selectedDate));
+  const tonnagePct = tonnageGoal ? Math.min(100, Math.round((volume / tonnageGoal) * 100)) : volume > 0 ? 100 : 0;
   const dayNumber = ((selectedDate.getDay() + 6) % 7) + 1;
-  const timeLabel = entries.length
-    ? timePct >= 100
-      ? "COMPLETE"
-      : `${Math.round(totalMinutes)} / ${goalMinutes} MIN`
+  const tonnageLabel = entries.length
+    ? tonnageGoal
+      ? `${roundTo(volume / 1000, 1)} / ${roundTo(tonnageGoal / 1000, 1)} T`
+      : `${roundTo(volume / 1000, 1)} T`
     : planned.length
       ? "PLANNED"
       : "EMPTY";
   const statusTone = entries.length ? "is-green" : planned.length ? "is-amber" : "";
+  const weekDayKeys = weekDays.map((day) => dateKey(day));
   nodes.mesocyclePanel.innerHTML = `
     <div class="workout-widget-stack">
       <section class="workout-widget workout-summary-card" aria-label="Resumen del día">
@@ -1672,17 +1740,19 @@ function renderMesocycle() {
 
         <div class="workout-progress">
           <div class="workout-progress-head">
-            <span class="workout-progress-label"><i data-lucide="${entries.length ? "flame" : planned.length ? "clipboard-list" : "calendar-plus"}"></i>Week ${weekIndex} · Day ${dayNumber}</span>
-            <span class="workout-progress-time ${statusTone}">${timeLabel}</span>
+            <span class="workout-progress-label"><i data-lucide="${entries.length ? "weight" : planned.length ? "clipboard-list" : "calendar-plus"}"></i>Tonelaje · Day ${dayNumber}</span>
+            <span class="workout-progress-time ${statusTone}">${tonnageLabel}</span>
           </div>
-          <div class="progress-track"><i style="width:${timePct}%"></i></div>
+          <div class="progress-track"><i style="width:${tonnagePct}%"></i></div>
         </div>
 
         <div class="workout-metric-row">
-          ${workoutSummaryMetric(volume ? `${roundTo(volume / 1000, 1)}t` : "-", "vol")}
-          ${workoutSummaryMetric(roundTo(blocks, 1), "blocks")}
           ${workoutSummaryMetric(totalReps || "-", "reps")}
+          ${workoutSummaryMetric(roundTo(blocks, 1), "blocks")}
+          ${workoutSummaryMetric(totalHold ? `${totalHold}s` : "-", "tut")}
         </div>
+
+        ${renderWeeklyFailureCard(weekDayKeys, isCurrentWeek)}
       </section>
 
       ${entries.map((entry) => todayWorkoutCard(entry)).join("")}
@@ -4770,11 +4840,11 @@ function workoutDayButton(day) {
   const entries = denseEntriesForDate(key);
   const planned = plannedExercisesForDate(day);
   const selected = key === dateKey(selectedDate);
-  const minutes = entries.reduce((sum, entry) => sum + (Number(entry.duration_minutes) || 0), 0);
-  const goalMinutes = 60;
-  const heat = entries.length ? Math.max(0.2, Math.min(1, minutes / goalMinutes)) : 0;
-  const heatClass = entries.length ? (minutes >= goalMinutes ? "is-heat is-goal-met" : "is-heat") : "";
-  const heatLabel = entries.length ? ` · ${Math.round(minutes)} min` : "";
+  const tonnage = entries.reduce((sum, entry) => sum + (Number(entry.tonnage_kg) || 0), 0);
+  const goal = denseTonnageGoal(key) || 1;
+  const heat = entries.length ? Math.max(0.2, Math.min(1, tonnage / goal)) : 0;
+  const heatClass = entries.length ? (tonnage >= goal ? "is-heat is-goal-met" : "is-heat") : "";
+  const heatLabel = entries.length ? ` · ${roundTo(tonnage / 1000, 1)} T` : "";
   return `
     <button
       class="weekday-button ${selected ? "is-selected" : ""} ${heatClass}"
@@ -4955,27 +5025,42 @@ function denseDefaultTotalReps(exercise, scheme) {
   return Math.max(1, Math.round(baseRpm * minutes));
 }
 
+// Max reps/min that is physically plausible in a dense block. Unilateral moves
+// count per side, so >~12/side (>~24 total/min) is not doable — cap suggestions
+// so we never propose an impossible pace (e.g. ATG split squats at 14/side).
+function denseMaxRepsPerMin(exercise) {
+  if (exercise?.repsPerSide) return 12;
+  return Infinity;
+}
+
+function denseCapRpm(exercise, rpm) {
+  const cap = denseMaxRepsPerMin(exercise);
+  const value = Number(rpm);
+  if (!Number.isFinite(value)) return rpm;
+  return Number.isFinite(cap) ? Math.min(value, cap) : value;
+}
+
 function denseDefaultRepsPerSet(exercise, scheme) {
   if (!denseUsesRepsPerSet(exercise)) return "";
   const minutes = denseSchemeMinutes(scheme);
   if (!minutes) return "";
+  let raw;
   if (exercise.nature === "weighted" || exercise.nature === "weighted_calisthenics") {
-    return denseSchemePrescriptionAverage(scheme) || Math.max(1, Math.round(denseDefaultRpm(exercise, denseSchemeBase(scheme))));
+    raw = denseSchemePrescriptionAverage(scheme) || Math.max(1, Math.round(denseDefaultRpm(exercise, denseSchemeBase(scheme))));
+  } else {
+    const latestSameScheme = [...getDenseEntries()]
+      .filter((entry) => entry.exercise_id === exercise.id && entry.scheme === scheme && entry.total_reps)
+      .sort((a, b) => (b.created_at || b.date || "").localeCompare(a.created_at || a.date || ""))[0];
+    if (latestSameScheme) {
+      const target = Number(latestSameScheme.target_reps_per_min || latestSameScheme.reps_per_set || 0);
+      raw = target > 0 ? target : Math.max(1, Math.round(Number(latestSameScheme.total_reps) / minutes));
+    } else {
+      const estimate = state.denseEstimates?.[exercise.id]?.bodyweight_capacity;
+      const multiplier = bodyweightMultipliers[denseSchemeBase(scheme)];
+      raw = estimate && multiplier ? Math.max(1, Math.floor(estimate * multiplier)) : Math.max(1, Math.round(denseDefaultRpm(exercise, denseSchemeBase(scheme))));
+    }
   }
-  const latestSameScheme = [...getDenseEntries()]
-    .filter((entry) => entry.exercise_id === exercise.id && entry.scheme === scheme && entry.total_reps)
-    .sort((a, b) => (b.created_at || b.date || "").localeCompare(a.created_at || a.date || ""))[0];
-  if (latestSameScheme) {
-    const target = Number(latestSameScheme.target_reps_per_min || latestSameScheme.reps_per_set || 0);
-    if (target > 0) return target;
-    return Math.max(1, Math.round(Number(latestSameScheme.total_reps) / minutes));
-  }
-
-  const estimate = state.denseEstimates?.[exercise.id]?.bodyweight_capacity;
-  const multiplier = bodyweightMultipliers[denseSchemeBase(scheme)];
-  if (estimate && multiplier) return Math.max(1, Math.floor(estimate * multiplier));
-
-  return Math.max(1, Math.round(denseDefaultRpm(exercise, denseSchemeBase(scheme))));
+  return Math.max(1, Math.round(denseCapRpm(exercise, raw)));
 }
 
 // Suggested hold seconds per round for an isometric, scaled by density (more rest = longer holds)
@@ -5016,7 +5101,7 @@ function denseFormTargetRepsPerSet(exercise, scheme, suggestion) {
   }
   const capacity = denseBestCapacity(exercise.id, "bodyweight_capacity");
   const multiplier = bodyweightMultipliers[denseSchemeBase(scheme)];
-  if (capacity && multiplier) return Math.max(1, Math.floor(capacity * multiplier));
+  if (capacity && multiplier) return Math.max(1, Math.round(denseCapRpm(exercise, Math.floor(capacity * multiplier))));
   return denseDefaultRepsPerSet(exercise, scheme);
 }
 
@@ -5293,7 +5378,7 @@ function denseProgressionSuggestion(exercise, readiness = "normal") {
   const currentTarget = Number(entry.target_reps_per_min || entry.reps_per_set || (minutes ? entry.total_reps / minutes : 0)) || denseDefaultRepsPerSet(exercise, scheme) || 1;
   const actualRpm = Number(entry.reps_per_min || (minutes ? entry.total_reps / minutes : 0)) || currentTarget;
   const delta = failed || effort === "fallo" ? Math.min(-1, Math.floor(actualRpm) - currentTarget) : step;
-  const repsPerSet = Math.max(1, Math.round(currentTarget + delta));
+  const repsPerSet = Math.max(1, Math.round(denseCapRpm(exercise, currentTarget + delta)));
   return {
     ...base,
     type: "reps",
@@ -6007,6 +6092,8 @@ function selectedExerciseLogRow(entry) {
 }
 
 function renderDenseEstimateCards(entry) {
+  const exercise = denseExerciseById(entry.exercise_id);
+  const perSide = Boolean(exercise?.repsPerSide);
   const estimate = state.denseEstimates?.[entry.exercise_id] || {};
   // Targets follow your best proven capacity, not the lagging smoothed estimate.
   const bestMetric = (key) =>
@@ -6058,12 +6145,12 @@ function renderDenseEstimateCards(entry) {
   return bodyweightSchemes
     .map((scheme) => {
       const minutes = denseSchemeMinutes(scheme);
-      const rpm = Math.floor(capacity * bodyweightMultipliers[scheme]);
+      const rpm = Math.max(1, Math.round(denseCapRpm(exercise, Math.floor(capacity * bodyweightMultipliers[scheme]))));
       return `
         <article class="dense-estimate-card">
           <span>${scheme}</span>
-          <strong>${rpm} rpm</strong>
-          <small>${rpm * minutes} reps totales</small>
+          <strong>${rpm} rpm${perSide ? "/lado" : ""}</strong>
+          <small>${rpm * minutes}${perSide ? " reps/lado" : " reps totales"}</small>
         </article>
       `;
     })
