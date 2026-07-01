@@ -536,6 +536,85 @@ button:active:not(:disabled),
   color: #b7fb48;
 }
 
+/* ── Floating minimal bottom nav (training-only) ─────────────────────────── */
+.training-only .training-mode-tabs {
+  position: fixed;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+  transform: translateX(-50%);
+  z-index: 60;
+  display: inline-flex;
+  justify-content: center;
+  gap: 4px;
+  width: auto;
+  max-width: calc(100vw - 32px);
+  overflow: visible;
+  padding: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: var(--radius-pill);
+  background: rgba(16, 17, 15, 0.62);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  backdrop-filter: blur(24px) saturate(1.4);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 12px 40px rgba(0, 0, 0, 0.5);
+}
+
+.training-only .training-mode-tab {
+  min-height: 46px;
+  min-width: 46px;
+  justify-content: center;
+  gap: 0;
+  padding: 0 13px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--muted);
+}
+
+.training-only .training-mode-tab i {
+  width: 21px;
+  height: 21px;
+  flex: 0 0 auto;
+}
+
+/* Icon-only by default; the active tab expands to reveal its label */
+.training-only .training-mode-tab span {
+  max-width: 0;
+  margin-left: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  opacity: 0;
+  font-size: 0.82rem;
+  font-weight: 850;
+  transition:
+    max-width var(--dur) var(--ease),
+    margin var(--dur) var(--ease),
+    opacity var(--dur) var(--ease);
+}
+
+.training-only .training-mode-tab.is-active {
+  border: 0;
+  background: rgba(168, 230, 53, 0.16);
+  color: var(--lime-soft);
+  padding: 0 17px;
+}
+
+.training-only .training-mode-tab.is-active span {
+  max-width: 120px;
+  margin-left: 8px;
+  opacity: 1;
+}
+
+.training-only .training-mode-tab.is-active i {
+  color: var(--lime-soft);
+}
+
+/* Clear space so the floating bar never covers content */
+.training-only .training-grid {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 88px);
+}
+
 .panel {
   position: relative;
   min-width: 0;
