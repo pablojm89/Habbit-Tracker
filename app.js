@@ -1654,14 +1654,37 @@ function renderDenseTraining() {
   updateDenseHoldEstimate(nodes.denseTrainingPanel.querySelector("#denseTrainingForm"));
 }
 
+function denseReadinessField(selected = "normal") {
+  return `
+    <fieldset class="readiness-field">
+      <legend>¿Cómo estás hoy?</legend>
+      <div class="readiness-grid">
+        ${denseReadinessLevels
+          .map(
+            ([value, label]) => `
+              <label class="readiness-option ${selected === value ? "is-selected" : ""}" data-readiness="${value}">
+                <input type="radio" name="readiness" value="${value}" ${selected === value ? "checked" : ""} />
+                <span>${escapeHtml(label)}</span>
+              </label>`,
+          )
+          .join("")}
+      </div>
+    </fieldset>
+  `;
+}
+
 function denseTrainingFormMarkup(defaults, { includePicker = false, modal = false, submitLabel = "Guardar marca Dense" } = {}) {
   const exercise = denseExerciseById(defaults.exerciseId);
   const allowedSchemes = denseAllowedSchemes(exercise);
+  const readiness = defaults.readiness || "normal";
+  const suggestion = denseProgressionSuggestion(exercise, readiness);
   return `
     <form id="denseTrainingForm" class="dense-training-form ${modal ? "is-modal-form" : ""}">
       ${includePicker ? denseExercisePicker(defaults) : ""}
       ${modal ? denseSetModalSummary(exercise, defaults) : ""}
       ${renderDenseFatigueWarning(exercise, defaults)}
+      ${denseReadinessField(readiness)}
+      ${suggestion ? `<div class="dense-recommendation-wrap" data-recommendation>${renderDenseProgressionSuggestion(exercise, suggestion)}</div>` : ""}
       <div class="dense-form-grid">
         ${field("Peso corporal kg", "bodyweightKg", defaults.bodyweightKg, "number")}
         <input type="hidden" name="exerciseId" value="${escapeAttr(defaults.exerciseId)}" />
@@ -2277,6 +2300,7 @@ function handleClick(event) {
 function handleChange(event) {
   if (event.target.matches("#importFile")) importJson(event.target.files?.[0]);
   if (event.target.matches("#denseTrainingForm input[name='scheme']")) updateDenseSchemeSelection(event.target);
+  if (event.target.matches("#denseTrainingForm input[name='readiness']")) updateDenseReadinessSelection(event.target);
   if (event.target.matches("[data-action-input='session-note']")) {
     const sessionId = event.target.dataset.session;
     const log = getSessionLog(sessionId);
@@ -3176,6 +3200,7 @@ function saveDenseTrainingForm(form) {
     bodyweight_source: state.bodyweightLogs?.[dateKey(selectedDate)] ? "daily_snapshot" : bodyweightKg ? "manual" : "default",
     effort: data.effort || "N",
     effort_value: denseEffortValues[data.effort] || 5,
+    readiness: data.readiness || "normal",
     failed,
     missed_reps: usesHold ? 0 : Math.max(0, targetTotalReps - totalReps),
     session_fatigue: existingEntry?.session_fatigue || "",
@@ -3782,16 +3807,19 @@ function denseEffortOption(value, label, currentValue, verbose = false) {
   `;
 }
 
-function updateDenseSchemeSelection(input) {
-  const form = input.closest("#denseTrainingForm");
+function denseFormReadiness(form) {
+  return form?.querySelector("input[name='readiness']:checked")?.value || "normal";
+}
+
+// Writes the deterministic per-scheme, readiness-aware targets into the form and
+// refreshes the recommendation card. Shared by scheme and readiness changes.
+function applyDenseFormTargets(form) {
   if (!form) return;
-  form.querySelectorAll(".scheme-option").forEach((option) => option.classList.toggle("is-selected", option.contains(input)));
   const exercise = denseExerciseById(form.querySelector("[name='exerciseId']")?.value);
   if (!exercise) return;
-  const scheme = input.value;
-  // Deterministic targets: toggling schemes and coming back must yield the same
-  // number (the suggested scheme restores the progression proposal).
-  const suggestion = denseProgressionSuggestion(exercise);
+  const scheme = form.querySelector("input[name='scheme']:checked")?.value || denseAllowedSchemes(exercise)[0];
+  const readiness = denseFormReadiness(form);
+  const suggestion = denseProgressionSuggestion(exercise, readiness);
   const repsPerSetInput = form.querySelector("[name='repsPerSet']");
   if (repsPerSetInput) repsPerSetInput.value = denseFormTargetRepsPerSet(exercise, scheme, suggestion) || "";
   const reps = repsPerSetInput ? denseTotalFromRepsPerSet(repsPerSetInput.value, scheme) : denseDefaultTotalReps(exercise, scheme);
@@ -3799,15 +3827,33 @@ function updateDenseSchemeSelection(input) {
   if (repsInput) repsInput.value = reps || "";
   const roundsInput = form.querySelector("[name='rounds']");
   if (roundsInput) {
-    roundsInput.value =
-      (suggestion && suggestion.scheme === scheme && suggestion.rounds) || denseSchemeMinutes(scheme) || "";
+    roundsInput.value = (suggestion && suggestion.scheme === scheme && suggestion.rounds) || denseSchemeMinutes(scheme) || "";
   }
   const holdInput = form.querySelector("[name='holdSecondsPerRound']");
   if (holdInput && denseIsIsometric(exercise)) {
     const suggested = denseFormTargetHoldPerRound(exercise, scheme, suggestion);
     if (suggested) holdInput.value = suggested;
   }
+  const rec = form.querySelector("[data-recommendation]");
+  if (rec && suggestion) {
+    rec.innerHTML = renderDenseProgressionSuggestion(exercise, suggestion);
+    if (window.lucide?.createIcons) window.lucide.createIcons({ nameAttr: "data-lucide" });
+  }
   updateDenseHoldEstimate(form);
+}
+
+function updateDenseSchemeSelection(input) {
+  const form = input.closest("#denseTrainingForm");
+  if (!form) return;
+  form.querySelectorAll(".scheme-option").forEach((option) => option.classList.toggle("is-selected", option.contains(input)));
+  applyDenseFormTargets(form);
+}
+
+function updateDenseReadinessSelection(input) {
+  const form = input.closest("#denseTrainingForm");
+  if (!form) return;
+  form.querySelectorAll(".readiness-option").forEach((option) => option.classList.toggle("is-selected", option.contains(input)));
+  applyDenseFormTargets(form);
 }
 
 function updateDenseTotalFromRepsPerSet(input) {
@@ -4878,8 +4924,19 @@ function denseFormTargetHoldPerRound(exercise, scheme, suggestion) {
 const denseHardEfforts = new Set(["H", "VH", "fallo"]);
 const denseGroupLabels = { push: "Empuje", pull: "Tirón", legs: "Tren inferior" };
 const denseEffortSpanish = { H: "difícil", VH: "muy difícil", fallo: "fallo" };
-// How much to back off, by worst effort seen: harder today -> lighter next.
-const denseSoftFactor = { H: 0.9, VH: 0.85, fallo: 0.8 };
+// Base back-off (fraction) by worst effort seen: harder -> lighter next.
+const denseEffortReduction = { H: 0.1, VH: 0.15, fallo: 0.2 };
+// Fatigue carries over a couple of days to guarantee rest. Weight fades with time.
+const denseFatigueLookbackDays = 2;
+const denseFatigueRecency = { 0: 1, 1: 0.6, 2: 0.35 };
+
+// Whole days from key `from` to key `to` (both "YYYY-MM-DD").
+function denseDaysBetween(from, to) {
+  const a = new Date(`${from}T00:00:00`);
+  const b = new Date(`${to}T00:00:00`);
+  if (Number.isNaN(a) || Number.isNaN(b)) return Infinity;
+  return Math.round((b - a) / 86400000);
+}
 
 // Coarse movement groups an exercise belongs to (push / pull / legs).
 function denseGroupKeys(exercise) {
@@ -4895,34 +4952,41 @@ function denseEntryEffortCode(entry) {
   return entry.failed ? "fallo" : entry.effort || "";
 }
 
-// Returns a warning descriptor when today already holds a hard/failure set in a
-// group this exercise shares. `null` when there is nothing to warn about.
+// Returns a warning descriptor when a hard/failure set in a shared group happened
+// today or in the previous couple of days (fatigue carry-over). `null` otherwise.
 function denseGroupFatigueWarning(exercise, dayKey = dateKey(selectedDate)) {
   if (!exercise) return null;
   const groups = denseGroupKeys(exercise);
   if (!groups.length) return null;
   const draftId = state.settings.denseDraftEntryId;
-  const offenders = getDenseEntries().filter((entry) => {
-    if (entry.date !== dayKey) return false;
-    if (draftId && entry.id === draftId) return false;
-    if (!denseHardEfforts.has(denseEntryEffortCode(entry))) return false;
-    const other = denseGroupKeys(denseExerciseById(entry.exercise_id));
-    return other.some((g) => groups.includes(g));
-  });
+  const offenders = getDenseEntries()
+    .map((entry) => ({ entry, daysAgo: denseDaysBetween(entry.date, dayKey) }))
+    .filter(({ entry, daysAgo }) => {
+      if (daysAgo < 0 || daysAgo > denseFatigueLookbackDays) return false;
+      if (draftId && entry.id === draftId) return false;
+      if (!denseHardEfforts.has(denseEntryEffortCode(entry))) return false;
+      const other = denseGroupKeys(denseExerciseById(entry.exercise_id));
+      return other.some((g) => groups.includes(g));
+    });
   if (!offenders.length) return null;
-  const severityRank = { H: 1, VH: 2, fallo: 3 };
-  const worst = offenders
-    .slice()
-    .sort((a, b) => severityRank[denseEntryEffortCode(b)] - severityRank[denseEntryEffortCode(a)])[0];
-  const worstEffort = denseEntryEffortCode(worst);
-  const hitGroups = [...new Set(offenders.flatMap((entry) => denseGroupKeys(denseExerciseById(entry.exercise_id))).filter((g) => groups.includes(g)))];
+  // Recency-weighted severity: a failure today limits more than one two days ago.
+  const scored = offenders.map((o) => ({
+    ...o,
+    reduction: (denseEffortReduction[denseEntryEffortCode(o.entry)] || 0) * (denseFatigueRecency[o.daysAgo] || 0),
+  }));
+  const worst = scored.slice().sort((a, b) => b.reduction - a.reduction)[0];
+  const reduction = Math.round(worst.reduction * 100) / 100;
+  const worstEffort = denseEntryEffortCode(worst.entry);
+  const hitGroups = [...new Set(offenders.flatMap(({ entry }) => denseGroupKeys(denseExerciseById(entry.exercise_id))).filter((g) => groups.includes(g)))];
   return {
     groups: hitGroups,
     groupLabel: hitGroups.map((g) => denseGroupLabels[g] || g).join(" · "),
-    offenders,
-    worst,
+    offenders: offenders.map((o) => o.entry),
+    worst: worst.entry,
     worstEffort,
-    factor: denseSoftFactor[worstEffort] || 0.9,
+    daysAgo: worst.daysAgo,
+    reduction,
+    factor: Math.max(0.5, 1 - reduction),
   };
 }
 
@@ -4950,13 +5014,24 @@ function denseSoftTarget(exercise, defaults, warning) {
   return { kind: "reps", value, total: denseTotalFromRepsPerSet(value, scheme), pct, label: `${scheme}${value} (${denseTotalFromRepsPerSet(value, scheme)} reps)` };
 }
 
+function denseFatigueWhen(daysAgo) {
+  if (daysAgo <= 0) return "hoy";
+  if (daysAgo === 1) return "ayer";
+  return `hace ${daysAgo} días`;
+}
+
 function renderDenseFatigueWarning(exercise, defaults) {
   const warning = denseGroupFatigueWarning(exercise);
   if (!warning) return "";
-  const soft = denseSoftTarget(exercise, defaults, warning);
+  const showSoft = warning.reduction >= 0.05;
+  const soft = showSoft ? denseSoftTarget(exercise, defaults, warning) : null;
   const offenderNames = [...new Set(warning.offenders.map((entry) => entry.exercise_name || denseExerciseById(entry.exercise_id)?.name).filter(Boolean))];
   const namePart = offenderNames.slice(0, 2).join(", ") + (offenderNames.length > 2 ? "…" : "");
   const effortWord = denseEffortSpanish[warning.worstEffort] || warning.worstEffort;
+  const whenWord = denseFatigueWhen(warning.daysAgo);
+  const advice = soft
+    ? "En dense conviene no acumular fallo: baja reps o intensidad y mantente 1-2 lejos del límite."
+    : "Aún dentro de la ventana de recuperación: ve conservador y para lejos del fallo.";
   const softLine = soft
     ? `<div class="dense-fatigue-soft"><span>Objetivo suave (−${soft.pct}%)</span><strong>${escapeHtml(soft.label)}</strong>${
         soft.kind === "load"
@@ -4968,8 +5043,8 @@ function renderDenseFatigueWarning(exercise, defaults) {
     <div class="dense-fatigue-warning" role="status">
       <span class="tiny-icon"><i data-lucide="alert-triangle"></i></span>
       <div class="dense-fatigue-body">
-        <strong>Autorregula · ${escapeHtml(warning.groupLabel)} ya fue ${escapeHtml(effortWord)} hoy</strong>
-        <span>Hoy ya cargaste ${escapeHtml(namePart)} a ${escapeHtml(effortWord)}. En dense conviene no acumular fallo: baja reps o intensidad y mantente 1-2 lejos del límite.</span>
+        <strong>Autorregula · ${escapeHtml(warning.groupLabel)} cargado ${escapeHtml(whenWord)}</strong>
+        <span>${escapeHtml(namePart)} fue ${escapeHtml(effortWord)} ${escapeHtml(whenWord)}. ${escapeHtml(advice)}</span>
         ${softLine}
       </div>
     </div>
@@ -5000,24 +5075,76 @@ function applySoftTarget(button) {
   if (window.lucide?.createIcons) window.lucide.createIcons({ nameAttr: "data-lucide" });
 }
 
-function denseProgressionSuggestion(exercise) {
+// Conservative progression policy.
+// Base step from last effort (before day-of readiness):
+//   fallo/failed -> down (always)   VH/H -> down   N -> hold   E -> +1   VE -> +2
+// Readiness ("¿cómo estás hoy?") nudges the recommendation:
+//   high (fuerte) +1 step, low (flojo) -1 step. fallo always stays down; a hard
+//   session with high readiness caps at "maintain" rather than climbing.
+const denseReadinessLevels = [
+  ["low", "Flojo"],
+  ["normal", "Normal"],
+  ["high", "Fuerte"],
+];
+
+function denseBaseProgressStep(effort, failed) {
+  if (failed || effort === "fallo") return -1;
+  if (effort === "VE") return 2;
+  if (effort === "E") return 1;
+  if (effort === "H" || effort === "VH") return -1;
+  return 0; // Normal -> hold by default
+}
+
+function denseAppliedProgressStep(effort, failed, readiness) {
+  if (failed || effort === "fallo") return -1; // failure always steps down
+  let step = denseBaseProgressStep(effort, failed);
+  if (readiness === "high") step += 1;
+  else if (readiness === "low") step -= 1;
+  // A hard/very-hard session, even feeling strong, only holds — never climbs.
+  if ((effort === "H" || effort === "VH") && step > 0) step = 0;
+  // Easy / very-easy always means progress: never drop below a one-step bump.
+  if ((effort === "E" || effort === "VE") && step < 1) step = 1;
+  return step;
+}
+
+function denseStepDirection(step, failed, effort) {
+  if (failed || effort === "fallo") return "down";
+  if (step > 0) return "up";
+  if (step < 0) return "down";
+  return "hold";
+}
+
+function denseDirectionTone(direction, failed, effort) {
+  if (failed || effort === "fallo") return "danger";
+  if (direction === "up") return "green";
+  if (direction === "down") return "amber";
+  return "neutral";
+}
+
+function denseProgressionSuggestion(exercise, readiness = "normal") {
   const entry = latestDenseEntryForExercise(exercise.id);
   if (!entry) return null;
   const scheme = denseAllowedSchemes(exercise).includes(entry.scheme) ? entry.scheme : denseAllowedSchemes(exercise)[0];
   const minutes = denseSchemeMinutes(scheme) || entry.duration_minutes || 0;
   const effort = entry.effort || "N";
-  const completed = !entry.failed && (!entry.target_total_reps || Number(entry.total_reps || 0) >= Number(entry.target_total_reps || 0));
+  const failed = Boolean(entry.failed);
+  const step = denseAppliedProgressStep(effort, failed, readiness);
+  const direction = denseStepDirection(step, failed, effort);
   const base = {
     entry,
     scheme,
     rounds: entry.rounds || minutes || "",
     effort,
-    tone: entry.failed || effort === "fallo" ? "danger" : effort === "VE" || effort === "E" ? "green" : effort === "H" || effort === "VH" ? "amber" : "neutral",
+    readiness,
+    step,
+    direction,
+    tone: denseDirectionTone(direction, failed, effort),
   };
 
   if (entry.hold_seconds_per_round || entry.total_hold_seconds) {
     const currentHold = Number(entry.hold_seconds_per_round || (minutes ? entry.total_hold_seconds / minutes : 0)) || 0;
-    const delta = effort === "VE" ? 5 : effort === "E" ? 3 : effort === "N" && completed ? 2 : entry.failed || effort === "fallo" ? -3 : 0;
+    const secondsPerStep = 3;
+    const delta = failed || effort === "fallo" ? -3 : step * secondsPerStep;
     const holdSecondsPerRound = Math.max(1, Math.round(currentHold + delta));
     return {
       ...base,
@@ -5025,15 +5152,16 @@ function denseProgressionSuggestion(exercise) {
       holdSecondsPerRound,
       totalHoldSeconds: holdSecondsPerRound * (base.rounds || minutes || 1),
       title: `${scheme} · ${holdSecondsPerRound}s hold/ronda`,
-      reason: denseProgressionReason(entry, holdSecondsPerRound > currentHold ? "up" : holdSecondsPerRound < currentHold ? "down" : "hold"),
+      reason: denseProgressionReason(entry, direction, readiness),
     };
   }
 
   if (exercise.nature === "weighted" || exercise.nature === "weighted_calisthenics") {
     const loadKey = exercise.loadPattern === "dumbbell_pair" ? "weight_per_dumbbell_kg" : exercise.nature === "weighted_calisthenics" ? "added_load_kg" : "external_load_kg";
     const currentLoad = Number(entry[loadKey] || entry.external_load_kg || entry.added_load_kg || entry.weight_per_dumbbell_kg || 0);
-    const factor = entry.failed || effort === "fallo" ? 0.95 : effort === "VE" ? 1.05 : effort === "E" ? 1.025 : effort === "N" && completed ? 1.015 : 1;
-    const nextLoad = denseRoundLoad(currentLoad * factor);
+    const pctPerStep = 0.025;
+    const factor = failed || effort === "fallo" ? 0.95 : 1 + step * pctPerStep;
+    const nextLoad = denseRoundLoad(currentLoad * factor) || currentLoad;
     return {
       ...base,
       type: "load",
@@ -5043,13 +5171,13 @@ function denseProgressionSuggestion(exercise) {
       addedLoadKg: loadKey === "added_load_kg" ? nextLoad : entry.added_load_kg || "",
       weightPerDumbbellKg: loadKey === "weight_per_dumbbell_kg" ? nextLoad : entry.weight_per_dumbbell_kg || "",
       title: `${scheme} · ${loadKey === "added_load_kg" ? "+" : ""}${formatKg(nextLoad)}`,
-      reason: denseProgressionReason(entry, nextLoad > currentLoad ? "up" : nextLoad < currentLoad ? "down" : "hold"),
+      reason: denseProgressionReason(entry, direction, readiness),
     };
   }
 
   const currentTarget = Number(entry.target_reps_per_min || entry.reps_per_set || (minutes ? entry.total_reps / minutes : 0)) || denseDefaultRepsPerSet(exercise, scheme) || 1;
   const actualRpm = Number(entry.reps_per_min || (minutes ? entry.total_reps / minutes : 0)) || currentTarget;
-  const delta = entry.failed || effort === "fallo" ? Math.min(-1, Math.floor(actualRpm) - currentTarget) : effort === "VE" ? 2 : effort === "E" ? 1 : effort === "N" && completed ? 1 : 0;
+  const delta = failed || effort === "fallo" ? Math.min(-1, Math.floor(actualRpm) - currentTarget) : step;
   const repsPerSet = Math.max(1, Math.round(currentTarget + delta));
   return {
     ...base,
@@ -5057,7 +5185,7 @@ function denseProgressionSuggestion(exercise) {
     repsPerSet,
     totalReps: denseTotalFromRepsPerSet(repsPerSet, scheme),
     title: `${scheme}${repsPerSet} · ${denseTotalFromRepsPerSet(repsPerSet, scheme)} reps`,
-    reason: denseProgressionReason(entry, repsPerSet > currentTarget ? "up" : repsPerSet < currentTarget ? "down" : "hold"),
+    reason: denseProgressionReason(entry, direction, readiness),
   };
 }
 
@@ -5066,13 +5194,22 @@ function denseRoundLoad(value) {
   return Math.round(value * 2) / 2;
 }
 
-function denseProgressionReason(entry, direction) {
-  if (entry.failed || entry.effort === "fallo") return "Fallaste o no llegaste: ajusto el objetivo al resultado real para reconstruir.";
-  if (entry.effort === "VE") return direction === "up" ? "Lo marcaste muy fácil: subo el objetivo para provocar adaptación." : "Muy fácil, pero sin margen claro de carga.";
-  if (entry.effort === "E") return direction === "up" ? "Lo marcaste fácil: progreso suave para la próxima exposición." : "Fácil, pero mantengo por prudencia.";
-  if (entry.effort === "H" || entry.effort === "VH") return "Fue duro: mantengo el objetivo para consolidarlo.";
-  if (direction === "up") return "Completado normal: subo un paso pequeño.";
-  return "Mantengo el objetivo hasta tener otra señal.";
+function denseProgressionReason(entry, direction, readiness = "normal") {
+  const failed = entry.failed || entry.effort === "fallo";
+  if (failed) return "Fallaste o no llegaste: bajo el objetivo para reconstruir sin volver a grindear.";
+  const effort = entry.effort || "N";
+  const strong = readiness === "high";
+  const weak = readiness === "low";
+  if (effort === "VE") return direction === "up" ? "Muy fácil: subo con claridad para provocar adaptación." : "Muy fácil, pero hoy vienes flojo: subo lo justo.";
+  if (effort === "E") return direction === "up" ? "Fácil: toca subir un paso." : "Fácil, pero hoy flojo: mantengo por prudencia.";
+  if (effort === "H" || effort === "VH") {
+    if (direction === "hold") return "Fue duro y hoy vienes fuerte: mantengo, no subo tras una sesión exigente.";
+    return "Fue duro: bajo un paso para no acumular fatiga.";
+  }
+  // Normal
+  if (strong && direction === "up") return "Normal, pero hoy vienes fuerte: pruebo a subir un paso.";
+  if (weak && direction === "down") return "Normal y hoy flojo: bajo un punto para asegurar calidad.";
+  return "Normal: mantengo el objetivo. Marca “Fuerte” si te ves para subir.";
 }
 
 function denseUsesRepsPerSet(exercise) {
@@ -5476,6 +5613,7 @@ function denseFormDefaults() {
       externalLoadKg: draftEntry.external_load_kg || "",
       addedLoadKg: draftEntry.added_load_kg || "",
       weightPerDumbbellKg: draftEntry.weight_per_dumbbell_kg || "",
+      readiness: draftEntry.readiness || "normal",
       notes: draftEntry.notes || "",
     };
   }
@@ -5502,6 +5640,7 @@ function denseFormDefaults() {
     externalLoadKg: suggestion?.externalLoadKg || "",
     addedLoadKg: suggestion?.addedLoadKg || "",
     weightPerDumbbellKg: suggestion?.weightPerDumbbellKg || "",
+    readiness: "normal",
     notes: "",
   };
 }
@@ -5710,12 +5849,14 @@ function renderDenseProgressionSuggestion(exercise, suggestion = denseProgressio
       </article>
     `;
   }
+  const dirIcon = suggestion.direction === "up" ? "arrow-up" : suggestion.direction === "down" ? "arrow-down" : "move-right";
+  const dirLabel = suggestion.direction === "up" ? "Subir" : suggestion.direction === "down" ? "Bajar" : "Mantener";
   return `
     <article class="dense-progression-card is-${escapeAttr(suggestion.tone)}" style="--item-color:${denseCategoryColor(exercise.category)}">
-      <span class="tiny-icon"><i data-lucide="${suggestion.tone === "danger" ? "arrow-down" : suggestion.tone === "green" ? "arrow-up" : "move-right"}"></i></span>
+      <span class="tiny-icon"><i data-lucide="${dirIcon}"></i></span>
       <div>
         <div class="dense-progression-title">
-          <strong>Siguiente objetivo</strong>
+          <strong>${escapeHtml(dirLabel)}</strong>
           <em>${escapeHtml(suggestion.title)}</em>
         </div>
         <span>${escapeHtml(suggestion.reason)}</span>
