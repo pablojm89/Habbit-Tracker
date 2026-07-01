@@ -2311,6 +2311,14 @@ button:active:not(:disabled),
   white-space: nowrap;
 }
 
+/* Tag chips must stay centered flex rows (icon + label) despite the blanket
+   card-span rule above, which otherwise forces them to display:block and
+   knocks the trophy/icon off-center. */
+.today-workout-card .mini-tag {
+  display: inline-flex;
+  overflow: visible;
+}
+
 .today-workout-card strong,
 .today-workout-empty strong,
 .selected-exercise-panel strong {
