@@ -2140,6 +2140,95 @@ button:active:not(:disabled),
     #141414;
 }
 
+/* Same-day fatigue autoregulation warning */
+.dense-fatigue-warning {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 11px;
+  align-items: start;
+  margin-bottom: 14px;
+  padding: 12px 13px;
+  border: 1px solid rgba(228, 175, 84, 0.5);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(135deg, rgba(228, 175, 84, 0.16), transparent 62%),
+    rgba(228, 175, 84, 0.05);
+  animation: sheet-in var(--dur) var(--ease-out) both;
+}
+
+.dense-fatigue-warning .tiny-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: rgba(228, 175, 84, 0.18);
+  color: var(--amber);
+}
+
+.dense-fatigue-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dense-fatigue-body strong {
+  font-size: 0.86rem;
+  font-weight: 850;
+  color: color-mix(in srgb, var(--amber), var(--text) 45%);
+}
+
+.dense-fatigue-body span {
+  font-size: 0.76rem;
+  font-weight: 640;
+  line-height: 1.35;
+  color: var(--muted);
+}
+
+.dense-fatigue-soft {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--hairline);
+}
+
+.dense-fatigue-soft > span {
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.dense-fatigue-soft > strong {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.dense-fatigue-soft .text-button {
+  margin-left: auto;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 9px;
+  border-color: rgba(168, 230, 53, 0.55);
+  background: rgba(168, 230, 53, 0.14);
+  color: var(--lime-soft);
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.dense-fatigue-soft .text-button.is-applied {
+  border-color: var(--line);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+}
+
 .dense-progression-card.is-green {
   border-color: rgba(168, 230, 53, 0.52);
 }

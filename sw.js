@@ -1,9 +1,9 @@
-const CACHE_NAME = "bittracker-mobile-20260628-redesign-42";
+const CACHE_NAME = "bittracker-mobile-20260628-redesign-44";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=20260628-redesign-42",
-  "./app.js?v=20260628-redesign-42",
+  "./styles.css?v=20260628-redesign-44",
+  "./app.js?v=20260628-redesign-44",
   "./manifest.webmanifest?v=20260627-mobile-01",
   "./icon.svg"
 ];

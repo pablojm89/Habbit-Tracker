@@ -1661,6 +1661,7 @@ function denseTrainingFormMarkup(defaults, { includePicker = false, modal = fals
     <form id="denseTrainingForm" class="dense-training-form ${modal ? "is-modal-form" : ""}">
       ${includePicker ? denseExercisePicker(defaults) : ""}
       ${modal ? denseSetModalSummary(exercise, defaults) : ""}
+      ${renderDenseFatigueWarning(exercise, defaults)}
       <div class="dense-form-grid">
         ${field("Peso corporal kg", "bodyweightKg", defaults.bodyweightKg, "number")}
         <input type="hidden" name="exerciseId" value="${escapeAttr(defaults.exerciseId)}" />
@@ -2248,6 +2249,7 @@ function handleClick(event) {
   if (action === "quick-timer-reset") resetQuickTimer();
   if (action === "quick-timer-metronome") toggleQuickTimerMetronome();
   if (action === "apply-timer-hold") applyTimerHoldToDenseForm();
+  if (action === "apply-soft-target") applySoftTarget(target);
   if (action === "select-week") selectWeek(target.dataset.week);
   if (action === "select-session") selectSession(target.dataset.session);
   if (action === "toggle-exercise") toggleExercise(target.dataset.session, target.dataset.exercise);
@@ -4866,6 +4868,136 @@ function denseFormTargetHoldPerRound(exercise, scheme, suggestion) {
   const multiplier = bodyweightMultipliers[denseSchemeBase(scheme)];
   if (capacity && multiplier) return Math.max(1, Math.floor(capacity * multiplier));
   return denseDefaultHoldPerRound(exercise, scheme);
+}
+
+// ── Same-day autoregulation ──────────────────────────────────────────────
+// Dense training avoids piling up failure/very-hard work. If a movement group
+// (push / pull / lower body) was already hammered today, later exercises of the
+// same group get a "back off" warning with a softer suggested target.
+
+const denseHardEfforts = new Set(["H", "VH", "fallo"]);
+const denseGroupLabels = { push: "Empuje", pull: "Tirón", legs: "Tren inferior" };
+const denseEffortSpanish = { H: "difícil", VH: "muy difícil", fallo: "fallo" };
+// How much to back off, by worst effort seen: harder today -> lighter next.
+const denseSoftFactor = { H: 0.9, VH: 0.85, fallo: 0.8 };
+
+// Coarse movement groups an exercise belongs to (push / pull / legs).
+function denseGroupKeys(exercise) {
+  const patterns = densePatternProfile(exercise);
+  const groups = [];
+  if (["push", "vertical_push", "horizontal_push"].some((p) => patterns.includes(p))) groups.push("push");
+  if (["pull", "vertical_pull", "horizontal_pull"].some((p) => patterns.includes(p))) groups.push("pull");
+  if (["legs", "squat", "hinge", "unilateral_leg"].some((p) => patterns.includes(p))) groups.push("legs");
+  return groups;
+}
+
+function denseEntryEffortCode(entry) {
+  return entry.failed ? "fallo" : entry.effort || "";
+}
+
+// Returns a warning descriptor when today already holds a hard/failure set in a
+// group this exercise shares. `null` when there is nothing to warn about.
+function denseGroupFatigueWarning(exercise, dayKey = dateKey(selectedDate)) {
+  if (!exercise) return null;
+  const groups = denseGroupKeys(exercise);
+  if (!groups.length) return null;
+  const draftId = state.settings.denseDraftEntryId;
+  const offenders = getDenseEntries().filter((entry) => {
+    if (entry.date !== dayKey) return false;
+    if (draftId && entry.id === draftId) return false;
+    if (!denseHardEfforts.has(denseEntryEffortCode(entry))) return false;
+    const other = denseGroupKeys(denseExerciseById(entry.exercise_id));
+    return other.some((g) => groups.includes(g));
+  });
+  if (!offenders.length) return null;
+  const severityRank = { H: 1, VH: 2, fallo: 3 };
+  const worst = offenders
+    .slice()
+    .sort((a, b) => severityRank[denseEntryEffortCode(b)] - severityRank[denseEntryEffortCode(a)])[0];
+  const worstEffort = denseEntryEffortCode(worst);
+  const hitGroups = [...new Set(offenders.flatMap((entry) => denseGroupKeys(denseExerciseById(entry.exercise_id))).filter((g) => groups.includes(g)))];
+  return {
+    groups: hitGroups,
+    groupLabel: hitGroups.map((g) => denseGroupLabels[g] || g).join(" · "),
+    offenders,
+    worst,
+    worstEffort,
+    factor: denseSoftFactor[worstEffort] || 0.9,
+  };
+}
+
+// Build the "soft target" numbers (reps / hold / load) from the current form
+// defaults and the back-off factor.
+function denseSoftTarget(exercise, defaults, warning) {
+  const factor = warning?.factor || 0.9;
+  const scheme = defaults.scheme;
+  const pct = Math.round((1 - factor) * 100);
+  if (exercise.nature === "weighted" || exercise.nature === "weighted_calisthenics") {
+    const key = exercise.loadPattern === "dumbbell_pair" ? "weightPerDumbbellKg" : exercise.nature === "weighted_calisthenics" ? "addedLoadKg" : "externalLoadKg";
+    const current = Number(defaults[key] || 0);
+    if (!current) return null;
+    return { kind: "load", key, value: denseRoundLoad(current * factor), pct, label: `${formatKg(denseRoundLoad(current * factor))}${key === "addedLoadKg" ? " lastre" : ""}` };
+  }
+  if (denseIsIsometric(exercise)) {
+    const current = Number(defaults.holdSecondsPerRound || 0);
+    if (!current) return null;
+    const value = Math.max(1, Math.floor(current * factor));
+    return { kind: "hold", value, pct, label: `${scheme} · ${value}s hold/ronda` };
+  }
+  const current = Number(defaults.repsPerSet || 0);
+  if (!current) return null;
+  const value = Math.max(1, Math.floor(current * factor));
+  return { kind: "reps", value, total: denseTotalFromRepsPerSet(value, scheme), pct, label: `${scheme}${value} (${denseTotalFromRepsPerSet(value, scheme)} reps)` };
+}
+
+function renderDenseFatigueWarning(exercise, defaults) {
+  const warning = denseGroupFatigueWarning(exercise);
+  if (!warning) return "";
+  const soft = denseSoftTarget(exercise, defaults, warning);
+  const offenderNames = [...new Set(warning.offenders.map((entry) => entry.exercise_name || denseExerciseById(entry.exercise_id)?.name).filter(Boolean))];
+  const namePart = offenderNames.slice(0, 2).join(", ") + (offenderNames.length > 2 ? "…" : "");
+  const effortWord = denseEffortSpanish[warning.worstEffort] || warning.worstEffort;
+  const softLine = soft
+    ? `<div class="dense-fatigue-soft"><span>Objetivo suave (−${soft.pct}%)</span><strong>${escapeHtml(soft.label)}</strong>${
+        soft.kind === "load"
+          ? `<button class="text-button" type="button" data-action="apply-soft-target" data-kind="load" data-key="${escapeAttr(soft.key)}" data-value="${escapeAttr(soft.value)}"><i data-lucide="check"></i>Aplicar</button>`
+          : `<button class="text-button" type="button" data-action="apply-soft-target" data-kind="${escapeAttr(soft.kind)}" data-value="${escapeAttr(soft.value)}"><i data-lucide="check"></i>Aplicar</button>`
+      }</div>`
+    : "";
+  return `
+    <div class="dense-fatigue-warning" role="status">
+      <span class="tiny-icon"><i data-lucide="alert-triangle"></i></span>
+      <div class="dense-fatigue-body">
+        <strong>Autorregula · ${escapeHtml(warning.groupLabel)} ya fue ${escapeHtml(effortWord)} hoy</strong>
+        <span>Hoy ya cargaste ${escapeHtml(namePart)} a ${escapeHtml(effortWord)}. En dense conviene no acumular fallo: baja reps o intensidad y mantente 1-2 lejos del límite.</span>
+        ${softLine}
+      </div>
+    </div>
+  `;
+}
+
+// Apply the soft (backed-off) target from the fatigue warning into the form.
+function applySoftTarget(button) {
+  const form = button.closest("#denseTrainingForm");
+  if (!form) return;
+  const { kind, key, value } = button.dataset;
+  if (kind === "load") {
+    const input = form.querySelector(`[name='${key}']`);
+    if (input) input.value = value;
+  } else if (kind === "hold") {
+    const input = form.querySelector("[name='holdSecondsPerRound']");
+    if (input) input.value = value;
+    updateDenseHoldEstimate(form);
+  } else {
+    const repsPerSetInput = form.querySelector("[name='repsPerSet']");
+    if (repsPerSetInput) {
+      repsPerSetInput.value = value;
+      updateDenseTotalFromRepsPerSet(repsPerSetInput);
+    }
+  }
+  button.classList.add("is-applied");
+  button.innerHTML = '<i data-lucide="check"></i>Aplicado';
+  if (window.lucide?.createIcons) window.lucide.createIcons({ nameAttr: "data-lucide" });
 }
 
 function denseProgressionSuggestion(exercise) {
