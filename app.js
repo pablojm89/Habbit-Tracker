@@ -4978,7 +4978,9 @@ function denseEquivalentSets(entry) {
 }
 
 function densePatternProfile(exercise) {
-  const patterns = new Set([exercise?.category].filter(Boolean));
+  // Canonical movement patterns only — do NOT seed with the raw category, which
+  // duplicated "skills"/"skill" and leaked unlabeled "core"/"other" rows.
+  const patterns = new Set();
   const family = exercise?.family || "";
   const id = exercise?.id || "";
 
@@ -4999,7 +5001,8 @@ function densePatternProfile(exercise) {
   if (family === "hinge_bodyweight" || id.includes("good_morning")) patterns.add("hinge");
   if (exercise?.category === "legs") patterns.add("legs");
   if (exercise?.category === "mobility" || family === "mobility_strength") patterns.add("mobility");
-  if (exercise?.category === "skills" || family === "hspu" || family.includes("lever")) patterns.add("skill");
+  if (exercise?.category === "skills" || family === "hspu" || family.includes("lever")) patterns.add("skills");
+  if (exercise?.category === "core") patterns.add("core");
 
   return [...patterns].filter(Boolean);
 }
@@ -5259,7 +5262,7 @@ function patternLabel(pattern) {
       squat: "Squat",
       hinge: "Hinge",
       unilateral_leg: "Pierna unilateral",
-      skill: "Skill",
+      core: "Core",
     }[pattern] || pattern
   );
 }
