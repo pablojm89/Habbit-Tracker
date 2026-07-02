@@ -191,6 +191,19 @@ function denseRepsForPct(base, pct) {
 }
 
 const bodyweightSchemes = ["2D", "5D", "10D", "20D"];
+
+// ── Phase 5: calibration kit ─────────────────────────────────────────────
+// Six anchor tests that unlock ~80% of the transfer engine. Each anchors a
+// pattern latent and pins sigma low on its exercise.
+const denseCalibrationKit = [
+  { id: "pull_up", scheme: "5D", why: "ancla tirón vertical + eje reps" },
+  { id: "weighted_pull_up", scheme: "2D5", why: "tu curva carga↔reps de tirón" },
+  { id: "ring_row", scheme: "5D", why: "ancla tirón horizontal" },
+  { id: "ring_push_up", scheme: "5D", why: "ancla empuje horizontal" },
+  { id: "pike_push_up", scheme: "5D", why: "ancla empuje vertical" },
+  { id: "pistol_squat", scheme: "10D", why: "ancla pierna / unilateral" },
+];
+
 const weightedSchemes = Object.keys(denseWorkingPct);
 const allDenseSchemes = [...bodyweightSchemes, ...weightedSchemes];
 
@@ -3204,6 +3217,46 @@ function renderConsistencyAnalytics(entries) {
   `;
 }
 
+function renderCalibrationCard() {
+  const rows = denseCalibrationKit.map((test) => {
+    const exercise = denseExerciseById(test.id);
+    const last = [...getDenseEntries()]
+      .filter((entry) => entry.exercise_id === test.id)
+      .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")))[0];
+    const days = last ? Math.round((today.getTime() - parseDate(last.date).getTime()) / 86400000) : null;
+    const status = !last ? "pending" : days <= 28 ? "fresh" : "stale";
+    return { test, exercise, last, days, status };
+  });
+  const done = rows.filter((row) => row.status === "fresh").length;
+  return `
+    <article class="calibration-card">
+      <div class="calibration-head">
+        <div>
+          <strong>Calibración del motor</strong>
+          <small>${done}/6 anclas frescas — cada test fija un patrón y afina las transferencias</small>
+        </div>
+        <div class="dc-progress"><i style="width:${(done / 6) * 100}%"></i></div>
+      </div>
+      ${rows
+        .map(({ test, exercise, days, status }) => `
+          <div class="calibration-row">
+            <div class="calibration-row-main">
+              <strong>${escapeHtml(exercise?.name || test.id)} <small>${escapeHtml(test.scheme)}</small></strong>
+              <span>${escapeHtml(test.why)}</span>
+            </div>
+            ${
+              status === "fresh"
+                ? `<span class="dc-badge is-good">anclado · ${days}d</span>`
+                : status === "stale"
+                  ? `<button class="dc-badge is-warn calibration-add" type="button" data-action="add-planned-exercise" data-exercise="${escapeAttr(test.id)}">re-test (${days}d)</button>`
+                  : `<button class="dc-badge calibration-add" type="button" data-action="add-planned-exercise" data-exercise="${escapeAttr(test.id)}">+ programar</button>`
+            }
+          </div>`)
+        .join("")}
+    </article>
+  `;
+}
+
 function renderDensePrs() {
   if (!nodes.densePrPanel) return;
   const entries = [...getDenseEntries()];
@@ -3220,6 +3273,7 @@ function renderDensePrs() {
       </div>
       <span class="mini-tag ${entries.length ? "is-green" : "is-amber"}">${entries.length ? `${entries.length} marks` : "esperando datos"}</span>
     </div>
+    ${renderCalibrationCard()}
     <div class="dense-pr-layout">
       <div class="dense-pr-table">
         <div class="table-head dense-pr-row">
