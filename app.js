@@ -136,6 +136,14 @@ const denseWorkingPct = {
   "20D20": 0.294,
 };
 
+const dcCnsZones = [
+  { max: 20, color: "#5fd1e8", label: "Easy 0–20" },
+  { max: 40, color: "#57c6a1", label: "Light 20–40" },
+  { max: 60, color: "#93e84b", label: "Moderate 40–60" },
+  { max: 80, color: "#e9b84e", label: "Hard 60–80" },
+  { max: 101, color: "#ff7c9e", label: "Spike 80–100" },
+];
+
 const bodyweightSchemes = ["2D", "5D", "10D", "20D"];
 const weightedSchemes = Object.keys(denseWorkingPct);
 const allDenseSchemes = [...bodyweightSchemes, ...weightedSchemes];
@@ -3604,7 +3612,6 @@ function openWorkoutExercisePickerModal() {
   nodes.modalTitle.textContent = "Elegir ejercicio";
   nodes.modalBody.innerHTML = `
     <div class="workout-exercise-picker-modal">
-      <p class="tiny-copy">Añade un ejercicio al día. Luego aparecerá como tarjeta programada para rellenarlo cuando entrenes.</p>
       ${workoutExercisePickerMarkup()}
     </div>
   `;
@@ -3650,23 +3657,25 @@ function workoutExercisePickerMarkup() {
   return `
     <section class="dense-exercise-picker is-workout-picker">
       <div class="exercise-picker-controls">
-        <label class="field">
-          <span>Grupo</span>
-          <select data-action-input="dense-exercise-category">
-            ${denseExerciseCategories.map(([value, label]) => `<option value="${value}" ${category === value ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}
-          </select>
-        </label>
         <label class="field exercise-search-field">
           <span>Buscar</span>
+          <i data-lucide="search" class="exercise-search-icon" aria-hidden="true"></i>
           <input data-action-input="dense-exercise-search" type="search" value="${escapeAttr(search)}" placeholder="front lever, dominadas, hspu..." />
         </label>
         <label class="field">
+          <span>Grupo</span>
+          <select data-action-input="dense-exercise-category" aria-label="Grupo">
+            ${denseExerciseCategories.map(([value, label]) => `<option value="${value}" ${category === value ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}
+          </select>
+        </label>
+        <label class="field">
           <span>Orden</span>
-          <select data-action-input="dense-exercise-sort">
+          <select data-action-input="dense-exercise-sort" aria-label="Orden">
             ${denseExerciseSortOptions.map(([value, label]) => `<option value="${value}" ${sort === value ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}
           </select>
         </label>
       </div>
+      <div class="picker-meta"><span>${exercises.length} ejercicio${exercises.length === 1 ? "" : "s"}</span><small>se añade como tarjeta del día</small></div>
       <div class="exercise-picker-list">
         ${denseWorkoutPickerListMarkup(exercises, search.trim().toLowerCase())}
       </div>
@@ -6494,14 +6503,6 @@ function analyticsTrendChart(title, total, points, unit = "") {
 }
 
 // ── DENSE-style analytics toolkit ────────────────────────────────────────
-const dcCnsZones = [
-  { max: 20, color: "#5fd1e8", label: "Easy 0–20" },
-  { max: 40, color: "#57c6a1", label: "Light 20–40" },
-  { max: 60, color: "#93e84b", label: "Moderate 40–60" },
-  { max: 80, color: "#e9b84e", label: "Hard 60–80" },
-  { max: 101, color: "#ff7c9e", label: "Spike 80–100" },
-];
-
 function dcZoneColor(value) {
   return (dcCnsZones.find((zone) => value < zone.max) || dcCnsZones[dcCnsZones.length - 1]).color;
 }

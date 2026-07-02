@@ -6702,3 +6702,241 @@ button:focus-visible {
     min-height: 140px;
   }
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   Premium glass exercise picker (scoped to the workout picker modal)
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Let the real app show through: lighter dim, gentle blur behind the sheet */
+.modal:has([data-modal-kind="workout-exercise-picker"])::backdrop {
+  background: rgba(3, 4, 3, 0.38);
+  backdrop-filter: blur(8px) saturate(1.15);
+  -webkit-backdrop-filter: blur(8px) saturate(1.15);
+}
+
+/* Frosted-glass card: translucent surface + deep blur, hairline edges */
+.modal-card[data-modal-kind="workout-exercise-picker"] {
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  background:
+    radial-gradient(130% 60% at 50% -8%, rgba(168, 230, 53, 0.1), transparent 55%),
+    rgba(15, 17, 13, 0.55);
+  backdrop-filter: blur(42px) saturate(1.55);
+  -webkit-backdrop-filter: blur(42px) saturate(1.55);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 30px 90px rgba(0, 0, 0, 0.55);
+}
+
+.modal-card[data-modal-kind="workout-exercise-picker"] .modal-head {
+  padding: 16px 18px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  background: transparent;
+}
+
+.modal-card[data-modal-kind="workout-exercise-picker"] .modal-head h2 {
+  font-size: 1.25rem;
+}
+
+.modal-card[data-modal-kind="workout-exercise-picker"] .modal-body {
+  padding: 14px 16px 16px;
+}
+
+/* Kill the box-in-a-box: the picker floats directly on the glass */
+[data-modal-kind="workout-exercise-picker"] .dense-exercise-picker {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  gap: 12px;
+}
+
+/* Controls: search pill with inline icon + two ghost pill selects */
+[data-modal-kind="workout-exercise-picker"] .exercise-picker-controls {
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+[data-modal-kind="workout-exercise-picker"] .exercise-picker-controls .field > span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+[data-modal-kind="workout-exercise-picker"] .exercise-picker-controls .field {
+  position: relative;
+  gap: 0;
+}
+
+[data-modal-kind="workout-exercise-picker"] .exercise-search-field {
+  grid-column: 1 / -1;
+  order: -1;
+}
+
+[data-modal-kind="workout-exercise-picker"] .exercise-search-icon {
+  position: absolute;
+  top: 50%;
+  left: 15px;
+  width: 17px;
+  height: 17px;
+  transform: translateY(-50%);
+  color: var(--dim);
+  pointer-events: none;
+}
+
+[data-modal-kind="workout-exercise-picker"] .exercise-search-field input {
+  min-height: 48px;
+  padding: 0 16px 0 42px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 0.9rem;
+  transition: border-color var(--dur) var(--ease), background-color var(--dur) var(--ease);
+}
+
+[data-modal-kind="workout-exercise-picker"] .exercise-search-field input:focus {
+  outline: none;
+  border-color: rgba(168, 230, 53, 0.55);
+  background: rgba(168, 230, 53, 0.06);
+  box-shadow: none;
+}
+
+[data-modal-kind="workout-exercise-picker"] .exercise-picker-controls select {
+  min-height: 42px;
+  padding: 0 34px 0 15px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 999px;
+  background:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23989b8f' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>")
+      right 14px center / 14px no-repeat,
+    rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  font-size: 0.8rem;
+  font-weight: 800;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+/* Result count + hint line */
+.picker-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 0 4px;
+}
+
+.picker-meta span {
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.picker-meta small {
+  color: var(--dim);
+  font-size: 0.64rem;
+}
+
+/* List: taller, soft fade at the bottom edge */
+[data-modal-kind="workout-exercise-picker"] .exercise-picker-list {
+  max-height: 52vh;
+  gap: 7px;
+  padding: 2px 2px 26px;
+  mask-image: linear-gradient(180deg, #000 calc(100% - 30px), transparent);
+  -webkit-mask-image: linear-gradient(180deg, #000 calc(100% - 30px), transparent);
+}
+
+/* Rows: quiet glass, hairline borders, roomy touch targets */
+[data-modal-kind="workout-exercise-picker"] .exercise-pick-card,
+[data-modal-kind="workout-exercise-picker"] .exercise-group-head {
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.035);
+  transition: border-color var(--dur) var(--ease), background-color var(--dur) var(--ease), transform var(--dur-fast) var(--ease);
+}
+
+[data-modal-kind="workout-exercise-picker"] .exercise-pick-card:active,
+[data-modal-kind="workout-exercise-picker"] .exercise-group-head:active {
+  transform: scale(0.985);
+}
+
+@media (hover: hover) {
+  [data-modal-kind="workout-exercise-picker"] .exercise-pick-card:hover,
+  [data-modal-kind="workout-exercise-picker"] .exercise-group-head:hover {
+    border-color: rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.055);
+  }
+}
+
+[data-modal-kind="workout-exercise-picker"] .exercise-pick-main {
+  min-height: 60px;
+  padding: 9px 4px 9px 10px;
+  grid-template-columns: 38px minmax(0, 1fr) 34px;
+  gap: 11px;
+}
+
+[data-modal-kind="workout-exercise-picker"] .exercise-pick-main .tiny-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+}
+
+/* The add action becomes a lime ghost chip */
+[data-modal-kind="workout-exercise-picker"] .exercise-pick-main > i[data-lucide] {
+  box-sizing: border-box;
+  width: 30px;
+  height: 30px;
+  padding: 6px;
+  border: 1px solid rgba(168, 230, 53, 0.45);
+  border-radius: 999px;
+  background: rgba(168, 230, 53, 0.1);
+  color: var(--lime-soft);
+}
+
+[data-modal-kind="workout-exercise-picker"] .exercise-fav {
+  width: 34px;
+  height: 34px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--dim);
+}
+
+[data-modal-kind="workout-exercise-picker"] .exercise-fav.is-hot {
+  color: var(--amber);
+  border-color: transparent;
+  background: rgba(233, 184, 78, 0.1);
+}
+
+[data-modal-kind="workout-exercise-picker"] .exercise-group-children {
+  margin-left: 14px;
+  padding-left: 11px;
+  border-left: 1.5px solid rgba(192, 139, 255, 0.3);
+}
+
+[data-modal-kind="workout-exercise-picker"] .exercise-pick-empty {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.02);
+  text-align: center;
+}
+
+/* The sheet floats clearly above the bottom edge */
+@media (max-width: 760px) {
+  .modal:has([data-modal-kind="workout-exercise-picker"]) {
+    margin-bottom: calc(52px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .modal-card[data-modal-kind="workout-exercise-picker"] {
+    max-height: 78vh;
+    border-radius: 26px;
+  }
+
+  .modal-card[data-modal-kind="workout-exercise-picker"] .modal-head {
+    padding-top: 22px;
+  }
+
+  [data-modal-kind="workout-exercise-picker"] .exercise-picker-list {
+    max-height: 48vh;
+  }
+}
