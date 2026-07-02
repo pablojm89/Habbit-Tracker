@@ -7190,3 +7190,25 @@ button:focus-visible {
   cursor: pointer;
   background: transparent;
 }
+
+.calibration-tier {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  margin-top: 12px;
+  padding: 8px 0 3px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.calibration-tier span {
+  color: var(--muted);
+  font-size: 0.64rem;
+  font-weight: 900;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.calibration-tier small {
+  color: var(--dim);
+  font-size: 0.62rem;
+}

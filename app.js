@@ -204,6 +204,15 @@ const denseCalibrationKit = [
   { id: "pistol_squat", scheme: "10D", why: "ancla pierna / unilateral" },
 ];
 
+// Optional barbell anchors: heavy bilateral lifts define absolute strength
+// levels with exact loads (low-noise e1RM) and radiate wide transfer.
+const denseCalibrationKitBarbell = [
+  { id: "back_squat", scheme: "5D5", why: "ancla fuerza absoluta de pierna" },
+  { id: "deadlift", scheme: "5D3", why: "ancla cadena posterior / bisagra" },
+  { id: "bench_press", scheme: "5D5", why: "ancla empuje horizontal con carga" },
+  { id: "military_press", scheme: "2D5", why: "ancla empuje vertical con carga" },
+];
+
 const weightedSchemes = Object.keys(denseWorkingPct);
 const allDenseSchemes = [...bodyweightSchemes, ...weightedSchemes];
 
@@ -1068,6 +1077,12 @@ const densePairOverrides = {
   "weighted_parallel_bar_dip>parallel_bar_dip": 0.9,
   "atg_split_squat>weighted_atg_split_squat": 0.85,
   "weighted_atg_split_squat>atg_split_squat": 0.9,
+  // Barbell anchors: squat<->hinge transfer is stronger than the disjoint
+  // pattern vectors suggest (shared posterior chain + axial loading).
+  "back_squat>deadlift": 0.45,
+  "deadlift>back_squat": 0.45,
+  "front_squat>deadlift": 0.35,
+  "deadlift>front_squat": 0.35,
 };
 
 // Dominant pattern of an exercise (for the learned pair multipliers)
@@ -3217,16 +3232,39 @@ function renderConsistencyAnalytics(entries) {
   `;
 }
 
-function renderCalibrationCard() {
-  const rows = denseCalibrationKit.map((test) => {
+function denseCalibrationRows(kit, staleDays) {
+  return kit.map((test) => {
     const exercise = denseExerciseById(test.id);
     const last = [...getDenseEntries()]
       .filter((entry) => entry.exercise_id === test.id)
       .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")))[0];
     const days = last ? Math.round((today.getTime() - parseDate(last.date).getTime()) / 86400000) : null;
-    const status = !last ? "pending" : days <= 28 ? "fresh" : "stale";
+    const status = !last ? "pending" : days <= staleDays ? "fresh" : "stale";
     return { test, exercise, last, days, status };
   });
+}
+
+function denseCalibrationRowHtml({ test, exercise, days, status }) {
+  return `
+    <div class="calibration-row">
+      <div class="calibration-row-main">
+        <strong>${escapeHtml(exercise?.name || test.id)} <small>${escapeHtml(test.scheme)}</small></strong>
+        <span>${escapeHtml(test.why)}</span>
+      </div>
+      ${
+        status === "fresh"
+          ? `<span class="dc-badge is-good">anclado · ${days}d</span>`
+          : status === "stale"
+            ? `<button class="dc-badge is-warn calibration-add" type="button" data-action="add-planned-exercise" data-exercise="${escapeAttr(test.id)}">re-test (${days}d)</button>`
+            : `<button class="dc-badge calibration-add" type="button" data-action="add-planned-exercise" data-exercise="${escapeAttr(test.id)}">+ programar</button>`
+      }
+    </div>`;
+}
+
+function renderCalibrationCard() {
+  const rows = denseCalibrationRows(denseCalibrationKit, 28);
+  // Barbell anchors stay valid longer: strength there moves slowly.
+  const barbellRows = denseCalibrationRows(denseCalibrationKitBarbell, 45);
   const done = rows.filter((row) => row.status === "fresh").length;
   return `
     <article class="calibration-card">
@@ -3237,22 +3275,9 @@ function renderCalibrationCard() {
         </div>
         <div class="dc-progress"><i style="width:${(done / 6) * 100}%"></i></div>
       </div>
-      ${rows
-        .map(({ test, exercise, days, status }) => `
-          <div class="calibration-row">
-            <div class="calibration-row-main">
-              <strong>${escapeHtml(exercise?.name || test.id)} <small>${escapeHtml(test.scheme)}</small></strong>
-              <span>${escapeHtml(test.why)}</span>
-            </div>
-            ${
-              status === "fresh"
-                ? `<span class="dc-badge is-good">anclado · ${days}d</span>`
-                : status === "stale"
-                  ? `<button class="dc-badge is-warn calibration-add" type="button" data-action="add-planned-exercise" data-exercise="${escapeAttr(test.id)}">re-test (${days}d)</button>`
-                  : `<button class="dc-badge calibration-add" type="button" data-action="add-planned-exercise" data-exercise="${escapeAttr(test.id)}">+ programar</button>`
-            }
-          </div>`)
-        .join("")}
+      ${rows.map(denseCalibrationRowHtml).join("")}
+      <div class="calibration-tier"><span>Anclas de barra</span><small>opcionales · definen fuerza absoluta</small></div>
+      ${barbellRows.map(denseCalibrationRowHtml).join("")}
     </article>
   `;
 }
