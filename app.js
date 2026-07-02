@@ -1057,16 +1057,29 @@ const densePairOverrides = {
   "weighted_atg_split_squat>atg_split_squat": 0.9,
 };
 
+// Dominant pattern of an exercise (for the learned pair multipliers)
+function densePrimaryPattern(exercise) {
+  const patterns = denseMetaFor(exercise)?.patterns || {};
+  return Object.entries(patterns).sort(([, a], [, b]) => b - a)[0]?.[0] || "other";
+}
+
+// Personal multiplier learned by reconciliation (phase 4), keyed by
+// source-pattern > target-pattern. 1 = generic; learned within [0.3, 2].
+function densePairK(e, f) {
+  const key = `${densePrimaryPattern(e)}>${densePrimaryPattern(f)}`;
+  return clamp(Number(state.transfer?.pairK?.[key]) || 1, 0.3, 2);
+}
+
 function denseTransferCoefficient(e, f) {
   const override = densePairOverrides[`${e.id}>${f.id}`];
-  if (override != null) return override;
+  if (override != null) return clamp(override * densePairK(e, f), 0, 0.9);
   const A = denseMetaFor(e);
   const B = denseMetaFor(f);
   // Patterns and muscles both carry transfer: disjoint patterns (vertical vs
   // horizontal pull) still transfer through shared musculature.
   const pat = denseVecCos(A.patterns, B.patterns);
   const mus = denseVecCos(A.muscles, B.muscles);
-  const c = (0.55 * pat + 0.45 * mus) * denseModalityFactor(e, f) * (1 - (B.specificity ?? 0.3) * 0.7);
+  const c = (0.55 * pat + 0.45 * mus) * denseModalityFactor(e, f) * (1 - (B.specificity ?? 0.3) * 0.7) * densePairK(e, f);
   return clamp(roundTo(c, 3), 0, 0.9);
 }
 
@@ -1095,6 +1108,31 @@ function denseTransferNeighbors(exercise) {
   return neighbors;
 }
 
+// ── Phase 3: technical mastery (T) ───────────────────────────────────────
+// Skills express strength only through practiced technique. T is derived
+// from history (deterministic, re-derivable): saturating growth with distinct
+// practice days of the exercise's family, slow decay with time away.
+function denseTechMasteryInfo(exercise) {
+  const spec = denseMetaFor(exercise)?.specificity ?? 0.3;
+  if (spec < 0.45) return { t: 1, sessions: 0, technical: false };
+  const key = exercise.family && denseProgressionFamilies.has(exercise.family) ? exercise.family : null;
+  const relevant = getDenseEntries().filter((entry) => {
+    if (key) return denseExerciseById(entry.exercise_id)?.family === key;
+    return entry.exercise_id === exercise.id;
+  });
+  const days = new Set(relevant.map((entry) => entry.date).filter(Boolean));
+  const sessions = days.size;
+  if (!sessions) return { t: 0.35, sessions: 0, technical: true };
+  const lastDate = [...days].sort().pop();
+  const weeks = Math.max(0, (today.getTime() - parseDate(lastDate).getTime()) / (7 * 86400000));
+  const t = clamp((1 - 0.65 * Math.pow(0.93, sessions)) * Math.pow(0.995, weeks), 0.3, 1);
+  return { t: roundTo(t, 3), sessions, technical: true };
+}
+
+function denseTechMastery(exercise) {
+  return denseTechMasteryInfo(exercise).t;
+}
+
 // Cumulative indirect boost applied to an exercise's estimates (capped 12%)
 function denseTransferBoost(exerciseId) {
   return clamp(Number(state.transfer?.boosts?.[exerciseId]?.pct) || 0, 0, 0.12);
@@ -1111,6 +1149,34 @@ function denseTransferQuality(entry) {
   return 1;
 }
 
+// Phase 4: when an exercise that carried an indirect boost is finally tested,
+// compare predicted vs observed improvement and adjust the personal
+// pattern-pair multipliers (starts generic, learns YOUR transfer rates).
+function denseReconcileTransfers(entry, rawDelta) {
+  const slot = state.transfer.boosts[entry.exercise_id];
+  const predicted = clamp(Number(slot?.pct) || 0, 0, 0.12);
+  if (predicted < 0.01) return;
+  const targetExercise = denseExerciseById(entry.exercise_id);
+  const ratio = clamp(clamp(rawDelta, -0.1, 0.3) / predicted, 0, 2);
+  const pending = state.transfer.events.filter(
+    (event) => !event.reconciled && (event.target === entry.exercise_id || (event.family && targetExercise?.family === event.family)),
+  );
+  if (!pending.length) return;
+  state.transfer.pairK ||= {};
+  new Set(pending.map((event) => event.source)).forEach((sourceId) => {
+    const source = denseExerciseById(sourceId);
+    if (!source) return;
+    const key = `${densePrimaryPattern(source)}>${densePrimaryPattern(targetExercise)}`;
+    const k = clamp(Number(state.transfer.pairK[key]) || 1, 0.3, 2);
+    state.transfer.pairK[key] = roundTo(clamp(k * (1 + 0.25 * (ratio - 1)), 0.3, 2), 3);
+  });
+  pending.forEach((event) => {
+    event.reconciled = true;
+    event.ratio = roundTo(ratio, 2);
+  });
+  denseNeighborCache = null; // coefficients changed for this user
+}
+
 // Propagate a genuine improvement of `entry` to related exercises. Returns the
 // top boosts applied (for the toast) or null when nothing propagated.
 function runTransferEngine(entry) {
@@ -1118,21 +1184,27 @@ function runTransferEngine(entry) {
   const score = denseEntryScore(entry);
   if (!exercise || !score) return null;
   state.transfer ||= { boosts: {}, events: [] };
-  // Direct evidence supersedes any indirect boost on this exercise.
-  delete state.transfer.boosts[entry.exercise_id];
   const prior = Math.max(
     0,
     ...getDenseEntries()
       .filter((item) => item.exercise_id === entry.exercise_id && item.id !== entry.id)
       .map((item) => denseEntryScore(item) || 0),
   );
-  if (!prior) return null; // first mark = calibration, not improvement
-  let delta = (score - prior) / prior;
-  if (delta <= 0.004) return null;
-  delta = Math.min(delta, 0.25) * denseTransferQuality(entry);
+  if (!prior) {
+    delete state.transfer.boosts[entry.exercise_id];
+    return null; // first mark = calibration, not improvement
+  }
+  const rawDelta = (score - prior) / prior;
+  // Learn from the prediction this test resolves, then absorb the boost.
+  denseReconcileTransfers(entry, rawDelta);
+  delete state.transfer.boosts[entry.exercise_id];
+  if (rawDelta <= 0.004) return null;
+  const delta = Math.min(rawDelta, 0.25) * denseTransferQuality(entry);
   const applied = [];
   denseTransferNeighbors(exercise).forEach(({ exercise: target, c }) => {
-    const gain = clamp(delta * c * 0.5, 0, 0.03);
+    // Technical targets only absorb transfer through practiced technique.
+    const gate = 0.4 + 0.6 * denseTechMastery(target);
+    const gain = clamp(delta * c * 0.5 * gate, 0, 0.03);
     if (gain < 0.005) return;
     // Progression families receive the boost as a block (shared latent).
     const members =
@@ -4283,6 +4355,11 @@ function openDenseExerciseDetailModal(exerciseId) {
                   ? `<p class="transfer-note"><i data-lucide="git-merge"></i>Incluye +${roundTo(denseTransferBoost(exercise.id) * 100, 1)}% por transferencia de ${escapeHtml([...new Set((state.transfer?.boosts?.[exercise.id]?.from || []).map((f) => f.name))].slice(0, 2).join(" y ") || "ejercicios relacionados")} — estimación indirecta, falta test.</p>`
                   : ""
               }
+              ${(() => {
+                const tech = denseTechMasteryInfo(exercise);
+                if (!tech.technical || tech.t >= 0.55) return "";
+                return `<p class="transfer-note is-warn"><i data-lucide="brain"></i>Confianza reducida por falta de práctica específica — técnica ${Math.round(tech.t * 100)}% (${tech.sessions} sesión${tech.sessions === 1 ? "" : "es"} de la familia). La fuerza está, el patrón hay que engrasarlo.</p>`;
+              })()}
             </section>`
           : ""
       }
@@ -7684,6 +7761,9 @@ function renderDenseEstimateCards(entry) {
       ),
     );
   const unified = denseUnifiedE1rm(entry.exercise_id);
+  // Low technical mastery widens uncertainty on skill estimates (phase 3)
+  const tech = denseTechMasteryInfo(exercise || { id: entry.exercise_id });
+  const techExtra = tech.technical && tech.t < 0.6 ? (0.6 - tech.t) * 0.25 : 0;
 
   if (entry.nature === "weighted" || entry.nature === "weighted_calisthenics") {
     // Unified e1RM: a bodyweight-only history can now estimate loads too.
@@ -7724,7 +7804,7 @@ function renderDenseEstimateCards(entry) {
     const lastIso = [...getDenseEntries()]
       .filter((item) => item.exercise_id === entry.exercise_id && item.isometric_capacity)
       .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")))[0];
-    const sigma = denseEstimateSigma(lastIso?.date || entry.date);
+    const sigma = clamp(denseEstimateSigma(lastIso?.date || entry.date) + techExtra, 0.06, 0.28);
     return bodyweightSchemes
       .map((scheme) => {
         const minutes = denseSchemeMinutes(scheme);
@@ -7753,10 +7833,14 @@ function renderDenseEstimateCards(entry) {
       const blended = direct && inverted ? direct * 0.6 + inverted * 0.4 : direct || inverted;
       if (!blended) return "";
       const rpm = Math.max(1, Math.round(denseCapRpm(exercise, Math.floor(blended))));
-      const sigma = denseEstimateSigma(unified?.date || entry.date, {
-        cross: !direct,
-        baseGap: unified ? Math.abs((denseBaseOrder[scheme] ?? 0) - (denseBaseOrder[unified.base] ?? 0)) : 0,
-      });
+      const sigma = clamp(
+        denseEstimateSigma(unified?.date || entry.date, {
+          cross: !direct,
+          baseGap: unified ? Math.abs((denseBaseOrder[scheme] ?? 0) - (denseBaseOrder[unified.base] ?? 0)) : 0,
+        }) + techExtra,
+        0.06,
+        0.28,
+      );
       const low = Math.max(1, Math.floor(rpm * (1 - sigma)));
       const high = Math.max(rpm, Math.ceil(rpm * (1 + sigma)));
       return `

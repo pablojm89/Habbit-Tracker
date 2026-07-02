@@ -7123,3 +7123,9 @@ button:focus-visible {
   height: 14px;
   margin-top: 1px;
 }
+
+.transfer-note.is-warn {
+  border-color: rgba(233, 184, 78, 0.35);
+  background: rgba(233, 184, 78, 0.06);
+  color: color-mix(in srgb, var(--amber), var(--text) 32%);
+}
