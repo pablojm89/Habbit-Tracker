@@ -2761,7 +2761,7 @@ function denseTrainingFormMarkup(defaults, { includePicker = false, modal = fals
   const exercise = denseExerciseById(defaults.exerciseId);
   const allowedSchemes = denseAllowedSchemes(exercise);
   const readiness = defaults.readiness || "normal";
-  const suggestion = denseProgressionSuggestion(exercise, readiness);
+  const suggestion = denseProgressionSuggestion(exercise, readiness, denseSchemeBase(defaults.scheme));
   return `
     <form id="denseTrainingForm" class="dense-training-form ${modal ? "is-modal-form" : ""}">
       ${includePicker ? denseExercisePicker(defaults) : ""}
@@ -5490,7 +5490,9 @@ function applyDenseFormTargets(form) {
   if (!exercise) return;
   const scheme = form.querySelector("input[name='scheme']:checked")?.value || denseAllowedSchemes(exercise)[0];
   const readiness = denseFormReadiness(form);
-  const suggestion = denseProgressionSuggestion(exercise, readiness);
+  // Suggestion remembers the selected dense block: switching to 10D progresses
+  // from your last 10D session, not from the latest mark overall.
+  const suggestion = denseProgressionSuggestion(exercise, readiness, denseSchemeBase(scheme));
   const repsPerSetInput = form.querySelector("[name='repsPerSet']");
   if (repsPerSetInput) repsPerSetInput.value = denseFormTargetRepsPerSet(exercise, scheme, suggestion) || "";
   const reps = repsPerSetInput ? denseTotalFromRepsPerSet(repsPerSetInput.value, scheme) : denseDefaultTotalReps(exercise, scheme);
@@ -6909,8 +6911,18 @@ function denseDirectionTone(direction, failed, effort) {
   return "neutral";
 }
 
-function denseProgressionSuggestion(exercise, readiness = "normal") {
-  const entry = latestDenseEntryForExercise(exercise.id);
+function denseProgressionSuggestion(exercise, readiness = "normal", baseFilter = "") {
+  // Per-block memory: when a dense base is requested (2D/5D/10D/20D), the
+  // suggestion progresses from the last session of THAT block, not from the
+  // latest mark overall (your last 10D easy -> 10D+1, even if yesterday was 5D).
+  let entry = null;
+  if (baseFilter) {
+    entry =
+      [...getDenseEntries()]
+        .filter((item) => item.exercise_id === exercise.id && !item.deleted_at && denseSchemeBase(item.scheme) === baseFilter)
+        .sort((a, b) => (b.created_at || b.date || "").localeCompare(a.created_at || a.date || ""))[0] || null;
+  }
+  entry ||= latestDenseEntryForExercise(exercise.id);
   if (!entry) return null;
   const scheme = denseAllowedSchemes(exercise).includes(entry.scheme) ? entry.scheme : denseAllowedSchemes(exercise)[0];
   const minutes = denseSchemeMinutes(scheme) || entry.duration_minutes || 0;
