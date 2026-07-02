@@ -5,6 +5,8 @@ const SHEETS = {
   training: "TrainingExercises",
   dense: "DenseTraining",
   estimates: "DenseEstimates",
+  transfer: "TransferEvents",
+  pairK: "TransferPairK",
   working: "WorkingPercentages",
   bw: "BodyweightMultipliers",
   guide: "FormulaGuide",
@@ -40,13 +42,26 @@ const BODYWEIGHT_MULTIPLIERS = [
   ["20D", 0.27],
 ];
 
+// Fail-closed auth: without a configured token NOTHING is accepted. Set the
+// Script Property BITTRACKER_SYNC_TOKEN before deploying.
+function authError(providedToken) {
+  const expectedToken = PropertiesService.getScriptProperties().getProperty("BITTRACKER_SYNC_TOKEN");
+  if (!expectedToken) return "token no configurado: crea la Script Property BITTRACKER_SYNC_TOKEN";
+  if (providedToken !== expectedToken) return "unauthorized";
+  return null;
+}
+
 function doPost(e) {
+  const lock = LockService.getScriptLock();
+  // Serialize concurrent syncs (two devices posting at once would interleave
+  // appendRow/deleteRows/rewrites and corrupt the sheets).
+  if (!lock.tryLock(20000)) {
+    return jsonOutput({ ok: false, error: "busy: otro sync en curso" });
+  }
   try {
     const payload = JSON.parse((e.postData && e.postData.contents) || "{}");
-    const expectedToken = PropertiesService.getScriptProperties().getProperty("BITTRACKER_SYNC_TOKEN");
-    if (expectedToken && payload.token !== expectedToken) {
-      return jsonOutput({ ok: false, error: "unauthorized" });
-    }
+    const denied = authError(payload.token);
+    if (denied) return jsonOutput({ ok: false, error: denied });
 
     const state = payload.state || {};
     const syncedAt = payload.syncedAt || new Date().toISOString();
@@ -59,6 +74,7 @@ function doPost(e) {
     rewriteTrainingExercises(ss, syncedAt, state);
     rewriteDenseTraining(ss, syncedAt, state);
     rewriteDenseEstimates(ss, syncedAt, state);
+    rewriteTransferState(ss, syncedAt, state);
 
     return jsonOutput({
       ok: true,
@@ -67,15 +83,17 @@ function doPost(e) {
     });
   } catch (error) {
     return jsonOutput({ ok: false, error: String(error && error.message ? error.message : error) });
+  } finally {
+    lock.releaseLock();
   }
 }
 
 function doGet(e) {
   try {
     const params = (e && e.parameter) || {};
-    const expectedToken = PropertiesService.getScriptProperties().getProperty("BITTRACKER_SYNC_TOKEN");
-    if (expectedToken && params.token !== expectedToken) {
-      return jsonOutput({ ok: false, error: "unauthorized" });
+    const denied = authError(params.token);
+    if (denied) {
+      return jsonOutput({ ok: false, error: denied }, params.callback);
     }
 
     const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -110,6 +128,10 @@ function setupStaticSheets(ss) {
       ["effort_learning", "new_estimate = old_estimate * 0.70 + observed * effort_factor * 0.30"],
       ["weighted_cross_scheme", "target_load_kg = e1RM * target_working_pct"],
       ["weighted_calisthenics_visible_load", "target_added_load_kg = target_total_system_load_kg - bodyweight_kg"],
+      ["transfer_coefficient", "c = (0.55*cos(patrones) + 0.45*cos(musculos)) * modalidad * (1 - especificidad*0.7) * k_personal"],
+      ["transfer_gain", "boost += min(delta * c * 0.5 * (0.4+0.6*tecnica), 3%) con tope acumulado 12%"],
+      ["transfer_reconciliation", "k_personal *= 1 + 0.25*(media_2_observaciones(observado/predicho) - 1), rango [0.3, 2]"],
+      ["nota_estimates", "DenseEstimates es una vista aproximada: la app aplica ademas caps unilaterales, factores de resistencia entre bases y boosts de transferencia"],
     ],
     false,
   );
@@ -129,10 +151,15 @@ function latestSnapshot(ss) {
   };
   if (indexes.payloadJson < 0) return null;
 
+  const partIndexes = [2, 3, 4].map((part) => header.indexOf("payload_part" + part));
+
   for (let row = sheet.getLastRow(); row >= 2; row -= 1) {
     const values = sheet.getRange(row, 1, 1, sheet.getLastColumn()).getValues()[0];
-    const raw = values[indexes.payloadJson];
+    let raw = String(values[indexes.payloadJson] || "");
     if (!raw) continue;
+    partIndexes.forEach((index) => {
+      if (index >= 0 && values[index]) raw += String(values[index]);
+    });
     try {
       return {
         syncedAt: indexes.syncedAt >= 0 ? values[indexes.syncedAt] : "",
@@ -140,7 +167,7 @@ function latestSnapshot(ss) {
         reason: indexes.reason >= 0 ? values[indexes.reason] : "",
         version: indexes.version >= 0 ? values[indexes.version] : "",
         selectedDate: indexes.selectedDate >= 0 ? values[indexes.selectedDate] : "",
-        state: JSON.parse(raw),
+        state: JSON.parse(decodeStatePayload(raw)),
       };
     } catch (_error) {
       // Sigue buscando un snapshot anterior válido.
@@ -150,17 +177,44 @@ function latestSnapshot(ss) {
 }
 
 const MAX_SNAPSHOTS = 200;
+// Google Sheets limita cada celda a 50.000 caracteres: comprimimos (gzip+base64)
+// y troceamos en hasta 4 columnas (~180k comprimidos ≈ >1MB de estado en crudo).
+const SNAPSHOT_CHUNK = 45000;
+const SNAPSHOT_PARTS = 4;
+
+function encodeStatePayload(json) {
+  const bytes = Utilities.gzip(Utilities.newBlob(json, "application/json")).getBytes();
+  return "gz1:" + Utilities.base64Encode(bytes);
+}
+
+function decodeStatePayload(raw) {
+  const text = String(raw || "");
+  if (text.indexOf("gz1:") !== 0) return text; // snapshots antiguos: JSON plano
+  const bytes = Utilities.base64Decode(text.slice(4));
+  return Utilities.ungzip(Utilities.newBlob(bytes, "application/x-gzip")).getDataAsString();
+}
 
 function appendSnapshot(ss, syncedAt, payload) {
   const sheet = ensureSheet(ss, SHEETS.snapshots);
-  ensureHeader(sheet, ["synced_at", "source", "reason", "version", "selected_date", "payload_json"]);
+  ensureHeader(sheet, ["synced_at", "source", "reason", "version", "selected_date", "payload_json", "payload_part2", "payload_part3", "payload_part4"]);
+  const encoded = encodeStatePayload(JSON.stringify(payload.state || {}));
+  if (encoded.length > SNAPSHOT_CHUNK * SNAPSHOT_PARTS) {
+    throw new Error("snapshot demasiado grande incluso comprimido (" + encoded.length + " chars)");
+  }
+  const chunks = [];
+  for (let part = 0; part < SNAPSHOT_PARTS; part += 1) {
+    chunks.push(encoded.slice(part * SNAPSHOT_CHUNK, (part + 1) * SNAPSHOT_CHUNK));
+  }
   sheet.appendRow([
     syncedAt,
     payload.source || "",
     payload.reason || "",
     payload.state && payload.state.version ? payload.state.version : "",
     payload.state && payload.state.settings ? payload.state.settings.selectedDate || "" : "",
-    JSON.stringify(payload.state || {}),
+    chunks[0],
+    chunks[1],
+    chunks[2],
+    chunks[3],
   ]);
 
   // Conserva solo las últimas MAX_SNAPSHOTS copias (la fila 1 es la cabecera).
@@ -421,7 +475,34 @@ function parseDenseBase(scheme) {
   return match ? match[1] : "";
 }
 
+// Hojas legibles del motor de transferencia: eventos propagados y los
+// multiplicadores personales aprendidos por reconciliación.
+function rewriteTransferState(ss, syncedAt, state) {
+  const transfer = state.transfer || {};
+  const events = (transfer.events || []).map((event) => [
+    syncedAt,
+    event.at || "",
+    event.source || "",
+    event.target || "",
+    event.family || "",
+    Number(event.delta || 0),
+    Boolean(event.reconciled),
+    event.ratio == null ? "" : event.ratio,
+  ]);
+  writeTable(
+    ss,
+    SHEETS.transfer,
+    ["synced_at", "event_at", "source_exercise", "target_exercise", "target_family", "delta_pct", "reconciled", "observed_ratio"],
+    events,
+    true,
+  );
+
+  const pairs = Object.entries(transfer.pairK || {}).map(([pair, k]) => [syncedAt, pair, Number(k)]);
+  writeTable(ss, SHEETS.pairK, ["synced_at", "pattern_pair", "personal_k"], pairs, true);
+}
+
 function writeTable(ss, sheetName, header, rows, clearData) {
+  const existed = Boolean(ss.getSheetByName(sheetName));
   const sheet = ensureSheet(ss, sheetName);
   ensureHeader(sheet, header);
   if (clearData && sheet.getLastRow() > 1) {
@@ -430,7 +511,8 @@ function writeTable(ss, sheetName, header, rows, clearData) {
   if (rows.length) {
     sheet.getRange(2, 1, rows.length, header.length).setValues(rows);
   }
-  sheet.autoResizeColumns(1, Math.min(header.length, 12));
+  // autoResize es lento: solo merece la pena al crear la hoja por primera vez.
+  if (!existed) sheet.autoResizeColumns(1, Math.min(header.length, 12));
 }
 
 function ensureSheet(ss, name) {
