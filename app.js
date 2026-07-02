@@ -736,6 +736,166 @@ const denseExerciseCatalog = [
   ...leverSkillExercises("front_lever", "Front Lever", 88),
   ...leverSkillExercises("back_lever", "Back Lever", 88),
   {
+    id: "chin_up",
+    name: "Dominada supina",
+    category: "pull",
+    family: "strict_pull",
+    nature: "bodyweight",
+    allowedNatures: ["bodyweight", "weighted_calisthenics"],
+    bodyweightContributionPct: 100,
+    tonnageFactor: 1,
+    alpha: 0.14,
+    icon: "arrow-up-to-line",
+    video: "https://www.youtube.com/watch?v=Lxhx-AF0D-E",
+  },
+  {
+    id: "military_press",
+    name: "Press militar",
+    category: "push",
+    family: "accessory",
+    nature: "weighted",
+    allowedNatures: ["weighted"],
+    bodyweightContributionPct: 0,
+    tonnageFactor: 1,
+    alpha: 0.12,
+    icon: "arrow-up",
+    video: "https://www.youtube.com/watch?v=P16eQ_IK_y8",
+  },
+  {
+    id: "pike_push_up",
+    name: "Pike push-up",
+    category: "push",
+    family: "hspu",
+    nature: "bodyweight",
+    allowedNatures: ["bodyweight", "weighted_calisthenics"],
+    bodyweightContributionPct: 60,
+    tonnageFactor: 1,
+    alpha: 0.12,
+    icon: "triangle",
+    video: "https://youtu.be/hHs5dVqlDEs",
+  },
+  {
+    id: "deadlift",
+    name: "Peso muerto",
+    category: "legs",
+    family: "hinge_weighted",
+    nature: "weighted",
+    allowedNatures: ["weighted"],
+    bodyweightContributionPct: 0,
+    tonnageFactor: 1,
+    alpha: 0.13,
+    icon: "anchor",
+    video: "https://www.youtube.com/watch?v=zdnjH0qB9yo",
+  },
+  {
+    id: "front_squat",
+    name: "Front squat",
+    category: "legs",
+    family: "squat_weighted",
+    nature: "weighted",
+    allowedNatures: ["weighted"],
+    bodyweightContributionPct: 0,
+    tonnageFactor: 1,
+    alpha: 0.12,
+    icon: "chevrons-down",
+    video: "https://www.youtube.com/watch?v=MhT5fWWlQuw",
+  },
+  {
+    id: "bulgarian_split_squat",
+    name: "Bulgarian split squat",
+    category: "legs",
+    family: "single_leg_squat",
+    nature: "bodyweight",
+    allowedNatures: ["bodyweight", "weighted_calisthenics", "weighted"],
+    bodyweightContributionPct: 85,
+    tonnageFactor: 1,
+    repsPerSide: true,
+    alpha: 0.12,
+    icon: "person-standing",
+    video: "https://www.youtube.com/watch?v=EkG378TU8yg",
+  },
+  {
+    id: "nordic_curl",
+    name: "Nordic hamstring curl",
+    category: "legs",
+    family: "hinge_bodyweight",
+    nature: "bodyweight",
+    allowedNatures: ["bodyweight"],
+    bodyweightContributionPct: 70,
+    tonnageFactor: 1,
+    alpha: 0.13,
+    icon: "fold-horizontal",
+    video: "https://www.youtube.com/watch?v=0imUR6DoLqg",
+  },
+  {
+    id: "cossack_squat",
+    name: "Cossack squat",
+    category: "legs",
+    family: "mobility_strength",
+    nature: "bodyweight",
+    allowedNatures: ["bodyweight", "weighted"],
+    bodyweightContributionPct: 80,
+    tonnageFactor: 1,
+    repsPerSide: true,
+    alpha: 0.11,
+    icon: "move-diagonal",
+    video: "https://youtu.be/sZyBSETOO2M",
+  },
+  {
+    id: "l_sit",
+    name: "L-Sit",
+    category: "core",
+    family: "l_sit",
+    nature: "skill",
+    isometric: true,
+    allowedNatures: ["skill", "bodyweight"],
+    bodyweightContributionPct: 45,
+    tonnageFactor: 1,
+    alpha: 0.12,
+    icon: "armchair",
+    video: "https://youtu.be/G8zK_GAxz4U",
+  },
+  {
+    id: "hollow_body_hold",
+    name: "Hollow body hold",
+    category: "core",
+    family: "hollow",
+    nature: "skill",
+    isometric: true,
+    allowedNatures: ["skill", "bodyweight"],
+    bodyweightContributionPct: 35,
+    tonnageFactor: 1,
+    alpha: 0.1,
+    icon: "moon",
+    video: "https://youtu.be/otSr5PZ5Amo",
+  },
+  {
+    id: "jefferson_curl",
+    name: "Jefferson curl",
+    category: "mobility",
+    family: "mobility_strength",
+    nature: "weighted",
+    allowedNatures: ["weighted", "bodyweight"],
+    bodyweightContributionPct: 30,
+    tonnageFactor: 0.7,
+    alpha: 0.1,
+    icon: "fold-vertical",
+    video: "https://youtu.be/3viTkX-WR9I",
+  },
+  {
+    id: "straddle_good_morning",
+    name: "Straddle good morning",
+    category: "mobility",
+    family: "mobility_strength",
+    nature: "bodyweight",
+    allowedNatures: ["bodyweight", "weighted"],
+    bodyweightContributionPct: 45,
+    tonnageFactor: 0.75,
+    alpha: 0.1,
+    icon: "fold-horizontal",
+    video: "https://youtu.be/Ttc6IpMf3S4",
+  },
+  {
     id: "seated_db_overhead_press",
     name: "Press militar sentado mancuernas",
     category: "push",
@@ -793,6 +953,208 @@ function leverSkillExercises(prefix, label, bodyweightContributionPct) {
       },
     ];
   });
+}
+
+// ── Transfer engine phase 2: pattern/muscle vectors + propagation ────────
+// Metadata lives per FAMILY (with per-id overrides) so the whole catalog is
+// covered without touching every entry. Muscles axes: lats, upper_back,
+// biceps, chest, front_delt, triceps, quads, glutes_hams, core_flex,
+// core_ext, forearms_grip, scap.
+const denseTransferFamilyMeta = {
+  strict_pull: { patterns: { vertical_pull: 1 }, muscles: { lats: 0.9, upper_back: 0.5, biceps: 0.6, forearms_grip: 0.5, core_flex: 0.15 }, specificity: 0.25 },
+  horizontal_pull: { patterns: { horizontal_pull: 1 }, muscles: { upper_back: 0.9, lats: 0.5, biceps: 0.5, scap: 0.45 }, specificity: 0.2 },
+  strict_dip: { patterns: { vertical_push: 0.8, horizontal_push: 0.4 }, muscles: { chest: 0.7, triceps: 0.8, front_delt: 0.6, scap: 0.3 }, specificity: 0.25 },
+  ring_push: { patterns: { horizontal_push: 1 }, muscles: { chest: 0.85, triceps: 0.6, front_delt: 0.5, core_ext: 0.25, scap: 0.4 }, specificity: 0.25 },
+  pushup: { patterns: { horizontal_push: 1 }, muscles: { chest: 0.8, triceps: 0.6, front_delt: 0.5, core_ext: 0.2, scap: 0.3 }, specificity: 0.15 },
+  hspu: { patterns: { vertical_push: 1 }, muscles: { front_delt: 0.9, triceps: 0.7, scap: 0.5, upper_back: 0.2 }, specificity: 0.45 },
+  handstand: { patterns: { vertical_push: 0.5, straight_arm: 0.4 }, muscles: { front_delt: 0.6, triceps: 0.4, scap: 0.8, forearms_grip: 0.4 }, specificity: 0.7 },
+  press_to_handstand: { patterns: { vertical_push: 0.6, straight_arm: 0.5, core_compression: 0.5 }, muscles: { front_delt: 0.7, scap: 0.7, core_flex: 0.6 }, specificity: 0.65 },
+  front_lever: { patterns: { straight_arm: 0.8, core_anti_ext: 0.7, vertical_pull: 0.4 }, muscles: { lats: 0.8, core_flex: 0.6, scap: 0.7, upper_back: 0.4 }, specificity: 0.6 },
+  front_lever_pull: { patterns: { vertical_pull: 0.6, straight_arm: 0.6, core_anti_ext: 0.5 }, muscles: { lats: 0.85, core_flex: 0.5, scap: 0.6, biceps: 0.4 }, specificity: 0.55 },
+  back_lever: { patterns: { straight_arm: 0.8, core_ext: 0.5 }, muscles: { chest: 0.5, front_delt: 0.5, scap: 0.7, core_ext: 0.5 }, specificity: 0.6 },
+  back_lever_pull: { patterns: { straight_arm: 0.7, core_ext: 0.4, horizontal_push: 0.2 }, muscles: { chest: 0.55, front_delt: 0.5, scap: 0.65, core_ext: 0.45 }, specificity: 0.55 },
+  cuelgue: { patterns: { vertical_pull: 0.3, straight_arm: 0.3 }, muscles: { forearms_grip: 0.9, scap: 0.6, lats: 0.3 }, specificity: 0.3 },
+  single_leg_squat: { patterns: { squat: 0.8 }, muscles: { quads: 0.85, glutes_hams: 0.6 }, specificity: 0.35 },
+  squat_bodyweight: { patterns: { squat: 1 }, muscles: { quads: 0.85, glutes_hams: 0.55 }, specificity: 0.12 },
+  squat_weighted: { patterns: { squat: 1 }, muscles: { quads: 0.9, glutes_hams: 0.6, core_ext: 0.3 }, specificity: 0.25 },
+  hinge_weighted: { patterns: { hinge: 1 }, muscles: { glutes_hams: 0.9, core_ext: 0.6, forearms_grip: 0.3, quads: 0.3 }, specificity: 0.25 },
+  hinge_bodyweight: { patterns: { hinge: 0.9 }, muscles: { glutes_hams: 0.9, core_ext: 0.4 }, specificity: 0.3 },
+  atg_split_squat: { patterns: { squat: 0.7, range_strength: 0.5 }, muscles: { quads: 0.9, glutes_hams: 0.5 }, specificity: 0.35 },
+  toes_to_bar: { patterns: { core_compression: 1 }, muscles: { core_flex: 0.9, lats: 0.3, forearms_grip: 0.3 }, specificity: 0.3 },
+  l_sit: { patterns: { core_compression: 0.9, straight_arm: 0.3 }, muscles: { core_flex: 0.85, triceps: 0.3, scap: 0.4 }, specificity: 0.45 },
+  hollow: { patterns: { core_anti_ext: 0.8, core_compression: 0.4 }, muscles: { core_flex: 0.85 }, specificity: 0.15 },
+  bridge: { patterns: { core_ext: 0.6, range_strength: 0.8 }, muscles: { core_ext: 0.6, front_delt: 0.4, glutes_hams: 0.4 }, specificity: 0.5 },
+  mobility_strength: { patterns: { range_strength: 1 }, muscles: { glutes_hams: 0.4, quads: 0.3, core_ext: 0.3 }, specificity: 0.3 },
+  accessory: { patterns: { vertical_push: 0.9 }, muscles: { front_delt: 0.85, triceps: 0.6, scap: 0.3 }, specificity: 0.2 },
+};
+
+const denseTransferIdMeta = {
+  bench_press: { patterns: { horizontal_push: 1 }, muscles: { chest: 0.9, triceps: 0.6, front_delt: 0.5 }, specificity: 0.2 },
+  back_extension: { patterns: { hinge: 0.7, core_ext: 0.6 }, muscles: { glutes_hams: 0.7, core_ext: 0.8 }, specificity: 0.15 },
+  machine_leg_extension: { patterns: { squat: 0.4 }, muscles: { quads: 0.95 }, specificity: 0.1 },
+  machine_leg_curl: { patterns: { hinge: 0.4 }, muscles: { glutes_hams: 0.9 }, specificity: 0.1 },
+  natural_leg_extension: { patterns: { squat: 0.5, range_strength: 0.3 }, muscles: { quads: 0.95 }, specificity: 0.3 },
+  sissy_squat: { patterns: { squat: 0.5, range_strength: 0.4 }, muscles: { quads: 0.95 }, specificity: 0.3 },
+  clap_push_up: { patterns: { horizontal_push: 0.9 }, muscles: { chest: 0.8, triceps: 0.6, front_delt: 0.5 }, specificity: 0.35 },
+};
+
+// Leverage factor of lever progressions (torque relative to the full lay)
+const denseLeverProgressionLevel = { tuck: 0.35, one_quarter: 0.45, adv_tuck: 0.5, one_leg: 0.6, straddle: 0.7, half: 0.75, three_quarter: 0.85, full: 1 };
+
+const denseCategoryFallbackMeta = {
+  push: { patterns: { horizontal_push: 0.7, vertical_push: 0.4 }, muscles: { chest: 0.6, triceps: 0.5, front_delt: 0.5 }, specificity: 0.3 },
+  pull: { patterns: { vertical_pull: 0.6, horizontal_pull: 0.4 }, muscles: { lats: 0.6, upper_back: 0.5, biceps: 0.4 }, specificity: 0.3 },
+  legs: { patterns: { squat: 0.7, hinge: 0.3 }, muscles: { quads: 0.7, glutes_hams: 0.5 }, specificity: 0.3 },
+  core: { patterns: { core_compression: 0.7 }, muscles: { core_flex: 0.8 }, specificity: 0.3 },
+  skills: { patterns: { straight_arm: 0.6 }, muscles: { scap: 0.6, front_delt: 0.4 }, specificity: 0.6 },
+  mobility: { patterns: { range_strength: 1 }, muscles: { glutes_hams: 0.4, core_ext: 0.3 }, specificity: 0.3 },
+};
+
+function denseMetaFor(exercise) {
+  if (!exercise) return denseCategoryFallbackMeta.skills;
+  return (
+    denseTransferIdMeta[exercise.id] ||
+    denseTransferFamilyMeta[exercise.family] ||
+    denseCategoryFallbackMeta[exercise.category] ||
+    denseCategoryFallbackMeta.skills
+  );
+}
+
+function denseVecCos(a = {}, b = {}) {
+  let dot = 0;
+  let na = 0;
+  let nb = 0;
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  keys.forEach((key) => {
+    const va = a[key] || 0;
+    const vb = b[key] || 0;
+    dot += va * vb;
+    na += va * va;
+    nb += vb * vb;
+  });
+  if (!na || !nb) return 0;
+  return dot / Math.sqrt(na * nb);
+}
+
+function denseModalityFactor(e, f) {
+  if (Boolean(e.isometric) !== Boolean(f.isometric)) return 0.6;
+  if (e.nature !== f.nature) return 0.9;
+  return 1;
+}
+
+// Hand-tuned overrides for pairs the vectors can't fully capture
+const densePairOverrides = {
+  "pull_up>chin_up": 0.8,
+  "chin_up>pull_up": 0.8,
+  "pull_up>weighted_pull_up": 0.85,
+  "weighted_pull_up>pull_up": 0.9,
+  "bench_press>military_press": 0.5,
+  "military_press>bench_press": 0.45,
+  "military_press>full_rom_hspu": 0.55,
+  "parallel_bar_dip>weighted_parallel_bar_dip": 0.85,
+  "weighted_parallel_bar_dip>parallel_bar_dip": 0.9,
+  "atg_split_squat>weighted_atg_split_squat": 0.85,
+  "weighted_atg_split_squat>atg_split_squat": 0.9,
+};
+
+function denseTransferCoefficient(e, f) {
+  const override = densePairOverrides[`${e.id}>${f.id}`];
+  if (override != null) return override;
+  const A = denseMetaFor(e);
+  const B = denseMetaFor(f);
+  // Patterns and muscles both carry transfer: disjoint patterns (vertical vs
+  // horizontal pull) still transfer through shared musculature.
+  const pat = denseVecCos(A.patterns, B.patterns);
+  const mus = denseVecCos(A.muscles, B.muscles);
+  const c = (0.55 * pat + 0.45 * mus) * denseModalityFactor(e, f) * (1 - (B.specificity ?? 0.3) * 0.7);
+  return clamp(roundTo(c, 3), 0, 0.9);
+}
+
+let denseNeighborCache = null;
+
+// Progression families move together: boosting one boosts its siblings.
+const denseProgressionFamilies = new Set(["front_lever", "front_lever_pull", "back_lever", "back_lever_pull", "hspu", "handstand", "cuelgue"]);
+
+function denseTransferNeighbors(exercise) {
+  denseNeighborCache ||= {};
+  if (denseNeighborCache[exercise.id]) return denseNeighborCache[exercise.id];
+  // One representative per family so progressions don't crowd out other
+  // movement families in the top-K.
+  const byFamily = {};
+  denseExerciseCatalog.forEach((other) => {
+    if (other.id === exercise.id) return;
+    const c = denseTransferCoefficient(exercise, other);
+    if (c < 0.15) return;
+    const key = other.family && other.family !== exercise.family ? other.family : other.id;
+    if (!byFamily[key] || c > byFamily[key].c) byFamily[key] = { exercise: other, c };
+  });
+  const neighbors = Object.values(byFamily)
+    .sort((a, b) => b.c - a.c)
+    .slice(0, 8);
+  denseNeighborCache[exercise.id] = neighbors;
+  return neighbors;
+}
+
+// Cumulative indirect boost applied to an exercise's estimates (capped 12%)
+function denseTransferBoost(exerciseId) {
+  return clamp(Number(state.transfer?.boosts?.[exerciseId]?.pct) || 0, 0, 0.12);
+}
+
+function denseBoosted(exerciseId, value) {
+  return value ? value * (1 + denseTransferBoost(exerciseId)) : value;
+}
+
+function denseTransferQuality(entry) {
+  if (entry.failed || entry.effort === "fallo") return 0.6;
+  if (entry.effort === "VH") return 0.85;
+  if (entry.readiness === "low") return 0.8;
+  return 1;
+}
+
+// Propagate a genuine improvement of `entry` to related exercises. Returns the
+// top boosts applied (for the toast) or null when nothing propagated.
+function runTransferEngine(entry) {
+  const exercise = denseExerciseById(entry.exercise_id);
+  const score = denseEntryScore(entry);
+  if (!exercise || !score) return null;
+  state.transfer ||= { boosts: {}, events: [] };
+  // Direct evidence supersedes any indirect boost on this exercise.
+  delete state.transfer.boosts[entry.exercise_id];
+  const prior = Math.max(
+    0,
+    ...getDenseEntries()
+      .filter((item) => item.exercise_id === entry.exercise_id && item.id !== entry.id)
+      .map((item) => denseEntryScore(item) || 0),
+  );
+  if (!prior) return null; // first mark = calibration, not improvement
+  let delta = (score - prior) / prior;
+  if (delta <= 0.004) return null;
+  delta = Math.min(delta, 0.25) * denseTransferQuality(entry);
+  const applied = [];
+  denseTransferNeighbors(exercise).forEach(({ exercise: target, c }) => {
+    const gain = clamp(delta * c * 0.5, 0, 0.03);
+    if (gain < 0.005) return;
+    // Progression families receive the boost as a block (shared latent).
+    const members =
+      target.family && denseProgressionFamilies.has(target.family)
+        ? denseExerciseCatalog.filter((item) => item.family === target.family && item.id !== entry.exercise_id)
+        : [target];
+    let appliedAny = 0;
+    members.forEach((member) => {
+      const slot = (state.transfer.boosts[member.id] ||= { pct: 0, from: [] });
+      const add = Math.min(gain, Math.max(0, 0.12 - slot.pct));
+      if (add <= 0.002) return;
+      slot.pct = roundTo(slot.pct + add, 4);
+      slot.updatedAt = new Date().toISOString();
+      slot.from = [{ name: exercise.name, date: entry.date }, ...(slot.from || [])].slice(0, 3);
+      appliedAny = Math.max(appliedAny, add);
+    });
+    if (!appliedAny) return;
+    applied.push({ id: target.id, name: members.length > 1 ? `${target.name.split(" ").slice(0, 2).join(" ")} (familia)` : target.name, pct: appliedAny });
+    state.transfer.events.push({ at: new Date().toISOString(), source: entry.exercise_id, sourceEntry: entry.id, target: target.id, family: members.length > 1 ? target.family : null, delta: appliedAny, reconciled: false });
+  });
+  if (state.transfer.events.length > 150) state.transfer.events = state.transfer.events.slice(-150);
+  return applied.sort((a, b) => b.pct - a.pct).slice(0, 3);
 }
 
 const habitDefaults = [
@@ -3916,6 +4278,11 @@ function openDenseExerciseDetailModal(exerciseId) {
           ? `<section class="exercise-detail-section">
               <div class="section-subhead"><strong>Objetivo por densidad</strong><span>según tu capacidad</span></div>
               <div class="dense-estimate-grid">${predictionCards}</div>
+              ${
+                denseTransferBoost(exercise.id) > 0
+                  ? `<p class="transfer-note"><i data-lucide="git-merge"></i>Incluye +${roundTo(denseTransferBoost(exercise.id) * 100, 1)}% por transferencia de ${escapeHtml([...new Set((state.transfer?.boosts?.[exercise.id]?.from || []).map((f) => f.name))].slice(0, 2).join(" y ") || "ejercicios relacionados")} — estimación indirecta, falta test.</p>`
+                  : ""
+              }
             </section>`
           : ""
       }
@@ -4062,11 +4429,17 @@ function saveDenseTrainingForm(form) {
     updateDenseEstimate(entry);
   }
   if (entry.bodyweight_kg) state.bodyweightLogs[entry.date] = entry.bodyweight_kg;
+  // Transfer engine: a genuine improvement lifts related estimates a notch.
+  const transferBoosts = existingIndex < 0 ? runTransferEngine(entry) : null;
   delete state.settings.denseDraftEntryId;
   const savedFromModal = nodes.modal.open && nodes.modalBody.contains(form);
   form.reset();
   if (savedFromModal) closeModal();
   saveAndRender(existingIndex >= 0 ? "Marca Dense actualizada" : "Marca Dense guardada");
+  if (transferBoosts?.length) {
+    const summary = transferBoosts.map((boost) => `${boost.name} +${roundTo(boost.pct * 100, 1)}%`).join(" · ");
+    setTimeout(() => toast(`Esta marca mejora estimaciones: ${summary}`), 1500);
+  }
   if (existingIndex < 0) setTimeout(() => openDenseFeedbackModal(entry.id), 0);
 }
 
@@ -5879,7 +6252,7 @@ function denseDefaultRepsPerSet(exercise, scheme) {
     const target = Number(latestSameScheme.target_reps_per_min || latestSameScheme.reps_per_set || 0);
     raw = target > 0 ? target : Math.max(1, Math.round(Number(latestSameScheme.total_reps) / minutes));
   } else {
-    const estimate = state.denseEstimates?.[exercise.id]?.bodyweight_capacity;
+    const estimate = denseBoosted(exercise.id, state.denseEstimates?.[exercise.id]?.bodyweight_capacity || 0);
     const multiplier = bodyweightMultipliers[denseSchemeBase(scheme)];
     // Cross-estimate via the unified e1RM curve (e.g. weighted-only history
     // informing an unweighted scheme) before falling back to generic defaults.
@@ -5898,12 +6271,12 @@ function denseDefaultHoldPerRound(exercise, scheme) {
   const multiplier = bodyweightMultipliers[denseSchemeBase(scheme)];
   if (!multiplier) return "";
   const isoCapacity = state.denseEstimates?.[exercise.id]?.isometric_capacity;
-  if (isoCapacity) return Math.max(1, Math.floor(isoCapacity * multiplier));
+  if (isoCapacity) return Math.max(1, Math.floor(denseBoosted(exercise.id, isoCapacity) * multiplier));
   const minutes = denseSchemeMinutes(scheme) || 1;
   const latestIso = [...getDenseEntries()]
     .filter((entry) => entry.exercise_id === exercise.id && entry.isometric_capacity)
     .sort((a, b) => (b.created_at || b.date || "").localeCompare(a.created_at || a.date || ""))[0];
-  if (latestIso?.isometric_capacity) return Math.max(1, Math.floor(latestIso.isometric_capacity * multiplier));
+  if (latestIso?.isometric_capacity) return Math.max(1, Math.floor(denseBoosted(exercise.id, latestIso.isometric_capacity) * multiplier));
   const latestSameScheme = [...getDenseEntries()]
     .filter((entry) => entry.exercise_id === exercise.id && entry.scheme === scheme && (entry.hold_seconds_per_round || entry.total_hold_seconds))
     .sort((a, b) => (b.created_at || b.date || "").localeCompare(a.created_at || a.date || ""))[0];
@@ -5939,6 +6312,7 @@ function denseUnifiedE1rm(exerciseId) {
     const result = denseEntrySystemE1rm(entry);
     if (result && (!best || result.e1rm > best.e1rm)) best = { ...result, date: entry.date };
   });
+  if (best) best.e1rm = denseBoosted(exerciseId, best.e1rm);
   return best;
 }
 
@@ -5972,7 +6346,7 @@ function denseBestCapacity(exerciseId, key) {
   const fromEntries = getDenseEntries()
     .filter((item) => item.exercise_id === exerciseId)
     .map((item) => Number(item[key]) || 0);
-  return Math.max(estimate, ...fromEntries, 0);
+  return denseBoosted(exerciseId, Math.max(estimate, ...fromEntries, 0));
 }
 
 // Deterministic per-scheme reps/min target for the log form. Keeps the value
@@ -7301,10 +7675,13 @@ function renderDenseEstimateCards(entry) {
   const estimate = state.denseEstimates?.[entry.exercise_id] || {};
   // Targets follow your best proven capacity, not the lagging smoothed estimate.
   const bestMetric = (key) =>
-    Math.max(
-      estimate[key] || 0,
-      entry[key] || 0,
-      ...getDenseEntries().filter((item) => item.exercise_id === entry.exercise_id).map((item) => Number(item[key]) || 0),
+    denseBoosted(
+      entry.exercise_id,
+      Math.max(
+        estimate[key] || 0,
+        entry[key] || 0,
+        ...getDenseEntries().filter((item) => item.exercise_id === entry.exercise_id).map((item) => Number(item[key]) || 0),
+      ),
     );
   const unified = denseUnifiedE1rm(entry.exercise_id);
 

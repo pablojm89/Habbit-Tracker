@@ -7100,3 +7100,26 @@ button:focus-visible {
     width: 40px;
   }
 }
+
+/* Transfer engine: indirect-estimate note under the density targets */
+.transfer-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 9px 11px;
+  border: 1px solid rgba(95, 209, 232, 0.32);
+  border-radius: 10px;
+  background: rgba(95, 209, 232, 0.06);
+  color: color-mix(in srgb, var(--cyan), var(--text) 30%);
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.transfer-note i {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  margin-top: 1px;
+}
