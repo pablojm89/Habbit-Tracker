@@ -7212,3 +7212,40 @@ button:focus-visible {
   color: var(--dim);
   font-size: 0.62rem;
 }
+
+/* Weekly "test this" nudge from the transfer engine */
+.test-suggestion-card {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  gap: 11px;
+  align-items: center;
+  margin-top: 10px;
+  padding: 11px 12px;
+  border: 1px solid rgba(95, 209, 232, 0.35);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(135deg, rgba(95, 209, 232, 0.1), transparent 62%),
+    rgba(95, 209, 232, 0.03);
+}
+
+.test-suggestion-card .tiny-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: rgba(95, 209, 232, 0.14);
+  color: var(--cyan);
+}
+
+.test-suggestion-card strong {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 850;
+}
+
+.test-suggestion-card span {
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1.35;
+}

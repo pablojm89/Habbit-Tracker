@@ -1180,10 +1180,23 @@ function denseTransferQuality(entry) {
 // Phase 4: when an exercise that carried an indirect boost is finally tested,
 // compare predicted vs observed improvement and adjust the personal
 // pattern-pair multipliers (starts generic, learns YOUR transfer rates).
+// Score axis of an entry: deltas only compare within the same axis, so a
+// modality switch (weighted e1RM ~198 vs bodyweight capacity ~13) can never
+// fake a giant improvement.
+function denseScoreType(entry) {
+  if (Number(entry.e1rm_kg) > 0) return "e1rm";
+  if (entry.total_hold_seconds || entry.isometric_capacity) return "iso";
+  if (entry.bodyweight_capacity || entry.reps_per_min) return "cap";
+  return "other";
+}
+
+// Reconcile predictions resolved by a direct test. Noise-robust: needs a
+// meaningful prediction (>=2%) and averages TWO observations per pattern-pair
+// before moving the personal multiplier k.
 function denseReconcileTransfers(entry, rawDelta) {
   const slot = state.transfer.boosts[entry.exercise_id];
   const predicted = clamp(Number(slot?.pct) || 0, 0, 0.12);
-  if (predicted < 0.01) return;
+  if (predicted < 0.02) return;
   const targetExercise = denseExerciseById(entry.exercise_id);
   const ratio = clamp(clamp(rawDelta, -0.1, 0.3) / predicted, 0, 2);
   const pending = state.transfer.events.filter(
@@ -1191,36 +1204,43 @@ function denseReconcileTransfers(entry, rawDelta) {
   );
   if (!pending.length) return;
   state.transfer.pairK ||= {};
+  state.transfer.pendingK ||= {};
   new Set(pending.map((event) => event.source)).forEach((sourceId) => {
     const source = denseExerciseById(sourceId);
     if (!source) return;
     const key = `${densePrimaryPattern(source)}>${densePrimaryPattern(targetExercise)}`;
+    const queue = (state.transfer.pendingK[key] ||= []);
+    queue.push(roundTo(ratio, 3));
+    if (queue.length < 2) return; // wait for a second observation
+    const avgRatio = average(queue);
+    state.transfer.pendingK[key] = [];
     const k = clamp(Number(state.transfer.pairK[key]) || 1, 0.3, 2);
-    state.transfer.pairK[key] = roundTo(clamp(k * (1 + 0.25 * (ratio - 1)), 0.3, 2), 3);
+    state.transfer.pairK[key] = roundTo(clamp(k * (1 + 0.25 * (avgRatio - 1)), 0.3, 2), 3);
+    denseNeighborCache = null; // coefficients changed for this user
   });
   pending.forEach((event) => {
     event.reconciled = true;
     event.ratio = roundTo(ratio, 2);
   });
-  denseNeighborCache = null; // coefficients changed for this user
 }
 
-// Propagate a genuine improvement of `entry` to related exercises. Returns the
-// top boosts applied (for the toast) or null when nothing propagated.
-function runTransferEngine(entry) {
+// One fold step: process `entry` against the entries strictly before it.
+// Returns the top boosts applied (for the toast) or null.
+function denseTransferStep(entry, priorEntries) {
   const exercise = denseExerciseById(entry.exercise_id);
   const score = denseEntryScore(entry);
   if (!exercise || !score) return null;
-  state.transfer ||= { boosts: {}, events: [] };
+  state.transfer ||= { boosts: {}, events: [], pairK: {}, pendingK: {} };
+  const type = denseScoreType(entry);
   const prior = Math.max(
     0,
-    ...getDenseEntries()
-      .filter((item) => item.exercise_id === entry.exercise_id && item.id !== entry.id)
+    ...priorEntries
+      .filter((item) => item.exercise_id === entry.exercise_id && denseScoreType(item) === type)
       .map((item) => denseEntryScore(item) || 0),
   );
   if (!prior) {
     delete state.transfer.boosts[entry.exercise_id];
-    return null; // first mark = calibration, not improvement
+    return null; // first mark on this axis = calibration, not improvement
   }
   const rawDelta = (score - prior) / prior;
   // Learn from the prediction this test resolves, then absorb the boost.
@@ -1228,6 +1248,7 @@ function runTransferEngine(entry) {
   delete state.transfer.boosts[entry.exercise_id];
   if (rawDelta <= 0.004) return null;
   const delta = Math.min(rawDelta, 0.25) * denseTransferQuality(entry);
+  const stamp = entry.created_at || entry.date || new Date().toISOString();
   const applied = [];
   denseTransferNeighbors(exercise).forEach(({ exercise: target, c }) => {
     // Technical targets only absorb transfer through practiced technique.
@@ -1245,16 +1266,41 @@ function runTransferEngine(entry) {
       const add = Math.min(gain, Math.max(0, 0.12 - slot.pct));
       if (add <= 0.002) return;
       slot.pct = roundTo(slot.pct + add, 4);
-      slot.updatedAt = new Date().toISOString();
+      slot.updatedAt = stamp;
       slot.from = [{ name: exercise.name, date: entry.date }, ...(slot.from || [])].slice(0, 3);
       appliedAny = Math.max(appliedAny, add);
     });
     if (!appliedAny) return;
     applied.push({ id: target.id, name: members.length > 1 ? `${target.name.split(" ").slice(0, 2).join(" ")} (familia)` : target.name, pct: appliedAny });
-    state.transfer.events.push({ at: new Date().toISOString(), source: entry.exercise_id, sourceEntry: entry.id, target: target.id, family: members.length > 1 ? target.family : null, delta: appliedAny, reconciled: false });
+    state.transfer.events.push({ at: stamp, source: entry.exercise_id, sourceEntry: entry.id, target: target.id, family: members.length > 1 ? target.family : null, delta: appliedAny, reconciled: false });
   });
   if (state.transfer.events.length > 150) state.transfer.events = state.transfer.events.slice(-150);
   return applied.sort((a, b) => b.pct - a.pct).slice(0, 3);
+}
+
+// Rebuild the WHOLE transfer state as a deterministic fold over history.
+// Editing or deleting any mark re-derives boosts, events and learned pairK —
+// no ghost state can survive. Returns the resulting boosts snapshot.
+function rebuildTransferState({ excludeId = null } = {}) {
+  state.transfer = { boosts: {}, events: [], pairK: {}, pendingK: {} };
+  const sorted = [...getDenseEntries()]
+    .filter((entry) => entry.id !== excludeId)
+    .sort((a, b) => String(a.created_at || a.date || "").localeCompare(String(b.created_at || b.date || "")));
+  sorted.forEach((entry, index) => denseTransferStep(entry, sorted.slice(0, index)));
+  return JSON.parse(JSON.stringify(state.transfer.boosts));
+}
+
+// Save-time wrapper: rebuild without/with the new entry and diff the boosts,
+// so the toast reports exactly what THIS mark improved.
+function runTransferEngine(entry) {
+  const before = rebuildTransferState({ excludeId: entry.id });
+  const after = rebuildTransferState();
+  const applied = Object.entries(after)
+    .map(([id, slot]) => ({ id, name: denseExerciseById(id)?.name || id, pct: roundTo((slot.pct || 0) - (before[id]?.pct || 0), 4) }))
+    .filter((row) => row.pct >= 0.005)
+    .sort((a, b) => b.pct - a.pct)
+    .slice(0, 3);
+  return applied.length ? applied : null;
 }
 
 const habitDefaults = [
@@ -1913,9 +1959,86 @@ nodes.openBackup.addEventListener("click", () => {
   else switchView("review");
 });
 
+// ── Self-test suite (open with ?selftest=1) ─────────────────────────────
+// Guards the transfer engine against regressions: curve math, coefficient
+// matrix, mastery, propagation, gating, cross-modality and reconciliation.
+function runDenseSelfTests() {
+  const results = [];
+  const test = (name, fn) => {
+    try {
+      results.push({ name, ok: Boolean(fn()) });
+    } catch (error) {
+      results.push({ name, ok: false, error: String(error) });
+    }
+  };
+  const savedEntries = state.denseTrainingEntries;
+  state.denseTrainingEntries = [];
+  rebuildTransferState();
+  const add = (over) => state.denseTrainingEntries.push({ nature: "bodyweight", bodyweight_kg: 80, effort: "N", ...over });
+
+  test("curva: round-trip pct↔reps", () => Math.abs(densePctForReps("5D", denseRepsForPct("5D", 0.5)) - 0.5) < 0.001);
+  test("curva: monótona", () => denseRepsForPct("5D", 0.7) < denseRepsForPct("5D", 0.4));
+  test("curva: 2D10 106kg → e1RM≈198", () => Math.abs(106 / densePctForReps("2D", 10) - 198.1) < 1.5);
+  test("curva: factor resistencia 2D→20D", () => denseEnduranceFactor("2D", "20D") === 0.78);
+
+  const C = (a, b) => denseTransferCoefficient(denseExerciseById(a), denseExerciseById(b));
+  test("coef: pull→chin = 0.8", () => C("pull_up", "chin_up") === 0.8);
+  test("coef: pull→bench ≈ 0", () => C("pull_up", "bench_press") < 0.05);
+  test("coef: squat↔deadlift = 0.45", () => C("back_squat", "deadlift") === 0.45 && C("deadlift", "back_squat") === 0.45);
+  test("coef: FL hold recibe menos que FL pull", () => C("pull_up", "front_lever_tuck") < C("pull_up", "front_lever_tuck_pull"));
+
+  test("técnica: no-técnico expresa 1", () => denseTechMasteryInfo(denseExerciseById("air_squat")).t === 1);
+  test("técnica: skill sin historial 0.35", () => denseTechMasteryInfo(denseExerciseById("front_lever_full")).t === 0.35);
+
+  add({ id: "t1", exercise_id: "pull_up", exercise_name: "Dominadas", scheme: "5D", date: "2026-06-01", created_at: "2026-06-01T10:00:00Z", total_reps: 35, reps_per_min: 7, bodyweight_capacity: 11.7 });
+  add({ id: "c1", exercise_id: "chin_up", exercise_name: "Dominada supina", scheme: "5D", date: "2026-06-02", created_at: "2026-06-02T10:00:00Z", total_reps: 33, reps_per_min: 6.6, bodyweight_capacity: 11 });
+  add({ id: "t2", exercise_id: "pull_up", exercise_name: "Dominadas", scheme: "5D", date: "2026-06-10", created_at: "2026-06-10T10:00:00Z", total_reps: 40, reps_per_min: 8, bodyweight_capacity: 13.3 });
+  rebuildTransferState();
+  test("propagación: chin-up recibe boost ≥2%", () => denseTransferBoost("chin_up") >= 0.02);
+  test("propagación: bench no recibe nada", () => denseTransferBoost("bench_press") === 0);
+  test("gating: FL hold < chin-up", () => denseTransferBoost("front_lever_tuck") < denseTransferBoost("chin_up"));
+
+  const chinBoostBefore = denseTransferBoost("chin_up");
+  add({ id: "t3", exercise_id: "pull_up", exercise_name: "Dominadas", scheme: "2D10", date: "2026-06-15", created_at: "2026-06-15T10:00:00Z", nature: "weighted_calisthenics", e1rm_kg: 198, total_reps: 20, reps_per_min: 10 });
+  rebuildTransferState();
+  test("cross-modalidad: 1ª marca lastrada no propaga (calibración)", () => Math.abs(denseTransferBoost("chin_up") - chinBoostBefore) < 0.001);
+
+  add({ id: "c2", exercise_id: "chin_up", exercise_name: "Dominada supina", scheme: "5D", date: "2026-06-20", created_at: "2026-06-20T10:00:00Z", total_reps: 33.3, reps_per_min: 6.67, bodyweight_capacity: 11.11 });
+  rebuildTransferState();
+  test("reconciliación: 1ª observación no mueve k", () => !state.transfer.pairK["vertical_pull>vertical_pull"]);
+  add({ id: "t4", exercise_id: "pull_up", exercise_name: "Dominadas", scheme: "5D", date: "2026-06-25", created_at: "2026-06-25T10:00:00Z", total_reps: 44, reps_per_min: 8.8, bodyweight_capacity: 14.6 });
+  add({ id: "c3", exercise_id: "chin_up", exercise_name: "Dominada supina", scheme: "5D", date: "2026-06-28", created_at: "2026-06-28T10:00:00Z", total_reps: 33.6, reps_per_min: 6.73, bodyweight_capacity: 11.22 });
+  rebuildTransferState();
+  test("reconciliación: 2ª observación baja k (<1)", () => {
+    const k = state.transfer.pairK["vertical_pull>vertical_pull"];
+    return k > 0.3 && k < 1;
+  });
+  test("boost aplicado a estimaciones", () => denseBoosted("chin_up", 100) > 100 || denseTransferBoost("chin_up") === 0);
+
+  state.denseTrainingEntries = savedEntries;
+  denseNeighborCache = null;
+  rebuildTransferState();
+  const passed = results.filter((row) => row.ok).length;
+  console.table(results);
+  toast(`Self-test motor: ${passed}/${results.length} OK`);
+  return { passed, total: results.length, results };
+}
+
+if (new URLSearchParams(window.location.search).has("selftest")) {
+  setTimeout(() => runDenseSelfTests(), 600);
+}
+
 // Temporary: run the app as a training-only tool (habits/panel/review hidden).
 // Flip to false to bring the habit tracker back.
 const TRAINING_ONLY = true;
+
+// Transfer state is a pure cache: re-derive it from history on every load so
+// synced/edited marks can never leave stale boosts behind.
+try {
+  rebuildTransferState();
+} catch (error) {
+  console.warn("transfer rebuild failed", error);
+}
 
 render();
 queueInitialCloudRestore();
@@ -2373,6 +2496,41 @@ function denseWeeklyFailureStatus(weekDayKeys) {
   return status;
 }
 
+// Weekly test nudge: the most-boosted exercise that hasn't been verified —
+// "tu patrón sube, testéalo esta semana".
+function denseTestSuggestion() {
+  const rows = Object.entries(state.transfer?.boosts || {})
+    .map(([id, slot]) => {
+      const exercise = denseExerciseById(id);
+      if (!exercise || !(slot?.pct >= 0.03)) return null;
+      const last = [...getDenseEntries()]
+        .filter((entry) => entry.exercise_id === id)
+        .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")))[0];
+      const days = last ? Math.round((today.getTime() - parseDate(last.date).getTime()) / 86400000) : 999;
+      if (days < 14) return null;
+      return { exercise, pct: slot.pct, days, from: slot.from?.[0]?.name || "" };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.pct - a.pct);
+  return rows[0] || null;
+}
+
+function renderTestSuggestionCard() {
+  const suggestion = denseTestSuggestion();
+  if (!suggestion) return "";
+  const daysLabel = suggestion.days >= 999 ? "sin test directo" : `${suggestion.days}d sin test`;
+  return `
+    <div class="test-suggestion-card">
+      <span class="tiny-icon"><i data-lucide="flask-conical"></i></span>
+      <div>
+        <strong>Testea esta semana: ${escapeHtml(suggestion.exercise.name)}</strong>
+        <span>Estimación +${roundTo(suggestion.pct * 100, 1)}%${suggestion.from ? ` por transferencia de ${escapeHtml(suggestion.from)}` : ""} sin verificar · ${daysLabel}</span>
+      </div>
+      <button class="dc-badge calibration-add" type="button" data-action="add-planned-exercise" data-exercise="${escapeAttr(suggestion.exercise.id)}">+ hoy</button>
+    </div>
+  `;
+}
+
 function renderWeeklyFailureCard(weekDayKeys, isCurrentWeek) {
   const status = denseWeeklyFailureStatus(weekDayKeys);
   const groups = [
@@ -2516,6 +2674,7 @@ function renderMesocycle() {
         </div>
 
         ${renderWeeklyFailureCard(weekDayKeys, isCurrentWeek)}
+        ${renderTestSuggestionCard()}
       </section>
 
       <div class="day-carousel" data-day-carousel>
@@ -2768,6 +2927,19 @@ function renderProgressAnalytics(entries) {
         ? `<div class="dc-mover-list">${movers.map((row) => `<div class="dc-mover"><strong>${escapeHtml(row.name)}</strong>${dcTrendBadge(row.pct)}</div>`).join("")}</div>`
         : `<p class="dc-empty-note">Sin mejoras medibles en esta ventana todavía.</p>`
     }
+
+    <div class="dc-section-head"><strong>Transferencias recientes</strong><span>marcas que movieron otras estimaciones</span></div>
+    ${(() => {
+      const events = [...(state.transfer?.events || [])].slice(-6).reverse();
+      if (!events.length) return `<p class="dc-empty-note">Aún nada: cuando una mejora real propague a ejercicios relacionados, aparecerá aquí.</p>`;
+      return `<article class="analytics-card">${events
+        .map((event) => {
+          const source = denseExerciseById(event.source)?.name || event.source;
+          const target = event.family ? `${denseExerciseById(event.target)?.name.split(" ").slice(0, 2).join(" ") || event.target} (familia)` : denseExerciseById(event.target)?.name || event.target;
+          return `<div class="dc-pr-row"><div><strong>${escapeHtml(source)} → ${escapeHtml(target)}</strong><small>${event.reconciled ? "reconciliada" : "pendiente de test"}</small></div><b>+${roundTo(event.delta * 100, 1)}%</b><span>${escapeHtml(String(event.at || "").slice(5, 10))}</span></div>`;
+        })
+        .join("")}</article>`;
+    })()}
 
     ${dcCollapse("trophy", "Personal records", "toca para ver", `${prEvents.length}`, prEvents.length ? prEvents.slice(0, 8).map(dcPrRow).join("") : `<p class="dc-empty-note">Sin PRs en esta ventana.</p>`)}
     ${dcCollapse("zap", "Effort — easier than before", "misma marca o mejor, menos esfuerzo", `${easier.length}`, easier.length ? easier.map((row) => `<div class="dc-pr-row"><div><strong>${escapeHtml(row.name)}</strong><small><em>Dense</em> ${escapeHtml(row.scheme)}</small></div><span>${escapeHtml(String(row.date || "").slice(5))}</span></div>`).join("") : `<p class="dc-empty-note">Aún nada aquí: repite una marca con menos esfuerzo y aparecerá.</p>`)}
@@ -4394,6 +4566,7 @@ function deleteDenseEntry(entryId) {
   }
   state.denseTrainingEntries.splice(index, 1);
   rebuildDenseEstimates();
+  rebuildTransferState();
   closeModal();
   saveAndRender("Entreno eliminado");
 }
@@ -4586,7 +4759,8 @@ function saveDenseTrainingForm(form) {
   }
   if (entry.bodyweight_kg) state.bodyweightLogs[entry.date] = entry.bodyweight_kg;
   // Transfer engine: a genuine improvement lifts related estimates a notch.
-  const transferBoosts = existingIndex < 0 ? runTransferEngine(entry) : null;
+  // Edits also re-derive the whole fold, so corrections can't leave ghosts.
+  const transferBoosts = runTransferEngine(entry);
   delete state.settings.denseDraftEntryId;
   const savedFromModal = nodes.modal.open && nodes.modalBody.contains(form);
   form.reset();
