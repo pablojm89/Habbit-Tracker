@@ -144,6 +144,52 @@ const dcCnsZones = [
   { max: 101, color: "#ff7c9e", label: "Spike 80–100" },
 ];
 
+// ── Universal converter (Fase 1 del motor de transferencia) ─────────────
+// denseWorkingPct, reorganized as a continuous rep-max curve per dense base:
+// points of (reps/min, %1RM system). Interpolated log-linearly in reps, it
+// converts any relative intensity into reps for ANY scheme, and back.
+const denseBaseCurve = {
+  "2D": [[5, 0.778], [10, 0.535], [20, 0.404]],
+  "5D": [[1, 0.893], [3, 0.794], [5, 0.688], [10, 0.445], [20, 0.314]],
+  "10D": [[1, 0.864], [3, 0.767], [5, 0.665], [10, 0.431], [20, 0.304]],
+  "20D": [[1, 0.834], [3, 0.741], [5, 0.643], [10, 0.416], [20, 0.294]],
+};
+
+// Endurance specificity: a heavy/short test says less about long/light schemes
+// (and vice versa). Damped by distance between bases.
+const denseBaseOrder = { "2D": 0, "5D": 1, "10D": 2, "20D": 3 };
+
+function denseEnduranceFactor(fromBase, toBase) {
+  const gap = Math.abs((denseBaseOrder[toBase] ?? 0) - (denseBaseOrder[fromBase] ?? 0));
+  return [1, 0.95, 0.87, 0.78][gap] ?? 0.78;
+}
+
+// %1RM sustainable at `reps`/min on a dense base (log-linear, edge-extrapolated)
+function densePctForReps(base, reps) {
+  const curve = denseBaseCurve[base];
+  if (!curve) return 0;
+  const lr = Math.log(clamp(Number(reps) || 0.5, 0.5, 40));
+  const pts = curve.map(([x, y]) => [Math.log(x), y]);
+  let i = 0;
+  while (i < pts.length - 2 && lr > pts[i + 1][0]) i += 1;
+  const [x0, y0] = pts[i];
+  const [x1, y1] = pts[i + 1];
+  return clamp(y0 + ((y1 - y0) * (lr - x0)) / (x1 - x0), 0.12, 0.95);
+}
+
+// Inverse: reps/min sustainable at a relative intensity (load / e1RM system)
+function denseRepsForPct(base, pct) {
+  const curve = denseBaseCurve[base];
+  if (!curve) return 0;
+  const p = clamp(Number(pct) || 0, 0.12, 0.95);
+  const pts = curve.map(([x, y]) => [Math.log(x), y]);
+  let i = 0;
+  while (i < pts.length - 2 && p < pts[i + 1][1]) i += 1;
+  const [x0, y0] = pts[i];
+  const [x1, y1] = pts[i + 1];
+  return clamp(Math.exp(x0 + ((x1 - x0) * (p - y0)) / (y1 - y0)), 0.5, 40);
+}
+
 const bodyweightSchemes = ["2D", "5D", "10D", "20D"];
 const weightedSchemes = Object.keys(denseWorkingPct);
 const allDenseSchemes = [...bodyweightSchemes, ...weightedSchemes];
@@ -5835,7 +5881,14 @@ function denseDefaultRepsPerSet(exercise, scheme) {
   } else {
     const estimate = state.denseEstimates?.[exercise.id]?.bodyweight_capacity;
     const multiplier = bodyweightMultipliers[denseSchemeBase(scheme)];
-    raw = estimate && multiplier ? Math.max(1, Math.floor(estimate * multiplier)) : Math.max(1, Math.round(denseDefaultRpm(exercise, denseSchemeBase(scheme))));
+    // Cross-estimate via the unified e1RM curve (e.g. weighted-only history
+    // informing an unweighted scheme) before falling back to generic defaults.
+    const crossRpm = denseCrossRpm(exercise, denseSchemeBase(scheme));
+    raw = estimate && multiplier
+      ? Math.max(1, Math.floor(estimate * multiplier))
+      : crossRpm
+        ? Math.max(1, Math.floor(crossRpm))
+        : Math.max(1, Math.round(denseDefaultRpm(exercise, denseSchemeBase(scheme))));
   }
   return Math.max(1, Math.round(denseCapRpm(exercise, raw)));
 }
@@ -5859,6 +5912,56 @@ function denseDefaultHoldPerRound(exercise, scheme) {
   // cuelgue) aren't left empty. Scaled by density like a modest capacity of ~38s.
   if (denseIsIsometric(exercise)) return Math.max(1, Math.floor(38 * multiplier));
   return "";
+}
+
+// System e1RM implied by ANY dynamic entry: weighted marks carry it already;
+// bodyweight marks derive it inverting the rep-max curve (load = bw × contribution).
+function denseEntrySystemE1rm(entry) {
+  if (Number(entry.e1rm_kg) > 0) {
+    return { e1rm: Number(entry.e1rm_kg), base: denseSchemeBase(entry.scheme), cross: false };
+  }
+  if (entry.total_hold_seconds) return null; // isométricos: fase 3
+  const rpm = Number(entry.reps_per_min) || 0;
+  const base = denseSchemeBase(entry.scheme);
+  const exercise = denseExerciseById(entry.exercise_id);
+  const contribution = Number(entry.bodyweight_contribution_pct ?? exercise?.bodyweightContributionPct) || 0;
+  const bw = Number(entry.bodyweight_kg) || latestKnownBodyweight(entry.date) || 0;
+  const load = (bw * contribution) / 100;
+  if (!rpm || !load || !denseBaseCurve[base]) return null;
+  return { e1rm: load / densePctForReps(base, rpm), base, cross: true };
+}
+
+// Best implied system e1RM across all of an exercise's entries (any modality)
+function denseUnifiedE1rm(exerciseId) {
+  let best = null;
+  getDenseEntries().forEach((entry) => {
+    if (entry.exercise_id !== exerciseId) return;
+    const result = denseEntrySystemE1rm(entry);
+    if (result && (!best || result.e1rm > best.e1rm)) best = { ...result, date: entry.date };
+  });
+  return best;
+}
+
+// Relative uncertainty of an estimate: grows with staleness, cross-modality
+// conversion and distance between dense bases.
+function denseEstimateSigma(sourceDate, { cross = false, baseGap = 0 } = {}) {
+  if (!sourceDate) return 0.22;
+  const weeks = Math.max(0, (today.getTime() - parseDate(sourceDate).getTime()) / (7 * 86400000));
+  return clamp(0.08 + 0.006 * weeks + (cross ? 0.04 : 0) + baseGap * 0.012, 0.06, 0.22);
+}
+
+function denseConfidenceLabel(sigma) {
+  return sigma <= 0.105 ? "alta" : sigma <= 0.16 ? "media" : "baja";
+}
+
+// Cross-estimated reps/min for a bodyweight scheme from the unified e1RM
+function denseCrossRpm(exercise, base, unified = denseUnifiedE1rm(exercise.id)) {
+  if (!unified) return 0;
+  const bw = latestKnownBodyweight() || 0;
+  const load = (bw * (Number(exercise.bodyweightContributionPct) || 0)) / 100;
+  if (!load) return 0;
+  const rel = load / unified.e1rm;
+  return denseRepsForPct(base, rel) * denseEnduranceFactor(unified.base, base);
 }
 
 // Best proven capacity for an exercise: the max across the smoothed estimate and
@@ -7203,22 +7306,35 @@ function renderDenseEstimateCards(entry) {
       entry[key] || 0,
       ...getDenseEntries().filter((item) => item.exercise_id === entry.exercise_id).map((item) => Number(item[key]) || 0),
     );
+  const unified = denseUnifiedE1rm(entry.exercise_id);
+
   if (entry.nature === "weighted" || entry.nature === "weighted_calisthenics") {
-    const e1rm = bestMetric("e1rm_kg");
+    // Unified e1RM: a bodyweight-only history can now estimate loads too.
+    const e1rm = Math.max(bestMetric("e1rm_kg"), unified?.e1rm || 0);
     if (!e1rm) return "";
+    const cross = !bestMetric("e1rm_kg") && Boolean(unified?.cross);
     const bw = entry.bodyweight_kg || latestKnownBodyweight(entry.date) || 0;
     const targets = ["2D5", "5D3", "5D5", "10D3", "10D5", "10D1-2-3", "20D3", "20D5"];
     return targets
       .map((scheme) => {
+        const sigma = denseEstimateSigma(unified?.date || entry.date, {
+          cross,
+          baseGap: Math.abs((denseBaseOrder[denseSchemeBase(scheme)] ?? 0) - (denseBaseOrder[unified?.base || denseSchemeBase(scheme)] ?? 0)),
+        });
         const totalLoad = e1rm * denseWorkingPct[scheme];
+        const low = totalLoad * (1 - sigma);
+        const high = totalLoad * (1 + sigma);
         const displayLoad =
           entry.nature === "weighted_calisthenics" && bw ? `${formatKg(Math.max(0, totalLoad - bw))} lastre` : formatKg(totalLoad);
-        const sub = entry.nature === "weighted_calisthenics" && bw ? `${formatKg(totalLoad)} sistema` : `desde e1RM ${formatKg(e1rm)}`;
+        const rangeText =
+          entry.nature === "weighted_calisthenics" && bw
+            ? `${formatKg(Math.max(0, low - bw))}–${formatKg(Math.max(0, high - bw))}`
+            : `${formatKg(low)}–${formatKg(high)}`;
         return `
           <article class="dense-estimate-card">
             <span>${scheme}</span>
             <strong>${displayLoad}</strong>
-            <small>${sub}</small>
+            <small>${rangeText} · conf. ${denseConfidenceLabel(sigma)}${cross ? " · cruzada" : ""}</small>
           </article>
         `;
       })
@@ -7228,30 +7344,49 @@ function renderDenseEstimateCards(entry) {
   const capacity = bestMetric("bodyweight_capacity");
   const isoCapacity = bestMetric("isometric_capacity");
   if (isoCapacity) {
+    const lastIso = [...getDenseEntries()]
+      .filter((item) => item.exercise_id === entry.exercise_id && item.isometric_capacity)
+      .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")))[0];
+    const sigma = denseEstimateSigma(lastIso?.date || entry.date);
     return bodyweightSchemes
       .map((scheme) => {
         const minutes = denseSchemeMinutes(scheme);
         const secondsPerMin = Math.floor(isoCapacity * bodyweightMultipliers[scheme]);
+        const low = Math.max(1, Math.floor(secondsPerMin * (1 - sigma)));
+        const high = Math.ceil(secondsPerMin * (1 + sigma));
         return `
           <article class="dense-estimate-card">
             <span>${scheme}</span>
             <strong>${secondsPerMin}s/min</strong>
-            <small>${secondsPerMin * minutes}s TUT estimado</small>
+            <small>${low}–${high}s · ${secondsPerMin * minutes}s TUT · conf. ${denseConfidenceLabel(sigma)}</small>
           </article>
         `;
       })
       .join("");
   }
-  if (!capacity) return "";
+
+  if (!capacity && !unified) return "";
   return bodyweightSchemes
     .map((scheme) => {
       const minutes = denseSchemeMinutes(scheme);
-      const rpm = Math.max(1, Math.round(denseCapRpm(exercise, Math.floor(capacity * bodyweightMultipliers[scheme]))));
+      // Blend the direct capacity path with the e1RM-curve inversion when both
+      // exist; either alone still yields an estimate (e.g. weighted-only history).
+      const direct = capacity ? capacity * bodyweightMultipliers[scheme] : 0;
+      const inverted = unified ? denseCrossRpm(exercise, scheme, unified) : 0;
+      const blended = direct && inverted ? direct * 0.6 + inverted * 0.4 : direct || inverted;
+      if (!blended) return "";
+      const rpm = Math.max(1, Math.round(denseCapRpm(exercise, Math.floor(blended))));
+      const sigma = denseEstimateSigma(unified?.date || entry.date, {
+        cross: !direct,
+        baseGap: unified ? Math.abs((denseBaseOrder[scheme] ?? 0) - (denseBaseOrder[unified.base] ?? 0)) : 0,
+      });
+      const low = Math.max(1, Math.floor(rpm * (1 - sigma)));
+      const high = Math.max(rpm, Math.ceil(rpm * (1 + sigma)));
       return `
         <article class="dense-estimate-card">
           <span>${scheme}</span>
           <strong>${rpm} rpm${perSide ? "/lado" : ""}</strong>
-          <small>${rpm * minutes}${perSide ? " reps/lado" : " reps totales"}</small>
+          <small>${low}–${high} rpm · ${rpm * minutes}${perSide ? " reps/lado" : " reps"} · conf. ${denseConfidenceLabel(sigma)}${!direct ? " · cruzada" : ""}</small>
         </article>
       `;
     })
