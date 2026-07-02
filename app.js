@@ -1089,8 +1089,13 @@ function closeAllSwipes(except) {
 
 // ── View swipe: change day (Workout) / analytics tab, on non-card areas ──
 const VIEW_SWIPE_THRESHOLD = 58;
-const VIEW_SWIPE_IGNORE = "button, a, input, select, textarea, details, summary, .training-mode-tabs, .weekday-strip, .week-selector, .analytics-tab-strip, .quick-timer, dialog, .modal";
+const VIEW_SWIPE_FLICK_VELOCITY = 0.5; // px/ms — a quick flick navigates even on short drags
+const VIEW_SWIPE_FLICK_MIN_DX = 24;
+// Buttons/links are NOT excluded: taps still work because we only hijack the
+// gesture after clear horizontal movement (axis gating + click swallow).
+const VIEW_SWIPE_IGNORE = "input, select, textarea, details, summary, .training-mode-tabs, .weekday-strip, .analytics-tab-strip, .quick-timer, dialog, .modal";
 let viewSwipe = null;
+let viewSwipeLock = false; // ignore new view swipes while a transition is playing
 
 // Returns the navigate function for a swipe direction, or null if it would be a
 // no-op (e.g. already at the first/last analytics tab).
@@ -1183,16 +1188,32 @@ function onSwipePointerDown(event) {
   }
   closeAllSwipes();
   // Start a view-level swipe when the touch lands on neutral training area.
+  if (viewSwipeLock) return;
   const mode = state.settings.trainingMode || "workout";
+  const base = { startX: event.clientX, startY: event.clientY, axis: null, dx: 0, effDx: 0, id: event.pointerId, samples: [[event.clientX, performance.now()]] };
   if (mode === "workout") {
-    // Only the exercise carousel slides (the day summary stays put).
-    const carousel = event.target.closest("#view-training .day-carousel");
+    // Gesture can start anywhere in the workout panel (summary included) so an
+    // empty day is still easy to page — but only the exercise carousel slides.
+    const panel = event.target.closest('[data-training-section="workout"]');
+    const carousel = nodes.mesocyclePanel?.querySelector(".day-carousel");
     const track = carousel?.querySelector(".day-carousel-track");
-    if (track && !event.target.closest(VIEW_SWIPE_IGNORE)) {
-      viewSwipe = { kind: "carousel", track, carousel, startX: event.clientX, startY: event.clientY, axis: null, dx: 0, id: event.pointerId };
+    if (panel && track && !event.target.closest(VIEW_SWIPE_IGNORE)) {
+      const slides = [...track.children];
+      viewSwipe = {
+        ...base,
+        kind: "carousel",
+        track,
+        carousel,
+        heights: slides.map((slide) => slide.offsetHeight || 0),
+        width: carousel.getBoundingClientRect().width || window.innerWidth || 1,
+        canPrev: true,
+        canNext: true,
+      };
     }
   } else if (mode === "analytics" && event.target.closest("#view-training") && !event.target.closest(VIEW_SWIPE_IGNORE)) {
-    viewSwipe = { kind: "panel", panel: nodes.trainingAnalyticsPanel, startX: event.clientX, startY: event.clientY, axis: null, dx: 0, id: event.pointerId };
+    const tabs = trainingAnalyticsTabs.map((tab) => tab[0]);
+    const index = tabs.indexOf(state.settings.trainingAnalyticsTab || "progress");
+    viewSwipe = { ...base, kind: "panel", panel: nodes.trainingAnalyticsPanel, canPrev: index > 0, canNext: index < tabs.length - 1 };
   }
 }
 
@@ -1226,11 +1247,26 @@ function onSwipePointerMove(event) {
       viewSwipe = null; // vertical intent -> let the page scroll
       return;
     }
+    viewSwipe.samples.push([event.clientX, performance.now()]);
+    if (viewSwipe.samples.length > 8) viewSwipe.samples.shift();
+    // Rubber-band when dragging past an edge (first/last analytics tab).
+    const blocked = (dx > 0 && !viewSwipe.canPrev) || (dx < 0 && !viewSwipe.canNext);
+    const effDx = blocked ? dx * 0.3 : dx;
     viewSwipe.dx = dx;
+    viewSwipe.effDx = effDx;
     const el = viewSwipe.kind === "carousel" ? viewSwipe.track : viewSwipe.panel;
     if (el) {
       el.style.transition = "none";
-      el.style.transform = `translateX(${dx}px)`;
+      el.style.transform = `translateX(${effDx}px)`;
+    }
+    // Morph the carousel height toward the incoming day so taller neighbors
+    // are never clipped and shorter ones don't leave a hole.
+    if (viewSwipe.kind === "carousel" && viewSwipe.carousel) {
+      const cur = viewSwipe.heights[1];
+      const tgt = dx < 0 ? viewSwipe.heights[2] : viewSwipe.heights[0];
+      const progress = Math.min(1, Math.abs(effDx) / viewSwipe.width);
+      viewSwipe.carousel.style.transition = "none";
+      viewSwipe.carousel.style.height = `${Math.round(cur + (tgt - cur) * progress)}px`;
     }
     event.preventDefault();
   }
@@ -1242,31 +1278,61 @@ function onSwipePointerUp(event) {
     viewSwipe = null;
     if (swipe.axis !== "x") return;
     const dir = swipe.dx < 0 ? 1 : -1;
-    const navigate = Math.abs(swipe.dx) >= VIEW_SWIPE_THRESHOLD ? resolveViewSwipe(dir) : null;
+    // Velocity over the most recent samples: a quick flick counts as intent
+    // even when the drag distance stays under the threshold.
+    const recent = swipe.samples.slice(-4);
+    const [x0, t0] = recent[0];
+    const [x1, t1] = recent[recent.length - 1];
+    const velocity = t1 > t0 ? (x1 - x0) / (t1 - t0) : 0;
+    const flick = Math.abs(velocity) >= VIEW_SWIPE_FLICK_VELOCITY && Math.abs(swipe.dx) >= VIEW_SWIPE_FLICK_MIN_DX && Math.sign(velocity) === Math.sign(swipe.dx);
+    const wantsNavigate = Math.abs(swipe.dx) >= VIEW_SWIPE_THRESHOLD || flick;
+    const navigate = wantsNavigate ? resolveViewSwipe(dir) : null;
     if (swipe.kind === "carousel") {
       if (navigate) {
         window.__swipeJustSwiped = true;
+        viewSwipeLock = true;
         setTimeout(() => {
           window.__swipeJustSwiped = false;
         }, 80);
-        // Slide to the preloaded neighbor, then re-render centered on the new day.
-        swipe.track.style.transition = "transform 0.28s var(--ease-out)";
-        swipe.track.style.transform = `translateX(${dir > 0 ? "-100%" : "100%"})`;
-        setTimeout(navigate, 280);
+        // Slide fully onto the preloaded neighbor (compensating the 12px slide
+        // gap) while the container height eases to the incoming day's height,
+        // then re-render centered on the new day.
+        swipe.track.style.transition = "transform 0.3s var(--ease-out)";
+        swipe.track.style.transform = dir > 0 ? "translateX(calc(-100% - 12px))" : "translateX(calc(100% + 12px))";
+        if (swipe.carousel) {
+          swipe.carousel.style.transition = "height 0.3s var(--ease-out)";
+          swipe.carousel.style.height = `${swipe.heights[dir > 0 ? 2 : 0]}px`;
+        }
+        setTimeout(() => {
+          navigate();
+          viewSwipeLock = false;
+        }, 300);
       } else {
         swipe.track.style.transition = "transform 0.24s var(--ease-out)";
         swipe.track.style.transform = "translateX(0)";
+        if (swipe.carousel) {
+          swipe.carousel.style.transition = "height 0.24s var(--ease-out)";
+          swipe.carousel.style.height = `${swipe.heights[1]}px`;
+        }
         setTimeout(() => {
           swipe.track.style.transition = "";
           swipe.track.style.transform = "";
+          if (swipe.carousel) {
+            swipe.carousel.style.transition = "";
+            swipe.carousel.style.height = "";
+          }
         }, 260);
       }
     } else if (navigate) {
       window.__swipeJustSwiped = true;
+      viewSwipeLock = true;
       setTimeout(() => {
         window.__swipeJustSwiped = false;
       }, 80);
-      slidePanelTransition(swipe.panel, dir, navigate, swipe.dx);
+      slidePanelTransition(swipe.panel, dir, navigate, swipe.effDx);
+      setTimeout(() => {
+        viewSwipeLock = false;
+      }, 350);
     } else {
       snapViewPanelBack(swipe.panel);
     }

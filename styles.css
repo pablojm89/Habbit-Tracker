@@ -2024,6 +2024,7 @@ button:active:not(:disabled),
 .day-carousel {
   overflow: clip;
   overflow-clip-margin: 22px;
+  min-height: 84px;
 }
 
 .day-carousel-track {
