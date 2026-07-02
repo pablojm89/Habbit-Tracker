@@ -5456,18 +5456,39 @@ function swipeDeleteWrap(cardHtml, deleteAttrs, label) {
   `;
 }
 
+// DENSE-style effort chips: full uppercase word in normal, letter code in minimal
+function denseEffortTagLabel(effort) {
+  return { VE: "VERY EASY", E: "EASY", N: "NORMAL", H: "HARD", VH: "VERY HARD", fallo: "FAIL" }[effort || "N"] || effort;
+}
+
+function denseEffortLetter(effort) {
+  return { VE: "VE", E: "E", N: "N", H: "H", VH: "VH", fallo: "F" }[effort || "N"] || effort;
+}
+
+// Italic protocol hint under the title ("5 minutes EMOM. Log total reps...")
+function denseProtocolHint(scheme, isometric) {
+  const minutes = denseSchemeMinutes(scheme) || 0;
+  if (!minutes) return "";
+  if (isometric) return `${minutes} rondas isométricas. Apunta el hold por ronda.`;
+  return `${minutes} minutos EMOM. Apunta las reps totales al final.`;
+}
+
 function todayWorkoutCard(entry) {
   const exercise = denseExerciseById(entry.exercise_id);
+  const isPr = denseEntryIsPr(entry);
+  const effortColor = denseEffortColor(entry.effort || "N");
   const volume = entry.tonnage_kg ? `${roundTo(entry.tonnage_kg / 1000, 1)}t` : entry.total_reps ? `${entry.total_reps} reps` : entry.total_hold_seconds ? `${entry.total_hold_seconds}s` : "-";
   const card = `
-    <article class="today-workout-card workout-set-card is-complete" style="--item-color:${denseCategoryColor(exercise.category)}" data-action="open-dense-exercise-detail" data-exercise="${escapeAttr(entry.exercise_id)}">
+    <article class="today-workout-card workout-set-card is-complete ${isPr ? "is-pr" : ""}" style="--item-color:${denseCategoryColor(exercise.category)}" data-action="open-dense-exercise-detail" data-exercise="${escapeAttr(entry.exercise_id)}">
       <div class="workout-set-main">
         <div class="workout-set-tags">
-          <span class="mini-tag is-amber"><i data-lucide="trophy"></i>${denseEntryIsPr(entry) ? "NEW PR" : "DONE"}</span>
-          <span class="mini-tag is-blue">${escapeHtml(denseNatureLabel(entry.nature).split("·")[0].trim())}</span>
+          ${isPr ? `<span class="mini-tag is-amber"><i data-lucide="trophy"></i>NEW PR</span>` : ""}
+          <span class="mini-tag is-blue">${escapeHtml(denseNatureLabel(entry.nature).split("·")[0].trim())} · Dense</span>
+          <span class="mini-tag effort-tag" style="--effort-color:${effortColor}">${escapeHtml(denseEffortTagLabel(entry.effort))}</span>
         </div>
         <strong>${escapeHtml(entry.exercise_name)} <small>${escapeHtml(entry.scheme)}</small></strong>
-        <span class="workout-set-summary">${denseEntrySummaryLine(entry)} ${denseEffortBadge(entry.effort)}</span>
+        <em class="set-protocol">${escapeHtml(denseProtocolHint(entry.scheme, Boolean(entry.total_hold_seconds)))}</em>
+        <span class="workout-set-summary">${denseEntrySummaryLine(entry)} <span class="effort-letter" style="--effort-color:${effortColor}">${escapeHtml(denseEffortLetter(entry.effort))}</span></span>
       </div>
       <div class="workout-set-volume">
         <span>Volume</span>
@@ -5477,6 +5498,7 @@ function todayWorkoutCard(entry) {
         <button class="icon-button" type="button" data-action="open-dense-entry-modal" data-entry="${escapeAttr(entry.id)}" title="Editar" aria-label="Editar ${escapeAttr(entry.exercise_name)}">
           <i data-lucide="edit-3"></i>
         </button>
+        <span class="set-state ${isPr ? "is-pr" : ""}" aria-hidden="true"><i data-lucide="square-check"></i></span>
       </div>
     </article>
   `;
@@ -5530,10 +5552,11 @@ function plannedWorkoutCard(exercise) {
     <article class="today-workout-card workout-set-card is-planned" style="--item-color:${denseCategoryColor(exercise.category)}" data-action="open-dense-exercise-detail" data-exercise="${escapeAttr(exercise.id)}">
       <div class="workout-set-main">
         <div class="workout-set-tags">
-          <span class="mini-tag is-blue">${escapeHtml(denseNatureLabel(exercise.nature).split("·")[0].trim())}</span>
+          <span class="mini-tag is-blue">${escapeHtml(denseNatureLabel(exercise.nature).split("·")[0].trim())} · Dense</span>
         </div>
         <strong>${escapeHtml(exercise.name)} <small>${escapeHtml(scheme)}</small></strong>
-        <span>${denseLastSessionSummary(exercise, scheme)}</span>
+        <em class="set-protocol">${escapeHtml(denseProtocolHint(scheme, denseIsIsometric(exercise)))}</em>
+        <span class="set-last-line">${denseLastSessionSummary(exercise, scheme)}</span>
       </div>
       <div class="workout-set-volume">
         <span>Target</span>
@@ -5541,13 +5564,16 @@ function plannedWorkoutCard(exercise) {
         <small>${escapeHtml(scheme)}</small>
       </div>
       <div class="workout-set-actions">
-        <button class="icon-button is-hot" type="button" data-action="open-dense-exercise-modal" data-exercise="${escapeAttr(exercise.id)}" title="Completar" aria-label="Completar ${escapeAttr(exercise.name)}">
-          <i data-lucide="square-check"></i>
+        <button class="set-state is-empty" type="button" data-action="open-dense-exercise-modal" data-exercise="${escapeAttr(exercise.id)}" title="Completar" aria-label="Completar ${escapeAttr(exercise.name)}">
+          <i data-lucide="square"></i>
         </button>
         <button class="icon-button is-play" type="button" data-action="start-exercise-timer" data-exercise="${escapeAttr(exercise.id)}" title="Iniciar cronómetro" aria-label="Iniciar cronómetro ${escapeAttr(exercise.name)}">
           <i data-lucide="play"></i>
         </button>
       </div>
+      <button class="workout-start-button" type="button" data-action="start-exercise-timer" data-exercise="${escapeAttr(exercise.id)}">
+        <i data-lucide="play"></i>Start
+      </button>
     </article>
   `;
   if (!canDelete) return card;

@@ -2129,25 +2129,28 @@ button:active:not(:disabled),
   cursor: pointer;
 }
 
+/* Done, no PR: restrained lime wash (DENSE style) */
 .workout-set-card.is-complete {
-  border-color: rgba(255, 205, 70, 0.9);
+  border-color: rgba(168, 230, 53, 0.38);
   background:
-    radial-gradient(130% 130% at 100% 100%, rgba(255, 196, 60, 0.4), transparent 55%),
-    radial-gradient(120% 120% at 0% 0%, rgba(255, 214, 92, 0.22), transparent 48%),
-    linear-gradient(135deg, rgba(255, 190, 50, 0.16), transparent 50%),
-    #1c1708;
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 214, 92, 0.5),
-    inset 4px 0 0 rgba(255, 205, 70, 1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    0 0 16px rgba(255, 196, 60, 0.28);
+    linear-gradient(135deg, rgba(168, 230, 53, 0.1), rgba(168, 230, 53, 0.02) 58%),
+    #14170e;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Done + PR: quiet amber wash instead of the old blazing glow */
+.workout-set-card.is-complete.is-pr {
+  border-color: rgba(255, 205, 70, 0.5);
+  background:
+    linear-gradient(135deg, rgba(255, 196, 60, 0.12), rgba(255, 196, 60, 0.025) 58%),
+    #191507;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .workout-set-card.is-complete .mini-tag.is-amber {
-  border-color: rgba(255, 214, 92, 0.85);
-  background: rgba(255, 196, 60, 0.2);
+  border-color: rgba(255, 214, 92, 0.7);
+  background: rgba(255, 196, 60, 0.14);
   color: #ffdf86;
-  box-shadow: 0 0 14px rgba(255, 196, 60, 0.45);
 }
 
 .workout-set-main {
@@ -6938,5 +6941,162 @@ button:focus-visible {
 
   [data-modal-kind="workout-exercise-picker"] .exercise-picker-list {
     max-height: 48vh;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   DENSE-style workout card content (done PR / done / planned · normal+minimal)
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Italic protocol hint under the title */
+.set-protocol {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--dim);
+  font-size: 0.68rem;
+  font-style: italic;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Effort chip in the tag row (NORMAL / EASY...), colored by effort */
+.mini-tag.effort-tag {
+  border-color: color-mix(in srgb, var(--effort-color), transparent 52%);
+  background: color-mix(in srgb, var(--effort-color), transparent 88%);
+  color: color-mix(in srgb, var(--effort-color), white 20%);
+}
+
+/* Minimal-only effort letter chip next to the result line */
+.workout-set-summary .effort-letter {
+  display: none;
+  align-items: center;
+  padding: 0 5px;
+  border: 1px solid color-mix(in srgb, var(--effort-color), transparent 45%);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--effort-color), transparent 86%);
+  color: color-mix(in srgb, var(--effort-color), white 22%);
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  font-weight: 800;
+  vertical-align: middle;
+}
+
+/* Completion checkbox column: lime when done, amber when PR, hollow when planned */
+.workout-set-actions .set-state {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 100%;
+  border: 0;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(168, 230, 53, 0.12);
+  color: var(--lime-soft);
+  cursor: pointer;
+}
+
+.workout-set-actions .set-state i {
+  width: 19px;
+  height: 19px;
+}
+
+.workout-set-actions .set-state.is-pr {
+  background: rgba(255, 196, 60, 0.14);
+  color: #ffd166;
+}
+
+.workout-set-actions .set-state.is-empty {
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--dim);
+}
+
+/* Planned cards: solid quiet border, ghosted content (DENSE look) */
+.today-workout-card.is-planned {
+  border-style: solid;
+  border-color: rgba(255, 255, 255, 0.09);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.015), transparent 70%),
+    #121310;
+}
+
+.today-workout-card.is-planned .workout-set-main strong {
+  color: rgba(242, 245, 239, 0.58);
+}
+
+.today-workout-card.is-planned .workout-set-tags {
+  opacity: 0.62;
+}
+
+.today-workout-card.is-planned .set-last-line {
+  color: var(--dim);
+  font-size: 0.7rem;
+}
+
+.today-workout-card.is-planned .workout-set-volume span,
+.today-workout-card.is-planned .workout-set-volume strong {
+  color: color-mix(in srgb, var(--lime-soft), transparent 42%);
+}
+
+/* Ghost full-width START (normal density) — the small play icon hides */
+.workout-start-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  grid-column: 1 / -1;
+  min-height: 44px;
+  margin: 2px 10px 10px;
+  border: 1px solid rgba(168, 230, 53, 0.28);
+  border-radius: 11px;
+  background: rgba(168, 230, 53, 0.05);
+  color: color-mix(in srgb, var(--lime-soft), transparent 25%);
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.workout-start-button i {
+  width: 15px;
+  height: 15px;
+}
+
+.workout-start-button:hover {
+  border-color: rgba(168, 230, 53, 0.5);
+  background: rgba(168, 230, 53, 0.1);
+  color: var(--lime-soft);
+}
+
+.today-workout-card.is-planned .workout-set-actions .icon-button.is-play {
+  display: none;
+}
+
+/* Minimal density: one-line DENSE row — letter chip, no hint, checkbox last */
+@media (max-width: 760px) {
+  body[data-density="compact"] .set-protocol,
+  body[data-density="compact"] .workout-set-tags .mini-tag.effort-tag,
+  body[data-density="compact"] .today-workout-card.is-planned .set-last-line,
+  body[data-density="compact"] .workout-start-button {
+    display: none;
+  }
+
+  body[data-density="compact"] .workout-set-summary .effort-letter {
+    display: inline-flex;
+  }
+
+  body[data-density="compact"] .today-workout-card.is-planned .workout-set-actions .icon-button.is-play {
+    display: inline-grid;
+    color: var(--lime-soft);
+    background: rgba(168, 230, 53, 0.1);
+  }
+
+  body[data-density="compact"] .workout-set-actions .set-state {
+    width: 40px;
+  }
+
+  body[data-density="compact"] .workout-set-actions .icon-button {
+    width: 40px;
   }
 }
