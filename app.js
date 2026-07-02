@@ -2204,87 +2204,245 @@ function renderEmptyAnalytics() {
 }
 
 function renderProgressAnalytics(entries) {
-  const prs = densePrRows().filter((row) => entries.some((entry) => entry.exercise_name === row.exerciseName && entry.scheme === row.scheme));
-  const last = [...entries].sort((a, b) => (b.created_at || b.date || "").localeCompare(a.created_at || a.date || ""))[0];
-  const effortAvg = average(entries.map((entry) => entry.effort_value).filter(Boolean));
-  const density = average(entries.map((entry) => entry.reps_per_min).filter(Boolean));
-  const recent = entries.slice(-6).reverse();
+  const chartDays = denseWindowChartDays();
+  const tonnage = entries.reduce((sum, entry) => sum + (entry.tonnage_kg || 0), 0);
+  const tonnagePct = denseTrendPct((entry) => entry.tonnage_kg || 0, chartDays);
+  const uniqueDays = new Set(entries.map((entry) => entry.date)).size;
+  const prEvents = densePrEventEntries(entries);
+  const movers = denseStrengthMovers(entries);
+  const easier = denseEffortEasierRows(entries);
+  const cns = denseCnsSeries(chartDays);
+  const cnsAvg = Math.round(average(cns.map((p) => p.value).filter(Boolean)) || 0);
+  const recovery = denseRecoverySeries(chartDays);
+  const recAvg = Math.round(average(recovery.map((p) => p.value).filter(Boolean)) || 0);
+  const recPct = 0;
+  const bw = latestKnownBodyweight() || 0;
+  // Momentum phrase, DENSE-style
+  const phrase = uniqueDays < 3
+    ? ["Arrancando", "Sigue registrando y las tendencias se rellenan solas."]
+    : tonnagePct > 15 && prEvents.length
+      ? ["Construyendo momentum", `Tonelaje ${tonnagePct > 0 ? "+" : ""}${tonnagePct}% y ${prEvents.length} PR${prEvents.length === 1 ? "" : "s"} en la ventana.`]
+      : tonnagePct < -20
+        ? ["Semana ligera", "Menos carga que el periodo anterior — bien si es descarga planificada."]
+        : ["Ritmo estable", "Volumen consistente. Busca un patrón para retar al fallo esta semana."];
   return `
-    <div class="analytics-stat-grid">
-      ${analyticsStatCard("Marcas", entries.length, "Entradas reales", "clipboard-check")}
-      ${analyticsStatCard("PRs vivos", prs.length, "Ejercicio + esquema", "trophy")}
-      ${analyticsStatCard("Esfuerzo medio", effortAvg ? roundTo(effortAvg, 1) : "-", "1 fácil · 10 límite", "gauge")}
-      ${analyticsStatCard("Densidad media", density ? `${roundTo(density, 1)} rpm` : "-", "Reps/min cuando aplica", "timer")}
-    </div>
-    <div class="analytics-card-grid">
-      <article class="analytics-card">
-        <div class="section-subhead"><strong>Última señal</strong><span>${escapeHtml(last.date)}</span></div>
-        <div class="analytics-highlight">
-          <strong>${escapeHtml(last.exercise_name)}</strong>
-          <span>${escapeHtml(last.scheme)} · ${escapeHtml(denseEntryValue(last))}</span>
-        </div>
+    <article class="analytics-card dc-phrase">
+      <strong>${escapeHtml(phrase[0])}</strong>
+      <span>${escapeHtml(phrase[1])}</span>
+      <small>Llevas <b>${uniqueDays}</b> día${uniqueDays === 1 ? "" : "s"} con marcas en esta ventana.</small>
+    </article>
+
+    <div class="dc-section-head"><strong>Training volume</strong></div>
+    <div class="analytics-stat-grid is-two">
+      <article class="analytics-stat-card">
+        <span><i data-lucide="weight"></i>Force</span>
+        <strong>${roundTo(tonnage / 1000, 1)} t ${dcTrendBadge(tonnagePct)}</strong>
+        <small>tonelaje</small>
       </article>
-      <article class="analytics-card">
-        <div class="section-subhead"><strong>Historial reciente</strong><span>${recent.length} marcas</span></div>
-        <div class="mini-timeline">
-          ${recent.map((entry) => `<span title="${escapeAttr(entry.exercise_name)}">${escapeHtml(entry.scheme)}</span>`).join("")}
-        </div>
+      <article class="analytics-stat-card">
+        <span><i data-lucide="blocks"></i>Blocks</span>
+        <strong>${roundTo(entries.reduce((sum, entry) => sum + denseEquivalentSets(entry), 0), 1)}</strong>
+        <small>bloques dense</small>
       </article>
     </div>
-    <div class="analytics-detail-list">
-      ${analyticsDetailRow("Personal records", `${prs.length}`, "tap to view", "trophy")}
-      ${analyticsDetailRow("Effort - easier than before", effortImprovementCount(entries), "mismo o más pesado, menos esfuerzo", "zap")}
-      ${analyticsDetailRow("Level-ups", denseLevelUpCount(entries), "nueva mejor señal por ejercicio/esquema", "badge-check")}
+
+    <div class="dc-section-head"><strong>Strength momentum</strong></div>
+    ${
+      movers.length
+        ? `<div class="dc-mover-list">${movers.map((row) => `<div class="dc-mover"><strong>${escapeHtml(row.name)}</strong>${dcTrendBadge(row.pct)}</div>`).join("")}</div>`
+        : `<p class="dc-empty-note">Sin mejoras medibles en esta ventana todavía.</p>`
+    }
+
+    ${dcCollapse("trophy", "Personal records", "toca para ver", `${prEvents.length}`, prEvents.length ? prEvents.slice(0, 8).map(dcPrRow).join("") : `<p class="dc-empty-note">Sin PRs en esta ventana.</p>`)}
+    ${dcCollapse("zap", "Effort — easier than before", "misma marca o mejor, menos esfuerzo", `${easier.length}`, easier.length ? easier.map((row) => `<div class="dc-pr-row"><div><strong>${escapeHtml(row.name)}</strong><small><em>Dense</em> ${escapeHtml(row.scheme)}</small></div><span>${escapeHtml(String(row.date || "").slice(5))}</span></div>`).join("") : `<p class="dc-empty-note">Aún nada aquí: repite una marca con menos esfuerzo y aparecerá.</p>`)}
+
+    <div class="dc-section-head"><strong>Health</strong></div>
+    <div class="analytics-stat-grid is-two">
+      <article class="analytics-stat-card">
+        <span><i data-lucide="heart-pulse"></i>Recovery</span>
+        <strong>${recAvg || "—"} ${recAvg ? dcTrendBadge(recPct) : ""}</strong>
+        <small>readiness 0–100</small>
+      </article>
+      <article class="analytics-stat-card">
+        <span><i data-lucide="gauge"></i>Exertion</span>
+        <strong>${cnsAvg || "—"}</strong>
+        <small>carga 0–100</small>
+      </article>
+      <article class="analytics-stat-card">
+        <span><i data-lucide="scale"></i>Bodyweight</span>
+        <strong>${bw ? `${roundTo(bw, 1)} kg` : "—"}</strong>
+        <small>último registro</small>
+      </article>
     </div>
+
+    <div class="dc-section-head"><strong>Level-ups</strong></div>
+    ${
+      prEvents.length
+        ? `<div class="dc-collapse-body is-open">${prEvents.slice(0, 5).map(dcPrRow).join("")}</div>`
+        : `<p class="dc-empty-note">Sin level-ups en esta ventana. Cambia a “All” para ver los históricos.</p>`
+    }
   `;
 }
 
 function renderVolumeAnalytics(entries) {
-  const patternRows = densePatternRows(entries).slice(0, 8);
-  const maxSets = Math.max(...patternRows.map((row) => row.sets), 1);
-  const totalSets = entries.reduce((sum, entry) => sum + denseEquivalentSets(entry), 0);
-  const totalReps = entries.reduce((sum, entry) => sum + (entry.total_reps || 0), 0);
+  const chartDays = denseWindowChartDays();
+  const windowKey = state.settings.trainingAnalyticsWindow || "70";
+  const windowDays = windowKey === "all" ? 70 : Number(windowKey) || 70;
   const tonnage = entries.reduce((sum, entry) => sum + (entry.tonnage_kg || 0), 0);
+  const totalSets = entries.reduce((sum, entry) => sum + denseEquivalentSets(entry), 0);
+  const cns = denseCnsSeries(chartDays);
+  const cnsToday = cns[cns.length - 1]?.value || 0;
+  const cnsAvg = Math.round(average(cns.map((p) => p.value).filter(Boolean)) || 0);
+  // Sets per category, expressed as weekly rate for the zone bands
+  const catSets = {};
+  const catReps = {};
+  entries.forEach((entry) => {
+    const category = denseExerciseById(entry.exercise_id)?.category || "other";
+    catSets[category] = (catSets[category] || 0) + denseEquivalentSets(entry);
+    catReps[category] = (catReps[category] || 0) + (entry.total_reps || 0);
+  });
+  const catRows = Object.entries(catSets)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 6)
+    .map(([category, sets]) => dcZoneVolumeRow(denseCategoryLabel(category), (sets / windowDays) * 7))
+    .join("");
+  // Weekly stacked history (last 4 weeks, by category)
+  const weeks = [];
+  for (let w = 3; w >= 0; w -= 1) {
+    const start = addDays(today, -7 * w - 6);
+    const end = addDays(today, -7 * w);
+    const startKey = dateKey(start);
+    const endKey = dateKey(end);
+    const bucket = {};
+    getDenseEntries().forEach((entry) => {
+      if (!entry.date || entry.date < startKey || entry.date > endKey) return;
+      const category = denseExerciseById(entry.exercise_id)?.category || "other";
+      bucket[category] = (bucket[category] || 0) + denseEquivalentSets(entry);
+    });
+    weeks.push({ label: `${end.getMonth() + 1}/${end.getDate()}`, bucket });
+  }
+  const historyMax = Math.max(...weeks.map((week) => Object.values(week.bucket).reduce((sum, v) => sum + v, 0)), 1);
+  const historyCats = [...new Set(weeks.flatMap((week) => Object.keys(week.bucket)))];
+  const historyCols = weeks
+    .map((week) => {
+      const total = Object.values(week.bucket).reduce((sum, v) => sum + v, 0);
+      const segs = historyCats
+        .map((category) => {
+          const value = week.bucket[category] || 0;
+          if (!value) return "";
+          return `<i style="height:${(value / historyMax) * 100}%; background:${denseCategoryColorHex(category)}" title="${escapeAttr(`${denseCategoryLabel(category)}: ${roundTo(value, 1)} sets`)}"></i>`;
+        })
+        .join("");
+      return `<div class="dc-stack-col" title="${escapeAttr(`${roundTo(total, 1)} sets`)}"><div class="dc-stack-bar">${segs}</div><em>${escapeHtml(week.label)}</em></div>`;
+    })
+    .join("");
   return `
-    <div class="analytics-stat-grid">
-      ${analyticsStatCard("Sets eq", roundTo(totalSets, 1), "Minutos/bloques Dense", "blocks")}
-      ${analyticsStatCard("Reps", totalReps, "Repeticiones registradas", "repeat-2")}
-      ${analyticsStatCard("Tonnage", tonnage ? `${roundTo(tonnage / 1000, 1)}t` : "-", "Carga efectiva estimada", "warehouse")}
-      ${analyticsStatCard("Ejercicios", new Set(entries.map((entry) => entry.exercise_id)).size, "Variantes usadas", "dumbbell")}
-    </div>
-    ${analyticsTrendChart("tonelaje · últimos 7 días", roundTo(tonnage / 1000, 1), denseDailyTrend((entry) => (entry.tonnage_kg || 0) / 1000, 7), "t")}
-    ${analyticsTrendChart("bloques · últimos 7 días", roundTo(totalSets, 1), denseDailyTrend((entry) => denseEquivalentSets(entry), 7), "")}
-    <div class="analytics-card">
-      <div class="section-subhead"><strong>Volumen por patrón</strong><span>sets equivalentes</span></div>
-      <div class="analytics-bars">
-        ${patternRows.map((row) => analyticsBar(patternLabel(row.pattern), row.sets, maxSets, `${roundTo(row.reps, 0)} reps · ${roundTo(row.tonnage / 1000, 1)}t`)).join("")}
+    ${dcBarTrendCard("Tonnage trend", `${roundTo(tonnage / 1000, 1)}t`, denseTrendPct((entry) => entry.tonnage_kg || 0, chartDays), denseDailyTrend((entry) => (entry.tonnage_kg || 0) / 1000, chartDays), "t")}
+    ${dcBarTrendCard("Dense blocks", roundTo(totalSets, 1), denseTrendPct((entry) => denseEquivalentSets(entry), chartDays), denseDailyTrend((entry) => denseEquivalentSets(entry), chartDays), "")}
+
+    <div class="dc-section-head"><strong>CNS load</strong><span>carga diaria 0–100 · 50 ≈ día típico</span></div>
+    <article class="analytics-card">
+      <div class="dc-cns-head">
+        <div><strong style="color:${dcZoneColor(cnsToday)}">${cnsToday}</strong><span>/ 100</span><em style="color:${dcZoneColor(cnsToday)}">${dcZoneName(cnsToday)}</em></div>
+        <div class="dc-cns-avg"><span>${chartDays}D AVG</span><strong>${cnsAvg}</strong></div>
       </div>
-    </div>
+      ${dcLineChart(cns)}
+    </article>
+
+    <div class="dc-section-head"><strong>Volume per category</strong><span>zonas: mantenimiento · productivo · exceso</span></div>
+    <article class="analytics-card">${catRows || `<p class="dc-empty-note">Sin volumen en esta ventana.</p>`}</article>
+
+    <div class="dc-section-head"><strong>Volume history</strong><span>últimas 4 semanas</span></div>
+    <article class="analytics-card">
+      <div class="dc-stack-chart">${historyCols}</div>
+      <div class="dc-zone-legend">${historyCats.map((category) => `<span><i style="background:${denseCategoryColorHex(category)}"></i>${escapeHtml(denseCategoryLabel(category))}</span>`).join("")}</div>
+    </article>
   `;
 }
 
+// Solid hex per category (SVG/stacked segments can't use CSS var() tints reliably)
+function denseCategoryColorHex(category) {
+  return { push: "#ff7c9e", pull: "#7cb0ff", legs: "#93e84b", skills: "#c08bff", core: "#e9b84e", mobility: "#57c6a1" }[category] || "#989b8f";
+}
+
 function renderStrengthAnalytics(entries) {
-  const weighted = entries.filter((entry) => entry.e1rm_kg);
-  const best = [...weighted].sort((a, b) => (b.e1rm_kg || 0) - (a.e1rm_kg || 0)).slice(0, 5);
-  const relativeBest = [...entries].filter((entry) => entry.relative_strength).sort((a, b) => (b.relative_strength || 0) - (a.relative_strength || 0))[0];
-  const bodyweightBest = [...entries].filter((entry) => entry.bodyweight_capacity).sort((a, b) => (b.bodyweight_capacity || 0) - (a.bodyweight_capacity || 0))[0];
-  return `
-    <div class="analytics-stat-grid">
-      ${analyticsStatCard("e1RM top", best[0] ? formatKg(best[0].e1rm_kg) : "-", best[0] ? best[0].exercise_name : "Sin cargas", "badge-check")}
-      ${analyticsStatCard("Relativo top", relativeBest ? `${relativeBest.relative_strength}x` : "-", relativeBest ? relativeBest.exercise_name : "BW + lastre", "scale")}
-      ${analyticsStatCard("Capacidad BW", bodyweightBest ? bodyweightBest.bodyweight_capacity : "-", bodyweightBest ? bodyweightBest.exercise_name : "Reps/min", "activity")}
-      ${analyticsStatCard("Cargas", weighted.length, "Entradas con e1RM", "dumbbell")}
-    </div>
-    <div class="analytics-card">
-      <div class="section-subhead"><strong>Personal records</strong><span>carga estimada</span></div>
-      <div class="compact-pr-list">
-        ${
-          best.length
-            ? best.map((entry) => `<div><span>${escapeHtml(entry.exercise_name)}</span><strong>${formatKg(entry.e1rm_kg)}</strong><small>${escapeHtml(entry.scheme)} · ${escapeHtml(entry.date)}</small></div>`).join("")
-            : `<p class="tiny-copy">Registra un ejercicio con carga o lastre para ver tus e1RM y fuerza relativa.</p>`
-        }
+  const chartDays = denseWindowChartDays();
+  const prEvents = densePrEventEntries(entries);
+  const prByDay = denseDailyTrend((entry) => (densePrEventEntries([entry]).length ? 1 : 0), chartDays);
+  // Relative strength: best score per exercise vs bodyweight
+  const bw = latestKnownBodyweight() || 0;
+  const relRows = Object.values(
+    entries.reduce((map, entry) => {
+      if (!entry.e1rm_kg && !entry.relative_strength) return map;
+      const row = (map[entry.exercise_id] ||= { name: entry.exercise_name, e1rm: 0, rel: 0 });
+      row.e1rm = Math.max(row.e1rm, entry.e1rm_kg || 0);
+      row.rel = Math.max(row.rel, entry.relative_strength || (bw ? (entry.e1rm_kg || 0) / bw : 0));
+      return map;
+    }, {}),
+  )
+    .sort((a, b) => b.rel - a.rel)
+    .slice(0, 5);
+  // Per-exercise progression: exercises with >= 2 marks, chips + score line
+  const counts = {};
+  getDenseEntries().forEach((entry) => {
+    counts[entry.exercise_id] = (counts[entry.exercise_id] || 0) + 1;
+  });
+  const progressable = Object.entries(counts)
+    .filter(([, count]) => count >= 2)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 6)
+    .map(([id]) => denseExerciseById(id))
+    .filter(Boolean);
+  const selectedId = state.settings.analyticsExerciseId && progressable.some((exercise) => exercise.id === state.settings.analyticsExerciseId)
+    ? state.settings.analyticsExerciseId
+    : progressable[0]?.id;
+  let progressionChart = `<p class="dc-empty-note">Registra un ejercicio 2+ veces para ver su tendencia.</p>`;
+  if (selectedId) {
+    const history = getDenseEntries()
+      .filter((entry) => entry.exercise_id === selectedId)
+      .sort((a, b) => String(a.created_at || a.date || "").localeCompare(String(b.created_at || b.date || "")))
+      .slice(-12);
+    const maxScore = Math.max(...history.map((entry) => denseEntryScore(entry) || 0), 1);
+    const points = history.map((entry) => ({ short: String(entry.date || "").slice(5), value: Math.round(((denseEntryScore(entry) || 0) / maxScore) * 100) }));
+    const latest = history[history.length - 1];
+    progressionChart = `
+      <div class="dc-cns-head">
+        <div><strong>${escapeHtml(denseEntryValue(latest))}</strong><span>última marca</span></div>
+        <div class="dc-cns-avg"><span>marcas</span><strong>${history.length}</strong></div>
       </div>
-    </div>
+      ${dcLineChart(points, { legend: false })}
+    `;
+  }
+  const effortSeries = [];
+  for (let i = chartDays - 1; i >= 0; i -= 1) {
+    const day = addDays(today, -i);
+    const key = dateKey(day);
+    const dayEntries = getDenseEntries().filter((entry) => entry.date === key);
+    const avgEffort = average(dayEntries.map((entry) => entry.effort_value).filter(Boolean));
+    effortSeries.push({ short: `${day.getMonth() + 1}/${day.getDate()}`, value: avgEffort ? Math.round(avgEffort * 10) : 0 });
+  }
+  return `
+    ${dcBarTrendCard("Personal records", prEvents.length, 0, prByDay, "")}
+
+    <div class="dc-section-head"><strong>Relative strength</strong><span>PR / peso corporal</span></div>
+    <article class="analytics-card">
+      ${
+        relRows.length
+          ? relRows.map((row) => `<div class="dc-pr-row"><div><strong>${escapeHtml(row.name)}</strong><small>e1RM ${formatKg(row.e1rm)}</small></div><b>${roundTo(row.rel, 2)}×BW</b></div>`).join("")
+          : `<p class="dc-empty-note">Sin PRs con carga y peso corporal todavía.</p>`
+      }
+    </article>
+
+    <div class="dc-section-head"><strong>Per-exercise progression</strong><span>tendencia de tu mejor señal</span></div>
+    <article class="analytics-card">
+      <div class="dc-chip-row">
+        ${progressable.map((exercise) => `<button class="dc-chip ${exercise.id === selectedId ? "is-active" : ""}" type="button" data-action="set-analytics-exercise" data-exercise="${escapeAttr(exercise.id)}">${escapeHtml(exercise.name)}</button>`).join("")}
+      </div>
+      ${progressionChart}
+    </article>
+
+    <div class="dc-section-head"><strong>Effort progress</strong><span>esfuerzo medio diario (RPE ×10)</span></div>
+    <article class="analytics-card">${dcLineChart(effortSeries, { legend: false })}</article>
   `;
 }
 
@@ -2325,135 +2483,236 @@ function renderConditioningAnalytics(entries) {
 }
 
 function renderRecoveryAnalytics(entries) {
-  const hardSets = entries.filter((entry) => (entry.effort_value || 0) >= 7).reduce((sum, entry) => sum + denseEquivalentSets(entry), 0);
-  const easySets = entries.filter((entry) => (entry.effort_value || 0) <= 3).reduce((sum, entry) => sum + denseEquivalentSets(entry), 0);
-  const failed = entries.filter((entry) => entry.failed).length;
-  const fatigueAvg = average(entries.map((entry) => Number(entry.session_fatigue || 0)).filter(Boolean));
-  const harderThanExpected = entries.filter((entry) => entry.expected_comparison === "harder").length;
-  const loadByDay = denseLoadByDay(entries);
-  const maxLoad = Math.max(...loadByDay.map((row) => row.load), 1);
-  const recoveryScore = clamp(Math.round(100 - hardSets * 2.2 - failed * 6 - harderThanExpected * 4 - fatigueAvg * 1.8 + easySets * 0.8), 0, 100);
-  const bodyweightRows = bodyweightTrendRows(14);
+  const chartDays = denseWindowChartDays();
+  const wellness = denseWellnessCount();
+  const recovery = denseRecoverySeries(chartDays);
+  const cns = denseCnsSeries(chartDays);
+  const cnsToday = cns[cns.length - 1]?.value || 0;
+  const cnsAvg = Math.round(average(cns.map((p) => p.value).filter(Boolean)) || 0);
+  // Recovery load: 7-day cost = average CNS across the last 7 days (rest included)
+  const cns7 = denseCnsSeries(7);
+  const cost = roundTo(cns7.reduce((sum, p) => sum + p.value, 0) / 7, 2);
+  const costBadge = cost < 25 ? ["LIGHT", "is-good"] : cost < 60 ? ["BUILDING", "is-warn"] : cost < 90 ? ["HEAVY", "is-warn"] : ["OVERLOAD", "is-bad"];
+  const catBreakdown = {};
+  const cutoff = dateKey(addDays(today, -6));
+  getDenseEntries().forEach((entry) => {
+    if (!entry.date || entry.date < cutoff) return;
+    const category = denseExerciseById(entry.exercise_id)?.category || "other";
+    catBreakdown[category] = (catBreakdown[category] || 0) + denseEquivalentSets(entry);
+  });
+  const bodyweightRows = bodyweightTrendRows(Math.max(chartDays, 14));
+  const dualChart = wellness >= 7
+    ? dcDualLineChart(recovery, cns, "Recovery", "Exertion", "Ambas escalas 0–100. 50 ≈ día típico. Si la línea ámbar supera la lima, la carga superó tu recuperación ese día.")
+    : `
+      <div class="dc-locked">
+        <span class="tiny-icon"><i data-lucide="lock"></i></span>
+        <strong>${7 - wellness} check-ins más para desbloquear</strong>
+        <span>Rellena el feedback post-entreno (fatiga / cómo fue) tras cada sesión. Con 7, el motor construye tu curva de recuperación personalizada.</span>
+        <div class="dc-progress"><i style="width:${(wellness / 7) * 100}%"></i></div>
+        <small>${wellness} / 7</small>
+      </div>`;
   return `
-    <div class="analytics-stat-grid">
-      ${analyticsStatCard("Recovery", `${recoveryScore}/100`, recoveryScore >= 70 ? "Ligero" : recoveryScore >= 45 ? "Moderado" : "Cuidado", "heart-pulse")}
-      ${analyticsStatCard("Sets duros", roundTo(hardSets, 1), "H/VH/fallo", "flame")}
-      ${analyticsStatCard("Fallos", failed, "No llegaste al objetivo", "triangle-alert")}
-      ${analyticsStatCard("Fatiga", fatigueAvg ? `${roundTo(fatigueAvg, 1)}/10` : "-", `${harderThanExpected} harder than expected`, "gauge")}
-    </div>
-    <div class="analytics-card">
-      <div class="section-subhead"><strong>Carga diaria</strong><span>sets x esfuerzo</span></div>
-      <div class="recovery-sparkline">
-        ${loadByDay.map((row) => `<span style="height:${Math.max(8, pct(row.load, maxLoad))}%" title="${escapeAttr(`${row.date}: ${roundTo(row.load, 1)}`)}"></span>`).join("")}
+    <div class="dc-section-head"><strong>Daily recovery vs exertion</strong></div>
+    <article class="analytics-card">${dualChart}</article>
+
+    <div class="dc-section-head"><strong>Total CNS load</strong><span>carga nerviosa diaria 0–100 (50 ≈ día típico)</span></div>
+    <article class="analytics-card">
+      <div class="dc-cns-head">
+        <div><strong style="color:${dcZoneColor(cnsToday)}">${cnsToday}</strong><span>/ 100</span><em style="color:${dcZoneColor(cnsToday)}">${dcZoneName(cnsToday)}</em></div>
+        <div class="dc-cns-avg"><span>${chartDays}D AVG</span><strong>${cnsAvg}</strong></div>
       </div>
-    </div>
-    <div class="analytics-card-grid">
-      <article class="analytics-card">
-        <div class="section-subhead"><strong>Recovery thresholds</strong><span>global estimado</span></div>
-        <div class="threshold-grid">
-          ${thresholdCard("Elite", 25, recoveryScore >= 75)}
-          ${thresholdCard("Build", 60, recoveryScore >= 45 && recoveryScore < 75)}
-          ${thresholdCard("Overload", 90, recoveryScore < 45)}
-        </div>
-      </article>
-      <article class="analytics-card">
-        <div class="section-subhead"><strong>Bodyweight trend</strong><span>${bodyweightRows.length ? `${bodyweightRows.length} registros` : "sin peso diario"}</span></div>
-        ${
-          bodyweightRows.length
-            ? `<div class="bodyweight-trend">${bodyweightRows.map((row) => `<span style="height:${Math.max(8, pct(row.value - row.min + 1, row.range))}%" title="${escapeAttr(`${row.date}: ${row.value}kg`)}"></span>`).join("")}</div>`
-            : `<p class="tiny-copy">Registra peso corporal para comparar fuerza relativa y recuperación.</p>`
-        }
-      </article>
-    </div>
-    <div class="analytics-detail-list">
-      ${analyticsDetailRow("Post-session feedback", entries.filter((entry) => entry.session_fatigue).length, "sesiones con feedback guardado", "message-square-text", recoveryFeedbackDetails(entries))}
-      ${analyticsDetailRow("Harder than expected", harderThanExpected, "sesiones por encima de lo previsto", "triangle-alert")}
-      ${analyticsDetailRow("Easy work", roundTo(easySets, 1), "sets VE/E que suman recuperación activa", "leaf")}
-    </div>
+      ${dcLineChart(cns)}
+    </article>
+
+    <div class="dc-section-head"><strong>Recovery load</strong><span>coste de recuperación 7 días</span></div>
+    <article class="analytics-card">
+      <div class="dc-cost-head"><strong>${cost}</strong><span class="dc-badge ${costBadge[1]}">${costBadge[0]}</span></div>
+      <div class="dc-cost-scale">
+        <i style="left:${clamp((cost / 110) * 100, 0, 98)}%"></i>
+        <em style="left:${(25 / 110) * 100}%">25</em>
+        <em style="left:${(60 / 110) * 100}%">60</em>
+        <em style="left:${(90 / 110) * 100}%">90</em>
+      </div>
+      <div class="dc-cost-breakdown">
+        ${Object.entries(catBreakdown).sort(([, a], [, b]) => b - a).map(([category, sets]) => `<div><span>${escapeHtml(denseCategoryLabel(category))}</span><b>${roundTo(sets, 1)}</b></div>`).join("") || `<p class="dc-empty-note">Sin sets en los últimos 7 días.</p>`}
+      </div>
+    </article>
+
+    <div class="dc-section-head"><strong>Recovery thresholds</strong></div>
+    <article class="analytics-card">
+      <div class="dc-thresholds-note"><span class="mini-tag">GLOBAL DEFAULT</span><small>Umbrales base por edad de entrenamiento. Se personalizan con 7 check-ins de bienestar (llevas ${wellness}).</small></div>
+      <div class="threshold-grid">
+        <div class="dc-threshold"><span>≤ steady</span><strong class="is-good">25</strong></div>
+        <div class="dc-threshold"><span>≤ building</span><strong class="is-warn">60</strong></div>
+        <div class="dc-threshold"><span>≤ overload</span><strong class="is-bad">90</strong></div>
+      </div>
+    </article>
+
+    <div class="dc-section-head"><strong>Bodyweight trend</strong></div>
+    <article class="analytics-card">
+      ${
+        bodyweightRows.length
+          ? `<div class="dc-cns-head"><div><strong>${roundTo(bodyweightRows[bodyweightRows.length - 1].value, 1)} kg</strong><span>${roundTo(bodyweightRows[bodyweightRows.length - 1].value - bodyweightRows[0].value, 1)} kg en ventana</span></div></div>
+             ${dcLineChart(
+               bodyweightRows.map((row) => ({ short: String(row.date).slice(5), value: row.range > 0 ? Math.round(((row.value - row.min) / row.range) * 80) + 10 : 50 })),
+               { legend: false, height: 90 },
+             )}`
+          : `<p class="dc-empty-note">Registra peso corporal para ver la tendencia.</p>`
+      }
+    </article>
+  `;
+}
+
+const denseRatioPairs = [
+  { name: "Push-Pull Balance", sub: "empuje / tirón", a: "push", b: "pull", target: 1.0 },
+  { name: "Vertical Balance", sub: "empuje vertical / tirón vertical", a: "vertical_push", b: "vertical_pull", target: 0.9 },
+  { name: "Horizontal Balance", sub: "empuje horizontal / tirón horizontal", a: "horizontal_push", b: "horizontal_pull", target: 1.0 },
+  { name: "Squat-Hinge Balance", sub: "squat / bisagra de cadera", a: "squat", b: "hinge", target: 1.1 },
+  { name: "Unilateral Ratio", sub: "pierna unilateral / squat", a: "unilateral_leg", b: "squat", target: 0.45 },
+];
+
+function dcRatioCard(pair, patternMap) {
+  const aSets = patternMap[pair.a]?.sets || 0;
+  const bSets = patternMap[pair.b]?.sets || 0;
+  const ratio = aSets && bSets ? aSets / bSets : 0;
+  const hasData = Boolean(aSets && bSets);
+  const badge = !hasData
+    ? `<span class="dc-badge">NO DATA</span>`
+    : Math.abs(ratio - pair.target) / pair.target <= 0.25
+      ? `<span class="dc-badge is-good">${roundTo(ratio, 2)}</span>`
+      : `<span class="dc-badge is-warn">${roundTo(ratio, 2)}</span>`;
+  const scaleMax = pair.target * 2;
+  return `
+    <article class="dc-ratio-card">
+      <div class="dc-ratio-head"><div><strong>${escapeHtml(pair.name)}</strong><small>${escapeHtml(pair.sub)}</small></div>${badge}</div>
+      <div class="dc-ratio-track">
+        ${hasData ? `<i style="left:${clamp((ratio / scaleMax) * 100, 1, 99)}%"></i>` : ""}
+        <em style="left:50%" title="target ${pair.target}"></em>
+      </div>
+      <div class="dc-ratio-foot"><span>target ${pair.target}</span><span>${hasData ? `${patternLabel(pair.a)} ${roundTo(aSets, 1)} · ${patternLabel(pair.b)} ${roundTo(bSets, 1)}` : "datos insuficientes"}</span></div>
+    </article>
   `;
 }
 
 function renderBalanceAnalytics(entries) {
   const patternMap = densePatternMap(entries);
-  const rows = densePatternRows(entries).slice(0, 10);
-  const maxSets = Math.max(...rows.map((row) => row.sets), 1);
-  // Upper vs lower body, by category (skills, core and mobility excluded)
   const catSets = {};
+  const catReps = {};
   entries.forEach((entry) => {
     const category = denseExerciseById(entry.exercise_id)?.category || "other";
     catSets[category] = (catSets[category] || 0) + denseEquivalentSets(entry);
+    catReps[category] = (catReps[category] || 0) + (entry.total_reps || 0);
   });
   const upperSets = (catSets.push || 0) + (catSets.pull || 0);
-  const lowerSets = catSets.legs || 0;
+  const upperReps = (catReps.push || 0) + (catReps.pull || 0);
+  const rows = densePatternRows(entries).slice(0, 8);
+  const maxSets = Math.max(...rows.map((row) => row.sets), 1);
   return `
-    <article class="analytics-card balance-upper-lower">
-      <div class="section-subhead"><strong>Tren superior / inferior</strong><span>sets equivalentes</span></div>
-      <div class="ratio-list">
-        ${ratioRow("Superior / Inferior", upperSets, lowerSets, "superior", "inferior", "0.8-1.6")}
-      </div>
-    </article>
-    <div class="balance-layout">
-      <article class="analytics-card">
-        <div class="section-subhead"><strong>Set balance</strong><span>patrones principales</span></div>
-        <div class="analytics-bars">
-          ${rows.map((row) => analyticsBar(patternLabel(row.pattern), row.sets, maxSets, `${roundTo(row.reps, 0)} reps`)).join("")}
-        </div>
-      </article>
-      <article class="analytics-card">
-        <div class="section-subhead"><strong>Ratios actuales</strong><span>objetivo aproximado</span></div>
-        <div class="ratio-list">
-          ${ratioRow("Push / Pull", patternMap.push?.sets, patternMap.pull?.sets, "push", "pull", "0.8-1.2")}
-          ${ratioRow("Vertical push / Vertical pull", patternMap.vertical_push?.sets, patternMap.vertical_pull?.sets, "v push", "v pull", "0.7-1.1")}
-          ${ratioRow("Horizontal push / Horizontal pull", patternMap.horizontal_push?.sets, patternMap.horizontal_pull?.sets, "h push", "h pull", "0.8-1.2")}
-          ${ratioRow("Squat / Hinge", patternMap.squat?.sets, patternMap.hinge?.sets, "squat", "hinge", "0.8-1.3")}
-          ${ratioRow("Pierna unilateral / Squat", patternMap.unilateral_leg?.sets, patternMap.squat?.sets, "unilat", "squat", "0.25-0.6")}
-        </div>
-      </article>
-    </div>
-    <div class="analytics-detail-list">
-      ${balanceDetailRow("Push-Pull Balance", patternMap.push?.sets, patternMap.pull?.sets, "Close-Grip Bench Press / Pull-ups")}
-      ${balanceDetailRow("Squat-Deadlift Balance", patternMap.squat?.sets, patternMap.hinge?.sets, "Back Squat / Deadlift")}
-      ${balanceDetailRow("Biceps-Triceps Balance", patternMap.pull?.sets, patternMap.push?.sets, "Curl / Extension proxy")}
-      ${balanceDetailRow("Movement Pattern Balance", rows.length, 10, "patrones cubiertos")}
-    </div>
+    <div class="dc-section-head"><strong>Current ratios</strong><span>sets equivalentes en la ventana</span></div>
+    ${denseRatioPairs.map((pair) => dcRatioCard(pair, patternMap)).join("")}
+
+    <div class="dc-section-head"><strong>Movement pattern balance</strong></div>
+    ${dcBipolarCard("Push vs Pull", "Push", patternMap.push?.sets || 0, patternMap.push?.reps || 0, "Pull", patternMap.pull?.sets || 0, patternMap.pull?.reps || 0, 1.0)}
+    ${dcBipolarCard("Squat vs Hinge", "Squat", patternMap.squat?.sets || 0, patternMap.squat?.reps || 0, "Hinge", patternMap.hinge?.sets || 0, patternMap.hinge?.reps || 0, 1.1)}
+    ${dcBipolarCard("Superior vs Inferior", "Superior", upperSets, upperReps, "Inferior", catSets.legs || 0, catReps.legs || 0, 1.2)}
+
+    ${dcCollapse("bar-chart-3", "Pattern breakdown", "sets por patrón", `${rows.length}`, `<div class="analytics-bars">${rows.map((row) => analyticsBar(patternLabel(row.pattern), row.sets, maxSets, `${roundTo(row.reps, 0)} reps`)).join("")}</div>`)}
   `;
 }
 
 function renderConsistencyAnalytics(entries) {
-  const days = consistencyDays(28);
-  const activeDays = days.filter((day) => day.entries.length).length;
-  const currentStreak = trainingCurrentStreak(days);
-  const completion = Math.round((activeDays / days.length) * 100);
+  const todayKey = dateKey(today);
+  // Engagement over the last 28 days: planned exercises logged + planned days trained
+  let plannedDays = 0;
+  let trainedPlannedDays = 0;
+  let plannedExercises = 0;
+  let loggedPlannedExercises = 0;
+  for (let i = 27; i >= 0; i -= 1) {
+    const day = addDays(today, -i);
+    const key = dateKey(day);
+    if (key > todayKey) continue;
+    const plan = plannedExercisesForDate(day);
+    const dayEntries = denseEntriesForDate(key);
+    if (plan.length) {
+      plannedDays += 1;
+      plannedExercises += plan.length;
+      if (dayEntries.length) trainedPlannedDays += 1;
+      const loggedIds = new Set(dayEntries.map((entry) => entry.exercise_id));
+      loggedPlannedExercises += plan.filter((exercise) => loggedIds.has(exercise.id)).length;
+    }
+  }
+  const actionPct = plannedExercises ? Math.round((loggedPlannedExercises / plannedExercises) * 100) : null;
+  const completionPct = plannedDays ? Math.round((trainedPlannedDays / plannedDays) * 100) : null;
+  const currentStreak = trainingCurrentStreak(consistencyDays(28));
+  // Weekly heatmap: last 4 weeks, Mon-Sun
+  const weekRows = [];
+  for (let w = 3; w >= 0; w -= 1) {
+    const weekDays = trainingWeekDays(addDays(today, -7 * w));
+    let trained = 0;
+    let assigned = 0;
+    const cells = weekDays
+      .map((day) => {
+        const key = dateKey(day);
+        const isFuture = key > todayKey;
+        const hasPlan = plannedExercisesForDate(day).length > 0;
+        const hasEntries = denseEntriesForDate(key).length > 0;
+        if (hasPlan) assigned += 1;
+        if (hasEntries) trained += 1;
+        let cls = "";
+        if (!isFuture) {
+          if (hasEntries && hasPlan) cls = "is-trained";
+          else if (hasEntries) cls = "is-extra";
+          else if (hasPlan) cls = "is-missed";
+        }
+        return `<span class="${cls}" title="${escapeAttr(`${key}${hasEntries ? " · entrenado" : hasPlan ? " · plan sin completar" : ""}`)}"></span>`;
+      })
+      .join("");
+    const weekPct = assigned ? Math.round((weekDays.filter((day) => dateKey(day) <= todayKey && plannedExercisesForDate(day).length && denseEntriesForDate(dateKey(day)).length).length / assigned) * 100) : trained ? Math.round((trained / 7) * 100) : 0;
+    weekRows.push(`<div class="dc-heat-row"><small>${dateKey(weekDays[0]).slice(5)}</small>${cells}<b>${weekPct}%</b></div>`);
+  }
+  // Completion by weekday (last 4 weeks)
+  const weekdayLabels = ["L", "M", "X", "J", "V", "S", "D"];
+  const weekdayCounts = Array(7).fill(0);
+  for (let i = 0; i < 28; i += 1) {
+    const day = addDays(today, -i);
+    if (denseEntriesForDate(dateKey(day)).length) weekdayCounts[(day.getDay() + 6) % 7] += 1;
+  }
+  const blobs = weekdayLabels
+    .map((label, index) => {
+      const pctVal = Math.round((weekdayCounts[index] / 4) * 100);
+      return `<div class="dc-blob ${pctVal >= 50 ? "is-on" : ""}"><i style="opacity:${Math.max(0.12, pctVal / 100)}"></i><span>${label}</span><small>${pctVal}%</small></div>`;
+    })
+    .join("");
   const skipped = denseExerciseLibrary({ sort: "abandoned" }).slice(0, 5);
-  const weekdayRows = weekdayCompletionRows(entries);
-  const maxWeekday = Math.max(...weekdayRows.map((row) => row.count), 1);
   return `
+    <div class="dc-section-head"><strong>Engagement</strong><span>últimos 28 días</span></div>
     <div class="analytics-stat-grid">
-      ${analyticsStatCard("Training heatmap", `${completion}%`, `${activeDays}/${days.length} días con marcas`, "calendar-days")}
-      ${analyticsStatCard("Current streak", currentStreak, "días seguidos", "flame")}
-      ${analyticsStatCard("Most logged", mostLoggedExerciseName(entries), "ejercicio más repetido", "repeat-2")}
-      ${analyticsStatCard("Skipped", skipped.length, "ejercicios sin tocar hace más", "circle-dashed")}
+      ${analyticsStatCard("Action", actionPct === null ? "—" : `${actionPct}%`, "% de ejercicios planificados registrados", "activity")}
+      ${analyticsStatCard("Completion", completionPct === null ? "—" : `${completionPct}%`, "% de días con plan completados", "circle-check-big")}
+      ${analyticsStatCard("Streak", currentStreak, "días seguidos entrenando", "flame")}
     </div>
-    <div class="analytics-card">
-      <div class="section-subhead"><strong>Training heatmap</strong><span>últimos 28 días</span></div>
-      <div class="training-heatmap">
-        ${days.map((day) => `<span class="${day.entries.length ? "is-on" : ""}" title="${escapeAttr(`${day.key}: ${day.entries.length} marcas`)}">${day.label}</span>`).join("")}
+
+    <div class="dc-section-head"><strong>Training heatmap</strong><span>últimas 4 semanas</span></div>
+    <article class="analytics-card">
+      <div class="dc-heat-head"><small></small>${weekdayLabels.map((label) => `<span>${label}</span>`).join("")}<b></b></div>
+      ${weekRows.join("")}
+      <div class="dc-zone-legend">
+        <span><i style="background:var(--lime)"></i>Entrenado</span>
+        <span><i style="background:#a8352d"></i>Plan fallado</span>
+        <span><i style="background:#7cb0ff"></i>Extra</span>
+        <span><i style="background:#2a2b27"></i>Descanso</span>
       </div>
-    </div>
-    <div class="analytics-card-grid">
-      <article class="analytics-card">
-        <div class="section-subhead"><strong>Most-skipped exercises</strong><span>para rotar mejor</span></div>
-        <div class="analytics-detail-list is-in-card">
-          ${skipped.map((exercise) => analyticsDetailRow(exercise.name, denseCategoryLabel(exercise.category), denseExerciseStats(exercise.id).count ? "retomar pronto" : "sin marcas", "corner-down-right")).join("")}
-        </div>
-      </article>
-      <article class="analytics-card">
-        <div class="section-subhead"><strong>Completion by day</strong><span>densidad semanal</span></div>
-        <div class="weekday-completion">
-          ${weekdayRows.map((row) => analyticsBar(row.label, row.count, maxWeekday, `${row.count} marcas`)).join("")}
-        </div>
-      </article>
-    </div>
+    </article>
+
+    <div class="dc-section-head"><strong>Completion by day</strong></div>
+    <article class="analytics-card"><div class="dc-blob-row">${blobs}</div></article>
+
+    <div class="dc-section-head"><strong>Most-skipped exercises</strong></div>
+    <article class="analytics-card">
+      <div class="analytics-detail-list is-in-card">
+        ${skipped.map((exercise) => analyticsDetailRow(exercise.name, denseCategoryLabel(exercise.category), denseExerciseStats(exercise.id).count ? "retomar pronto" : "sin marcas", "corner-down-right")).join("")}
+      </div>
+    </article>
   `;
 }
 
@@ -2704,6 +2963,11 @@ function handleClick(event) {
   if (action === "set-training-mode") setTrainingMode(target.dataset.mode);
   if (action === "set-training-analytics-tab") setTrainingAnalyticsTab(target.dataset.tab);
   if (action === "set-training-analytics-window") setTrainingAnalyticsWindow(target.dataset.window);
+  if (action === "set-analytics-exercise") {
+    state.settings.analyticsExerciseId = target.dataset.exercise;
+    renderTrainingAnalytics();
+    refreshIcons();
+  }
   if (action === "shift-day") shiftDay(Number(target.dataset.shift));
   if (action === "select-year-week") selectYearWeek(Number(target.dataset.week));
   if (action === "go-today") goToday();
@@ -6225,6 +6489,330 @@ function analyticsTrendChart(title, total, points, unit = "") {
         <span>${escapeHtml(title)}</span>
       </div>
       <div class="trend-chart">${bars}</div>
+    </article>
+  `;
+}
+
+// ── DENSE-style analytics toolkit ────────────────────────────────────────
+const dcCnsZones = [
+  { max: 20, color: "#5fd1e8", label: "Easy 0–20" },
+  { max: 40, color: "#57c6a1", label: "Light 20–40" },
+  { max: 60, color: "#93e84b", label: "Moderate 40–60" },
+  { max: 80, color: "#e9b84e", label: "Hard 60–80" },
+  { max: 101, color: "#ff7c9e", label: "Spike 80–100" },
+];
+
+function dcZoneColor(value) {
+  return (dcCnsZones.find((zone) => value < zone.max) || dcCnsZones[dcCnsZones.length - 1]).color;
+}
+
+function dcZoneName(value) {
+  if (value < 20) return "EASY";
+  if (value < 40) return "LIGHT";
+  if (value < 60) return "MODERATE";
+  if (value < 80) return "HARD";
+  return "SPIKE";
+}
+
+// Days of bars/points to draw for the active analytics window
+function denseWindowChartDays() {
+  const windowKey = state.settings.trainingAnalyticsWindow || "70";
+  return windowKey === "7" ? 7 : 14;
+}
+
+// % change of a summed metric: latest `days` vs the previous `days`
+function denseTrendPct(metricFn, days) {
+  const map = {};
+  getDenseEntries().forEach((entry) => {
+    if (!entry.date) return;
+    map[entry.date] = (map[entry.date] || 0) + (Number(metricFn(entry)) || 0);
+  });
+  let current = 0;
+  let previous = 0;
+  for (let i = 0; i < days; i += 1) {
+    current += map[dateKey(addDays(today, -i))] || 0;
+    previous += map[dateKey(addDays(today, -days - i))] || 0;
+  }
+  if (!previous) return current ? 100 : 0;
+  return Math.round(((current - previous) / previous) * 100);
+}
+
+function dcTrendBadge(pctVal) {
+  if (!pctVal) return `<span class="dc-trend is-flat">— 0%</span>`;
+  const up = pctVal > 0;
+  return `<span class="dc-trend ${up ? "is-up" : "is-down"}"><i data-lucide="${up ? "trending-up" : "trending-down"}"></i>${up ? "+" : ""}${pctVal}%</span>`;
+}
+
+// Bar trend chart with a DENSE-style header (big value + trend %)
+function dcBarTrendCard(title, valueLabel, pctVal, points, unit = "") {
+  const max = Math.max(...points.map((p) => p.value), 1);
+  const labelEvery = points.length > 8 ? 2 : 1;
+  const bars = points
+    .map((p, i) => {
+      const h = p.value > 0 ? Math.max(6, Math.round((p.value / max) * 100)) : 0;
+      return `
+        <div class="trend-bar ${p.value > 0 ? "is-on" : ""}" title="${escapeAttr(`${p.short}: ${roundTo(p.value, 1)}${unit}`)}">
+          <span class="trend-bar-track"><i style="height:${h}%"></i></span>
+          <em>${i % labelEvery === 0 ? escapeHtml(p.short) : ""}</em>
+        </div>`;
+    })
+    .join("");
+  return `
+    <div class="dc-section-head"><strong>${escapeHtml(title)}</strong></div>
+    <article class="analytics-card analytics-trend">
+      <div class="dc-big-head"><strong>${escapeHtml(String(valueLabel))}</strong>${dcTrendBadge(pctVal)}</div>
+      <div class="trend-chart">${bars}</div>
+    </article>
+  `;
+}
+
+// SVG line chart with zone-colored day dots (CNS-load style)
+function dcLineChart(points, { max = 100, height = 130, legend = true } = {}) {
+  const width = 620;
+  const step = points.length > 1 ? width / (points.length - 1) : width;
+  const yFor = (value) => Math.round(height - 10 - (clamp(value, 0, max) / max) * (height - 26));
+  const coords = points.map((p, i) => [Math.round(i * step), yFor(p.value)]);
+  const path = coords.map(([x, y], i) => `${i ? "L" : "M"}${x},${y}`).join(" ");
+  const area = `${path} L${coords[coords.length - 1][0]},${height} L${coords[0][0]},${height} Z`;
+  const dots = points
+    .map((p, i) => (p.value > 0 ? `<circle cx="${coords[i][0]}" cy="${coords[i][1]}" r="4.5" fill="${dcZoneColor(p.value)}"/>` : ""))
+    .join("");
+  const labelEvery = Math.ceil(points.length / 7);
+  const labels = points
+    .map((p, i) => (i % labelEvery === 0 || i === points.length - 1 ? `<span style="left:${points.length > 1 ? (i / (points.length - 1)) * 100 : 0}%">${escapeHtml(p.short)}</span>` : ""))
+    .join("");
+  return `
+    <div class="dc-line">
+      <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
+        <path class="dc-line-area" d="${area}"/>
+        <path class="dc-line-path" d="${path}"/>
+        ${dots}
+      </svg>
+      <div class="dc-line-x">${labels}</div>
+      ${legend ? `<div class="dc-zone-legend">${dcCnsZones.map((zone) => `<span><i style="background:${zone.color}"></i>${zone.label}</span>`).join("")}</div>` : ""}
+    </div>
+  `;
+}
+
+// Dual line chart: recovery (lime) vs exertion (amber)
+function dcDualLineChart(seriesA, seriesB, labelA, labelB, footnote) {
+  const width = 620;
+  const height = 150;
+  const count = Math.max(seriesA.length, seriesB.length);
+  const step = count > 1 ? width / (count - 1) : width;
+  const yFor = (value) => Math.round(height - 12 - (clamp(value, 0, 100) / 100) * (height - 28));
+  const pathFor = (series) => series.map((p, i) => `${i ? "L" : "M"}${Math.round(i * step)},${yFor(p.value)}`).join(" ");
+  const dotsFor = (series, cls) => series.map((p, i) => (p.value > 0 ? `<circle class="${cls}" cx="${Math.round(i * step)}" cy="${yFor(p.value)}" r="3.6"/>` : "")).join("");
+  const labelEvery = Math.ceil(count / 7);
+  const labels = seriesA
+    .map((p, i) => (i % labelEvery === 0 || i === count - 1 ? `<span style="left:${count > 1 ? (i / (count - 1)) * 100 : 0}%">${escapeHtml(p.short)}</span>` : ""))
+    .join("");
+  return `
+    <div class="dc-line is-dual">
+      <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
+        <path class="dc-line-path is-a" d="${pathFor(seriesA)}"/>
+        <path class="dc-line-path is-b" d="${pathFor(seriesB)}"/>
+        ${dotsFor(seriesA, "dc-dot-a")}
+        ${dotsFor(seriesB, "dc-dot-b")}
+      </svg>
+      <div class="dc-line-x">${labels}</div>
+      <div class="dc-zone-legend"><span><i class="is-a"></i>${escapeHtml(labelA)}</span><span><i class="is-b"></i>${escapeHtml(labelB)}</span></div>
+      ${footnote ? `<p class="dc-footnote">${escapeHtml(footnote)}</p>` : ""}
+    </div>
+  `;
+}
+
+// Daily CNS load, normalized so a typical training day ≈ 50
+function denseCnsSeries(days, filterFn = null) {
+  const raw = {};
+  getDenseEntries().forEach((entry) => {
+    if (!entry.date) return;
+    if (filterFn && !filterFn(entry)) return;
+    raw[entry.date] = (raw[entry.date] || 0) + denseEquivalentSets(entry) * (entry.effort_value || 5);
+  });
+  const nonZero = Object.values(raw).filter((v) => v > 0).sort((a, b) => a - b);
+  const typical = nonZero.length ? nonZero[Math.floor(nonZero.length / 2)] : 50;
+  const out = [];
+  for (let i = days - 1; i >= 0; i -= 1) {
+    const day = addDays(today, -i);
+    const key = dateKey(day);
+    const value = raw[key] || 0;
+    out.push({ key, short: `${day.getMonth() + 1}/${day.getDate()}`, value: value ? clamp(Math.round((value / typical) * 50), 4, 100) : 0 });
+  }
+  return out;
+}
+
+// Daily recovery score from wellness signals (readiness, fatigue, comparisons)
+function denseRecoverySeries(days) {
+  const byDay = {};
+  getDenseEntries().forEach((entry) => {
+    if (!entry.date) return;
+    (byDay[entry.date] ||= []).push(entry);
+  });
+  const out = [];
+  for (let i = days - 1; i >= 0; i -= 1) {
+    const day = addDays(today, -i);
+    const key = dateKey(day);
+    const list = byDay[key] || [];
+    let score = 0;
+    if (list.length) {
+      score = 60;
+      list.forEach((entry) => {
+        if (entry.readiness === "high") score += 12;
+        if (entry.readiness === "low") score -= 12;
+        const fatigue = Number(entry.session_fatigue) || 0;
+        if (fatigue) score -= (fatigue - 5) * 5;
+        if (entry.expected_comparison === "harder") score -= 8;
+        if (entry.expected_comparison === "easier") score += 8;
+        if (entry.failed) score -= 6;
+      });
+      score = clamp(Math.round(score), 5, 100);
+    }
+    out.push({ key, short: `${day.getMonth() + 1}/${day.getDate()}`, value: score });
+  }
+  return out;
+}
+
+function denseWellnessCount() {
+  return getDenseEntries().filter((entry) => entry.session_fatigue || (entry.readiness && entry.readiness !== "normal")).length;
+}
+
+// Entries in `entries` that set a new best (exercise + scheme) when logged
+function densePrEventEntries(entries) {
+  const all = [...getDenseEntries()].sort((a, b) => String(a.created_at || a.date || "").localeCompare(String(b.created_at || b.date || "")));
+  const best = {};
+  const ids = new Set();
+  all.forEach((entry) => {
+    const key = `${entry.exercise_id}|${entry.scheme}`;
+    const score = denseEntryScore(entry) || 0;
+    if (score > (best[key] || 0)) {
+      ids.add(entry.id);
+      best[key] = score;
+    }
+  });
+  return entries.filter((entry) => ids.has(entry.id));
+}
+
+// Exercises whose best score inside the window beats their previous best
+function denseStrengthMovers(entries) {
+  const inWindow = new Set(entries.map((entry) => entry.id));
+  const byExercise = {};
+  getDenseEntries().forEach((entry) => {
+    const row = (byExercise[entry.exercise_id] ||= { name: entry.exercise_name, inWin: 0, before: 0 });
+    const score = denseEntryScore(entry) || 0;
+    if (inWindow.has(entry.id)) row.inWin = Math.max(row.inWin, score);
+    else row.before = Math.max(row.before, score);
+  });
+  return Object.values(byExercise)
+    .filter((row) => row.inWin && row.before)
+    .map((row) => ({ name: row.name, pct: Math.round(((row.inWin - row.before) / row.before) * 100) }))
+    .filter((row) => row.pct !== 0)
+    .sort((a, b) => b.pct - a.pct)
+    .slice(0, 4);
+}
+
+// Window entries that matched-or-beat the previous mark at LOWER effort
+function denseEffortEasierRows(entries) {
+  const sorted = [...getDenseEntries()].sort((a, b) => String(a.created_at || a.date || "").localeCompare(String(b.created_at || b.date || "")));
+  const prevBy = {};
+  const inWindow = new Set(entries.map((entry) => entry.id));
+  const rows = [];
+  sorted.forEach((entry) => {
+    const key = `${entry.exercise_id}|${entry.scheme}`;
+    const prev = prevBy[key];
+    const score = denseEntryScore(entry) || 0;
+    if (prev && inWindow.has(entry.id) && score >= prev.score && (entry.effort_value || 5) < (prev.effort || 5)) {
+      rows.push({ name: entry.exercise_name, scheme: entry.scheme, date: entry.date });
+    }
+    prevBy[key] = { score, effort: entry.effort_value || 5 };
+  });
+  return rows.reverse().slice(0, 6);
+}
+
+// Collapsible summary row (PERSONAL RECORDS / EFFORT style)
+function dcCollapse(icon, title, subtitle, valueLabel, bodyHtml) {
+  return `
+    <details class="dc-collapse">
+      <summary>
+        <span class="tiny-icon"><i data-lucide="${icon}"></i></span>
+        <div><strong>${escapeHtml(title)}</strong><small>${escapeHtml(subtitle)}</small></div>
+        <b>${valueLabel}</b>
+        <i data-lucide="chevron-down"></i>
+      </summary>
+      <div class="dc-collapse-body">${bodyHtml}</div>
+    </details>
+  `;
+}
+
+function dcPrRow(entry) {
+  return `
+    <div class="dc-pr-row">
+      <div><strong>${escapeHtml(entry.exercise_name)}</strong><small><em>Dense</em> ${escapeHtml(entry.scheme)}</small></div>
+      <b>${escapeHtml(denseEntryValue(entry))}</b>
+      <span>${escapeHtml(String(entry.date || "").slice(5))}</span>
+    </div>
+  `;
+}
+
+// Volume-per-category row with maintenance/productive/overreach zone ticks
+function dcZoneVolumeRow(label, weeklySets) {
+  const maintenance = 5;
+  const productive = 15;
+  const scaleMax = Math.max(20, weeklySets * 1.15);
+  const zone = weeklySets > productive ? "overreaching" : weeklySets >= maintenance ? "productive" : "maintenance";
+  const zoneClass = zone === "productive" ? "is-good" : zone === "overreaching" ? "is-hot" : "";
+  return `
+    <div class="dc-muscle-row">
+      <div class="dc-muscle-head"><strong>${escapeHtml(label)}</strong><span class="${zoneClass}">${roundTo(weeklySets, 1)} sets/sem · ${zone}</span></div>
+      <div class="dc-muscle-track">
+        <i class="dc-muscle-fill ${zoneClass}" style="width:${clamp((weeklySets / scaleMax) * 100, 2, 100)}%"></i>
+        <em style="left:${(maintenance / scaleMax) * 100}%"></em>
+        <em style="left:${(productive / scaleMax) * 100}%"></em>
+      </div>
+    </div>
+  `;
+}
+
+// Bipolar balance card (Push vs Pull style)
+function dcBipolarCard(title, leftLabel, leftSets, leftReps, rightLabel, rightSets, rightReps, target) {
+  const total = leftSets + rightSets;
+  const ratio = rightSets ? leftSets / rightSets : 0;
+  let status = "Sin datos";
+  let tone = "";
+  let advice = `Registra ${leftLabel.toLowerCase()} o ${rightLabel.toLowerCase()} para activar este balance.`;
+  if (total) {
+    if (!rightSets) {
+      status = `Sin ${rightLabel.toLowerCase()}`;
+      tone = "is-bad";
+      advice = `Empieza a añadir volumen de ${rightLabel.toLowerCase()} — ahora mismo cero.`;
+    } else if (!leftSets) {
+      status = `Sin ${leftLabel.toLowerCase()}`;
+      tone = "is-bad";
+      advice = `Empieza a añadir volumen de ${leftLabel.toLowerCase()} — ahora mismo cero.`;
+    } else if (Math.abs(ratio - target) / target <= 0.25) {
+      status = `${roundTo(ratio, 2)} · en objetivo`;
+      tone = "is-good";
+      advice = `Ratio ${roundTo(ratio, 2)} dentro del rango objetivo (~${target}).`;
+    } else if (ratio > target) {
+      status = `${roundTo(ratio, 2)} · exceso ${leftLabel.toLowerCase()}`;
+      tone = "is-warn";
+      advice = `Añade ${rightLabel.toLowerCase()} para acercarte al objetivo ${target}.`;
+    } else {
+      status = `${roundTo(ratio, 2)} · exceso ${rightLabel.toLowerCase()}`;
+      tone = "is-warn";
+      advice = `Añade ${leftLabel.toLowerCase()} para acercarte al objetivo ${target}.`;
+    }
+  }
+  const fill = total ? clamp((leftSets / total) * 100, 4, 96) : 50;
+  return `
+    <article class="dc-bipolar">
+      <div class="dc-bipolar-head"><strong>${escapeHtml(title)}</strong><span class="${tone}">${escapeHtml(status)}</span></div>
+      <div class="dc-bipolar-track ${total ? "" : "is-empty"}">${total ? `<i style="width:${fill}%"></i>` : ""}<em></em></div>
+      <div class="dc-bipolar-sides">
+        <div><strong>${escapeHtml(leftLabel)}</strong><span>${roundTo(leftSets, 1)} sets${leftReps ? ` · ${Math.round(leftReps)} reps` : ""}</span></div>
+        <div><strong>${escapeHtml(rightLabel)}</strong><span>${roundTo(rightSets, 1)} sets${rightReps ? ` · ${Math.round(rightReps)} reps` : ""}</span></div>
+      </div>
+      <p class="dc-footnote">${escapeHtml(advice)}</p>
     </article>
   `;
 }
