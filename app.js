@@ -256,6 +256,7 @@ const trainingModeTabs = [
   ["workout", "Workout", "calendar-days"],
   ["analytics", "Analytics", "activity"],
   ["dashboard", "Dashboard", "layout-dashboard"],
+  ["icons", "Icons", "badge"],
 ];
 
 const denseExerciseCatalog = [
@@ -908,7 +909,7 @@ const denseExerciseCatalog = [
     id: "straddle_good_morning",
     name: "Straddle good morning",
     category: "mobility",
-    family: "mobility_strength",
+    family: "pancake",
     nature: "bodyweight",
     allowedNatures: ["bodyweight", "weighted"],
     bodyweightContributionPct: 45,
@@ -929,6 +930,160 @@ const denseExerciseCatalog = [
     loadPattern: "dumbbell_pair",
     alpha: 0.11,
     icon: "dumbbell",
+  },
+  // ── L-Sit progressions (grouped under family "l_sit") ──────────────────
+  {
+    id: "l_sit_tuck",
+    name: "Tuck L-Sit",
+    category: "core",
+    family: "l_sit",
+    nature: "skill",
+    isometric: true,
+    allowedNatures: ["skill", "bodyweight"],
+    bodyweightContributionPct: 40,
+    tonnageFactor: 1,
+    alpha: 0.1,
+    icon: "armchair",
+    video: "https://youtu.be/VkkxVjPgLDM",
+  },
+  {
+    id: "l_sit_one_leg",
+    name: "One Leg L-Sit",
+    category: "core",
+    family: "l_sit",
+    nature: "skill",
+    isometric: true,
+    allowedNatures: ["skill", "bodyweight"],
+    bodyweightContributionPct: 43,
+    tonnageFactor: 1,
+    alpha: 0.11,
+    icon: "armchair",
+    video: "https://youtu.be/delQ8GDuQHY",
+  },
+  {
+    id: "l_sit_straddle",
+    name: "Straddle L-Sit",
+    category: "core",
+    family: "l_sit",
+    nature: "skill",
+    isometric: true,
+    allowedNatures: ["skill", "bodyweight"],
+    bodyweightContributionPct: 48,
+    tonnageFactor: 1,
+    alpha: 0.13,
+    icon: "armchair",
+    video: "https://youtu.be/P-2Dz3Nht3k",
+  },
+  {
+    id: "v_sit",
+    name: "V-Sit",
+    category: "core",
+    family: "l_sit",
+    nature: "skill",
+    isometric: true,
+    allowedNatures: ["skill", "bodyweight"],
+    bodyweightContributionPct: 55,
+    tonnageFactor: 1,
+    alpha: 0.14,
+    icon: "armchair",
+    video: "https://youtu.be/Iq0DksHSakA",
+  },
+  // ── Side Split progressions (family "side_split") ──────────────────────
+  {
+    id: "frog_stretch",
+    name: "Frog stretch",
+    category: "mobility",
+    family: "side_split",
+    nature: "bodyweight",
+    isometric: true,
+    allowedNatures: ["bodyweight"],
+    bodyweightContributionPct: 100,
+    tonnageFactor: 0.5,
+    alpha: 0.1,
+    icon: "move-horizontal",
+    video: "https://youtu.be/ePrJitAbIZU",
+  },
+  {
+    id: "horse_stance_hold",
+    name: "Horse stance",
+    category: "mobility",
+    family: "side_split",
+    nature: "bodyweight",
+    isometric: true,
+    allowedNatures: ["bodyweight", "weighted"],
+    bodyweightContributionPct: 90,
+    tonnageFactor: 0.6,
+    alpha: 0.11,
+    icon: "move-horizontal",
+    video: "https://youtu.be/Syk-uSSAgwA",
+  },
+  {
+    id: "side_split_squat",
+    name: "Side split squat",
+    category: "mobility",
+    family: "side_split",
+    nature: "bodyweight",
+    allowedNatures: ["bodyweight", "weighted"],
+    bodyweightContributionPct: 80,
+    tonnageFactor: 0.8,
+    alpha: 0.12,
+    icon: "move-horizontal",
+    video: "https://youtu.be/KF5Xn0a5RiA",
+  },
+  {
+    id: "side_split_iso",
+    name: "Isometric side split",
+    category: "mobility",
+    family: "side_split",
+    nature: "bodyweight",
+    isometric: true,
+    allowedNatures: ["bodyweight"],
+    bodyweightContributionPct: 100,
+    tonnageFactor: 0.5,
+    alpha: 0.14,
+    icon: "move-horizontal",
+    video: "https://youtu.be/FNAblqH_tYc",
+  },
+  // ── Pancake progressions (family "pancake") ────────────────────────────
+  {
+    id: "pancake_hold",
+    name: "Pancake hold",
+    category: "mobility",
+    family: "pancake",
+    nature: "bodyweight",
+    isometric: true,
+    allowedNatures: ["bodyweight"],
+    bodyweightContributionPct: 100,
+    tonnageFactor: 0.5,
+    alpha: 0.11,
+    icon: "fold-horizontal",
+    video: "https://www.youtube.com/watch?v=3Fc9ZSbugKY",
+  },
+  {
+    id: "pancake_good_morning",
+    name: "Pancake good morning",
+    category: "mobility",
+    family: "pancake",
+    nature: "bodyweight",
+    allowedNatures: ["bodyweight", "weighted"],
+    bodyweightContributionPct: 45,
+    tonnageFactor: 0.75,
+    alpha: 0.12,
+    icon: "fold-horizontal",
+    video: "https://youtu.be/aXDNVyPQsso",
+  },
+  {
+    id: "straddle_jefferson_curl",
+    name: "Straddle Jefferson curl",
+    category: "mobility",
+    family: "pancake",
+    nature: "weighted",
+    allowedNatures: ["weighted", "bodyweight"],
+    bodyweightContributionPct: 30,
+    tonnageFactor: 0.7,
+    alpha: 0.13,
+    icon: "fold-vertical",
+    video: "https://youtu.be/xuKeTXLtHtM",
   },
 ];
 
@@ -1007,6 +1162,8 @@ const denseTransferFamilyMeta = {
   hollow: { patterns: { core_anti_ext: 0.8, core_compression: 0.4 }, muscles: { core_flex: 0.85 }, specificity: 0.15 },
   bridge: { patterns: { core_ext: 0.6, range_strength: 0.8 }, muscles: { core_ext: 0.6, front_delt: 0.4, glutes_hams: 0.4 }, specificity: 0.5 },
   mobility_strength: { patterns: { range_strength: 1 }, muscles: { glutes_hams: 0.4, quads: 0.3, core_ext: 0.3 }, specificity: 0.3 },
+  side_split: { patterns: { range_strength: 1 }, muscles: { glutes_hams: 0.45, quads: 0.2 }, specificity: 0.4 },
+  pancake: { patterns: { range_strength: 1, hinge: 0.3 }, muscles: { glutes_hams: 0.6, core_ext: 0.3 }, specificity: 0.4 },
   accessory: { patterns: { vertical_push: 0.9 }, muscles: { front_delt: 0.85, triceps: 0.6, scap: 0.3 }, specificity: 0.2 },
 };
 
@@ -1619,6 +1776,7 @@ const nodes = {
   trainingAnalyticsPanel: document.querySelector("#trainingAnalyticsPanel"),
   densePrPanel: document.querySelector("#densePrPanel"),
   logbookPanel: document.querySelector("#logbookPanel"),
+  exerciseIconGalleryPanel: document.querySelector("#exerciseIconGalleryPanel"),
   reviewPanel: document.querySelector("#reviewPanel"),
   dataPanel: document.querySelector("#dataPanel"),
   modal: document.querySelector("#appModal"),
@@ -2093,6 +2251,7 @@ function render() {
   renderTrainingAnalytics();
   renderDensePrs();
   renderLogbook();
+  renderExerciseIconGallery();
   renderReview();
   renderData();
   refreshIcons();
@@ -3557,6 +3716,93 @@ function renderLogbook() {
   `;
 }
 
+function renderExerciseIconGallery() {
+  if (!nodes.exerciseIconGalleryPanel) return;
+  const favorites = denseExerciseFavorites();
+  const rows = denseExerciseCatalog.map((exercise) => {
+    const stats = denseExerciseStats(exercise.id);
+    const slug = denseExerciseIconSlug(exercise);
+    return { exercise, stats, slug, favorite: favorites.includes(exercise.id) };
+  });
+  const genericRows = rows.filter((row) => row.slug === "generic");
+  const categoryGroups = denseExerciseCategories
+    .map(([category, label]) => ({
+      category,
+      label,
+      color: denseCategoryColor(category),
+      rows: rows.filter((row) => row.exercise.category === category),
+    }))
+    .filter((group) => group.rows.length);
+
+  nodes.exerciseIconGalleryPanel.innerHTML = `
+    <div class="section-head icon-gallery-head">
+      <div>
+        <p class="eyebrow">Icon system</p>
+        <h2>Galería de ejercicios</h2>
+        <span class="section-meta">Revisión visual del catálogo completo: familia, estado, progresiones y cobertura.</span>
+      </div>
+      <div class="icon-audit-pills">
+        <span class="mini-tag is-green">${rows.length - genericRows.length}/${rows.length} específicos</span>
+        <span class="mini-tag ${genericRows.length ? "is-amber" : "is-green"}">${genericRows.length} genéricos</span>
+      </div>
+    </div>
+    <div class="icon-state-strip" aria-label="Estados visuales">
+      ${iconStateSample("planned", "Programado")}
+      ${iconStateSample("done", "Completado")}
+      ${iconStateSample("pr", "PR")}
+      ${iconStateSample("failed", "Fallo")}
+      ${iconStateSample("favorite", "Favorito")}
+    </div>
+    <div class="icon-gallery-grid">
+      ${categoryGroups.map(iconGalleryGroup).join("")}
+    </div>
+    ${
+      genericRows.length
+        ? `<article class="icon-audit-warning"><strong>Iconos genéricos pendientes</strong><span>${genericRows.map((row) => escapeHtml(row.exercise.name)).join(", ")}</span></article>`
+        : `<article class="icon-audit-warning is-clear"><strong>Cobertura completa</strong><span>Todos los ejercicios del catálogo tienen icono específico o de familia.</span></article>`
+    }
+  `;
+}
+
+function iconStateSample(stateName, label) {
+  return `
+    <span class="icon-state-chip">
+      ${denseExerciseIconMarkup("pull_up", { className: "tiny-icon icon-state-glyph", state: stateName })}
+      <span>${escapeHtml(label)}</span>
+    </span>
+  `;
+}
+
+function iconGalleryGroup(group) {
+  return `
+    <section class="icon-gallery-group" style="--item-color:${group.color}">
+      <div class="icon-gallery-group-head">
+        <strong>${escapeHtml(group.label)}</strong>
+        <span>${group.rows.length} ejercicios</span>
+      </div>
+      <div class="icon-card-grid">
+        ${group.rows.map(iconGalleryCard).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function iconGalleryCard({ exercise, stats, slug, favorite }) {
+  const tier = denseExerciseIconTier(exercise);
+  const schemes = denseAllowedSchemes(exercise).slice(0, 4).join(" · ");
+  const state = favorite ? "favorite" : stats.count ? "done" : "planned";
+  return `
+    <button class="icon-gallery-card" type="button" data-action="open-dense-exercise-detail" data-exercise="${escapeAttr(exercise.id)}" style="--item-color:${denseCategoryColor(exercise.category)}">
+      ${denseExerciseIconMarkup(exercise, { className: "icon-gallery-glyph", state })}
+      <span>
+        <strong>${escapeHtml(exercise.name)}</strong>
+        <small>${escapeHtml(slug)}${tier ? ` · Lv ${escapeHtml(tier)}` : ""}</small>
+        <em>${escapeHtml(denseNatureLabel(exercise.nature).split("·")[0].trim())} · ${escapeHtml(schemes || "sin esquema")}</em>
+      </span>
+    </button>
+  `;
+}
+
 function renderReview() {
   const week = rangeDays(addDays(selectedDate, -6), selectedDate);
   const dayNote = state.dayNotes[dateKey(selectedDate)] || {};
@@ -4368,6 +4614,9 @@ const denseExerciseGroupConfig = {
   front_lever_pull: { label: "Front Lever Pull", icon: "move-horizontal" },
   back_lever_pull: { label: "Back Lever Pull", icon: "rotate-ccw" },
   cuelgue: { label: "Cuelgue", icon: "grip-horizontal" },
+  l_sit: { label: "L-Sit", icon: "armchair" },
+  side_split: { label: "Side Split", icon: "move-horizontal" },
+  pancake: { label: "Pancake", icon: "fold-horizontal" },
 };
 const expandedExerciseGroups = new Set();
 let expandedVideoExerciseId = null;
@@ -5439,6 +5688,7 @@ function denseExercisePickCard(exercise, selectedId, action = "pick-dense-exerci
   const last = stats.lastEntry ? `${stats.daysSince === 0 ? "hoy" : `hace ${stats.daysSince}d`}` : "sin marcas";
   const actionIcon = action === "add-planned-exercise" ? "plus" : "check";
   const hasVideo = Boolean(denseVideoEmbedUrl(exercise.video));
+  const iconState = favorite ? "favorite" : action === "add-planned-exercise" ? "planned" : selected ? "done" : "";
   return `
     <article
       class="exercise-pick-card ${selected ? "is-selected" : ""}"
@@ -5447,7 +5697,7 @@ function denseExercisePickCard(exercise, selectedId, action = "pick-dense-exerci
       data-exercise="${escapeAttr(exercise.id)}"
     >
       <button class="exercise-pick-main" type="button" data-action="${escapeAttr(action)}" data-exercise="${escapeAttr(exercise.id)}">
-        ${denseExerciseIconMarkup(exercise)}
+        ${denseExerciseIconMarkup(exercise, { state: iconState })}
         <span>
           <strong>${escapeHtml(exercise.name)}${hasVideo ? ' <i class="exercise-video-dot" data-lucide="play"></i>' : ""}</strong>
           <small>${escapeHtml(denseCategoryLabel(exercise.category))} · ${stats.count} marcas · ${last}</small>
@@ -6264,10 +6514,12 @@ function denseProtocolHint(scheme, isometric) {
 function todayWorkoutCard(entry) {
   const exercise = denseExerciseById(entry.exercise_id);
   const isPr = denseEntryIsPr(entry);
+  const iconState = entry.failed || entry.effort === "fallo" ? "failed" : isPr ? "pr" : "done";
   const effortColor = denseEffortColor(entry.effort || "N");
   const volume = entry.tonnage_kg ? `${roundTo(entry.tonnage_kg / 1000, 1)}t` : entry.total_reps ? `${entry.total_reps} reps` : entry.total_hold_seconds ? `${entry.total_hold_seconds}s` : "-";
   const card = `
     <article class="today-workout-card workout-set-card is-complete ${isPr ? "is-pr" : ""}" style="--item-color:${denseCategoryColor(exercise.category)}" data-action="open-dense-exercise-detail" data-exercise="${escapeAttr(entry.exercise_id)}">
+      ${denseExerciseIconMarkup(exercise, { className: "tiny-icon workout-exercise-icon", state: iconState })}
       <div class="workout-set-main">
         <div class="workout-set-tags">
           ${isPr ? `<span class="mini-tag is-amber"><i data-lucide="trophy"></i>NEW PR</span>` : ""}
@@ -6338,6 +6590,7 @@ function plannedWorkoutCard(exercise) {
   const target = densePlannedTargetValue(exercise, scheme);
   const card = `
     <article class="today-workout-card workout-set-card is-planned" style="--item-color:${denseCategoryColor(exercise.category)}" data-action="open-dense-exercise-detail" data-exercise="${escapeAttr(exercise.id)}">
+      ${denseExerciseIconMarkup(exercise, { className: "tiny-icon workout-exercise-icon", state: "planned" })}
       <div class="workout-set-main">
         <div class="workout-set-tags">
           <span class="mini-tag is-blue">${escapeHtml(denseNatureLabel(exercise.nature).split("·")[0].trim())} · Dense</span>
@@ -6539,43 +6792,65 @@ function denseExerciseIconSlug(exercise = {}) {
   const family = exercise.family || "";
   if (id.includes("weighted_pull_up")) return "weighted-pull";
   if (family === "strict_pull") return id.includes("chin") ? "chin-up" : "pull-up";
-  if (family === "cuelgue") return id.includes("one_hand") ? "one-arm-hang" : "hang";
+  if (family === "cuelgue") {
+    if (id.includes("one_hand")) return id.includes("active") ? "one-arm-active-hang" : "one-arm-hang";
+    return id.includes("active") ? "active-hang" : "hang";
+  }
   if (family === "horizontal_pull") return "ring-row";
-  if (family === "strict_dip") return "ring-dip";
+  if (family === "strict_dip") return exercise.nature === "weighted_calisthenics" || id.includes("weighted") ? "weighted-dip" : "ring-dip";
   if (family === "parallel_dip") return exercise.nature === "weighted_calisthenics" ? "weighted-dip" : "parallel-dip";
   if (family === "ring_push") return "ring-push-up";
   if (family === "pushup") return id.includes("clap") ? "clap-push-up" : id.includes("deficit") ? "deficit-push-up" : "push-up";
   if (family === "bench_press") return "bench-press";
+  if (id === "seated_db_overhead_press") return "db-press";
   if (id.includes("overhead_press") || id === "military_press" || family === "accessory") return "overhead-press";
-  if (family === "hspu") return id === "pike_push_up" ? "pike-push-up" : "hspu";
+  if (family === "hspu") return id === "pike_push_up" ? "pike-push-up" : id.includes("full_rom") ? "full-rom-hspu" : "hspu";
   if (family === "handstand") return id.includes("press_to") ? "press-handstand" : id.includes("straddle") ? "straddle-handstand" : "handstand";
   if (family === "bridge") return id.includes("walkover") ? "bridge-walkover" : id.includes("isometric") ? "bridge-hold" : "bridge-push-up";
   if (family === "front_lever" || family === "front_lever_pull") return family.endsWith("_pull") ? "front-lever-pull" : "front-lever";
   if (family === "back_lever" || family === "back_lever_pull") return family.endsWith("_pull") ? "back-lever-pull" : "back-lever";
-  if (family === "squat_weighted") return "barbell-squat";
+  if (family === "squat_weighted") return id.includes("front") ? "front-squat" : "barbell-squat";
   if (family === "squat_bodyweight") return "air-squat";
-  if (family === "single_leg_squat" || family === "atg_split_squat") return id.includes("pistol") ? "pistol-squat" : "split-squat";
-  if (family === "knee_dominant") return id.includes("sissy") ? "sissy-squat" : "leg-extension";
-  if (family === "knee_isolation") return "leg-extension";
-  if (family === "hamstring_isolation") return "leg-curl";
+  if (id.includes("tiptoe")) return "tiptoe-squat";
+  if (id.includes("cossack")) return "cossack-squat";
+  if (family === "single_leg_squat" || family === "atg_split_squat") return id.includes("pistol") ? "pistol-squat" : id.includes("bulgarian") ? "bulgarian-split-squat" : "split-squat";
+  if (family === "knee_dominant") return id.includes("sissy") ? "sissy-squat" : "natural-leg-extension";
+  if (family === "knee_isolation") return "machine-leg-extension";
+  if (family === "hamstring_isolation") return "machine-leg-curl";
   if (family === "hinge_weighted") return "deadlift";
-  if (family === "hinge_bodyweight") return id.includes("nordic") ? "nordic-curl" : "single-leg-hinge";
+  if (family === "hinge_bodyweight") return id.includes("nordic") ? "nordic-curl" : id.includes("good_morning") ? "single-leg-good-morning" : "single-leg-hinge";
   if (family === "posterior_chain") return "back-extension";
   if (family === "toes_to_bar") return id.includes("kip") ? "toes-to-bar-kip" : "toes-to-bar";
   if (family === "l_sit") return "l-sit";
   if (family === "hollow") return "hollow";
   if (id.includes("jefferson")) return "jefferson-curl";
-  if (family === "mobility_strength") return id.includes("straddle") ? "straddle-fold" : "good-morning";
+  if (family === "mobility_strength") {
+    if (id.includes("straddle")) return "straddle-fold";
+    if (id.includes("seated")) return "seated-good-morning";
+    if (id.includes("tiptoe")) return "tiptoe-squat";
+    if (id.includes("cossack")) return "cossack-squat";
+    return "good-morning";
+  }
   return "generic";
 }
 
-function denseExerciseIconMarkup(exerciseOrId, { color = "", className = "tiny-icon" } = {}) {
+function denseExerciseIconTier(exercise = {}) {
+  const match = String(exercise.id || "").match(/_(tuck|one_quarter|adv_tuck|one_leg|straddle|half|three_quarter|full)(?:_pull)?$/);
+  if (!match) return "";
+  const order = ["tuck", "one_quarter", "adv_tuck", "one_leg", "straddle", "half", "three_quarter", "full"];
+  return String(order.indexOf(match[1]) + 1 || "");
+}
+
+function denseExerciseIconMarkup(exerciseOrId, { color = "", className = "tiny-icon", state: visualState = "" } = {}) {
   const exercise = typeof exerciseOrId === "string" ? denseExerciseById(exerciseOrId) : exerciseOrId;
   const slug = denseExerciseIconSlug(exercise || {});
   const tint = color || denseCategoryColor(exercise?.category);
+  const tier = denseExerciseIconTier(exercise || {});
+  const stateClass = visualState ? ` ex-state-${escapeAttr(visualState)}` : "";
   return `
-    <span class="${className} exercise-glyph ex-${escapeAttr(slug)}" style="--item-color:${tint}" aria-hidden="true">
+    <span class="${className} exercise-glyph ex-${escapeAttr(slug)}${stateClass}" style="--item-color:${tint}" data-tier="${escapeAttr(tier)}" aria-hidden="true">
       <i class="ex-bar"></i><i class="ex-body"></i><i class="ex-head"></i><i class="ex-arm ex-arm-a"></i><i class="ex-arm ex-arm-b"></i><i class="ex-leg ex-leg-a"></i><i class="ex-leg ex-leg-b"></i><i class="ex-prop ex-prop-a"></i><i class="ex-prop ex-prop-b"></i>
+      <b class="ex-badge"></b>
     </span>
   `;
 }
@@ -7219,6 +7494,9 @@ function denseProgressionReason(entry, direction, readiness = "normal") {
 }
 
 function denseUsesRepsPerSet(exercise) {
+  // Isometric work is measured in hold seconds (TUT), never reps per set —
+  // so an isometric bodyweight/weighted hold shows only the hold fields.
+  if (denseIsIsometric(exercise)) return false;
   return ["bodyweight", "weighted", "weighted_calisthenics"].includes(exercise.nature);
 }
 
@@ -8114,6 +8392,8 @@ function densePrRows() {
 }
 
 function denseEntryCard(entry) {
+  const isPr = denseEntryIsPr(entry);
+  const iconState = entry.failed || entry.effort === "fallo" ? "failed" : isPr ? "pr" : "done";
   const metrics = [];
   if (entry.total_hold_seconds) metrics.push(`${entry.total_hold_seconds}s TUT`);
   if (entry.hold_seconds_per_round) metrics.push(`${entry.hold_seconds_per_round}s/ronda`);
@@ -8125,7 +8405,7 @@ function denseEntryCard(entry) {
   return `
     <article class="dense-entry-card">
       <div class="dense-entry-main">
-        ${denseExerciseIconMarkup(entry.exercise_id, { color: denseNatureColor(entry.nature) })}
+        ${denseExerciseIconMarkup(entry.exercise_id, { color: denseNatureColor(entry.nature), state: iconState })}
         <div>
           <strong>${escapeHtml(entry.exercise_name)}</strong>
           <span>${escapeHtml(entry.date)} · ${escapeHtml(entry.scheme)} · ${escapeHtml(entry.effort)}</span>
