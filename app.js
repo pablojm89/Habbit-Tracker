@@ -2722,14 +2722,63 @@ function renderWeeklyFailureCard(weekDayKeys, isCurrentWeek) {
         ${groups
           .map(
             ([key, label]) => `
-              <span class="failure-chip ${status[key] ? "is-done" : "is-pending"}">
-                <i data-lucide="${status[key] ? "check" : "flame"}"></i>${label}
-              </span>`,
+              <button class="failure-chip ${status[key] ? "is-done" : "is-pending"}" type="button" data-action="open-failure-set-picker" data-group="${key}" title="${status[key] ? "Añadir otro set al fallo de" : "Registrar set al fallo de"} ${escapeAttr(label)}">
+                <i data-lucide="${status[key] ? "check" : "flame"}"></i>${escapeHtml(label)}
+              </button>`,
           )
           .join("")}
       </div>
     </div>
   `;
+}
+
+const denseFailureGroupLabels = { push: "Empuje", pull: "Tirón", legs: "Pierna" };
+
+// Featured basics per movement group for a quick "set to failure": the moves
+// that make sense to push to failure (dynamic, compound). Anything else in the
+// group still appears below, sorted by how often you use it.
+const denseFailureFeatured = {
+  push: ["parallel_bar_dip", "ring_dip", "floor_push_up", "ring_push_up", "pike_push_up", "bench_press"],
+  pull: ["pull_up", "chin_up", "ring_row", "weighted_pull_up"],
+  legs: ["pistol_squat", "air_squat", "bulgarian_split_squat", "cossack_squat", "back_squat"],
+};
+
+function denseFailureSetCandidates(group) {
+  const featured = (denseFailureFeatured[group] || []).map((id) => denseExerciseById(id)).filter(Boolean);
+  const featuredIds = new Set(featured.map((exercise) => exercise.id));
+  const rest = denseExerciseCatalog
+    .filter(
+      (exercise) =>
+        !featuredIds.has(exercise.id) &&
+        !denseIsIsometric(exercise) &&
+        exercise.nature !== "skill" &&
+        exercise.category !== "mobility" &&
+        exercise.category !== "skills" &&
+        !denseProgressionFamilies.has(exercise.family) &&
+        denseGroupKeys(exercise).includes(group),
+    )
+    .sort((a, b) => denseExerciseStats(b.id).count - denseExerciseStats(a.id).count || a.name.localeCompare(b.name));
+  return [...featured, ...rest].slice(0, 10);
+}
+
+// Fire chip → pick a basic for that pattern → the set form opens pre-set as a
+// failure set (effort "fallo", capacity-based rep target). "Aquí va mi set al
+// fallo de la semana" in three taps.
+function openFailureSetPicker(group) {
+  const candidates = denseFailureSetCandidates(group);
+  const label = denseFailureGroupLabels[group] || group;
+  nodes.modalCard.dataset.modalKind = "failure-set-picker";
+  nodes.modalEyebrow.textContent = "Set al fallo";
+  nodes.modalTitle.textContent = `Fallo semanal · ${label}`;
+  nodes.modalBody.innerHTML = `
+    <div class="failure-set-picker">
+      <p class="tiny-copy">Elige un básico de ${escapeHtml(label.toLowerCase())} para tu set al fallo de la semana. Después eliges los minutos según tu tiempo y BitTracker te propone las reps objetivo estimadas.</p>
+      <div class="exercise-picker-list">
+        ${candidates.length ? candidates.map((exercise) => denseExercisePickCard(exercise, "", "pick-failure-exercise")).join("") : '<article class="exercise-pick-empty">No hay básicos de este patrón todavía.</article>'}
+      </div>
+    </div>
+  `;
+  openModal();
 }
 
 // The exercise stack for a single day (logged + planned + add). Used to build the
@@ -2947,6 +2996,7 @@ function denseTrainingFormMarkup(defaults, { includePicker = false, modal = fals
       ${renderDenseFatigueWarning(activeExercise, defaults)}
       ${denseReadinessField(readiness)}
       ${denseNatureSelectorMarkup(exercise, nature)}
+      ${denseFailureSetMode ? `<p class="transfer-note"><i data-lucide="flame"></i>Set al fallo de la semana: elige los minutos según tu tiempo; las reps de abajo son tu objetivo estimado al fallo. Haz el set, apunta las reps reales y marca cómo fue.</p>` : ""}
       ${suggestion ? `<div class="dense-recommendation-wrap" data-recommendation>${renderDenseProgressionSuggestion(activeExercise, suggestion)}</div>` : ""}
       <div class="dense-form-grid">
         ${field("Peso corporal kg", "bodyweightKg", defaults.bodyweightKg, "number")}
@@ -4002,6 +4052,8 @@ function handleClick(event) {
   if (action === "open-dense-exercise-modal") openDenseTrainingModal({ exerciseId: target.dataset.exercise });
   if (action === "open-workout-exercise-picker") openWorkoutExercisePickerModal();
   if (action === "add-planned-exercise") addPlannedExerciseToSelectedDate(target.dataset.exercise);
+  if (action === "open-failure-set-picker") openFailureSetPicker(target.dataset.group);
+  if (action === "pick-failure-exercise") openDenseTrainingModal({ exerciseId: target.dataset.exercise, failure: true });
   if (action === "toggle-exercise-group") toggleExerciseGroup(target.dataset.group);
   if (action === "toggle-exercise-video") toggleExerciseVideo(target.dataset.exercise);
   if (action === "open-dense-exercise-detail") openDenseExerciseDetailModal(target.dataset.exercise);
@@ -4581,6 +4633,8 @@ function saveDayForm(form) {
 // modal opens fresh so it never leaks across exercises.
 let denseFormNatureOverride = null;
 let denseSetModalContext = { includePicker: false, editing: false };
+// True while logging a weekly "set to failure" so the form pre-selects fallo.
+let denseFailureSetMode = false;
 
 function denseSetModalBodyHtml() {
   return `
@@ -4594,7 +4648,7 @@ function denseSetModalBodyHtml() {
   `;
 }
 
-function openDenseTrainingModal({ exerciseId = "", entryId = "" } = {}) {
+function openDenseTrainingModal({ exerciseId = "", entryId = "", failure = false } = {}) {
   const entry = entryId ? getDenseEntries().find((item) => item.id === entryId) : null;
   const exercise = entry ? denseExerciseById(entry.exercise_id) : denseExerciseById(exerciseId || state.settings.denseSelectedExerciseId || "pull_up");
   if (!exercise) return;
@@ -4604,9 +4658,10 @@ function openDenseTrainingModal({ exerciseId = "", entryId = "" } = {}) {
   else delete state.settings.denseDraftEntryId;
 
   denseFormNatureOverride = null;
+  denseFailureSetMode = failure && !entry;
   denseSetModalContext = { includePicker: !entry && !exerciseId, editing: Boolean(entry) };
   nodes.modalCard.dataset.modalKind = "dense-set";
-  nodes.modalEyebrow.textContent = denseSetModalContext.editing ? "Editing set" : "New set";
+  nodes.modalEyebrow.textContent = denseSetModalContext.editing ? "Editing set" : denseFailureSetMode ? "Set al fallo" : "New set";
   nodes.modalTitle.textContent = exercise.name;
   nodes.modalBody.innerHTML = denseSetModalBodyHtml();
   openModal();
@@ -8371,7 +8426,7 @@ function denseFormDefaults() {
     totalReps: suggestion?.totalReps || (repsPerSet ? denseTotalFromRepsPerSet(repsPerSet, scheme) : denseDefaultTotalReps(activeExercise, scheme)),
     holdSecondsPerRound: suggestion?.holdSecondsPerRound || (!overrideNature && shouldUseLatest && referenceEntry?.hold_seconds_per_round ? referenceEntry.hold_seconds_per_round : ""),
     rounds: suggestion?.rounds || (shouldUseLatest && referenceEntry?.rounds ? referenceEntry.rounds : denseSchemeMinutes(scheme) || ""),
-    effort: "N",
+    effort: denseFailureSetMode ? "fallo" : "N",
     externalLoadKg: suggestion?.externalLoadKg || "",
     addedLoadKg: suggestion?.addedLoadKg || "",
     weightPerDumbbellKg: suggestion?.weightPerDumbbellKg || "",
