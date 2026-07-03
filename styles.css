@@ -1463,6 +1463,643 @@ button:active:not(:disabled),
   color: var(--item-color);
 }
 
+.exercise-glyph {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 62% 20%, color-mix(in srgb, var(--item-color), transparent 76%), transparent 38%),
+    linear-gradient(145deg, color-mix(in srgb, var(--item-color), #11130f 74%), rgba(255, 255, 255, 0.025));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -10px 22px rgba(0, 0, 0, 0.2);
+}
+
+.exercise-glyph::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border: 1px solid color-mix(in srgb, var(--item-color), transparent 72%);
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.exercise-glyph > i {
+  position: absolute;
+  display: block;
+  background: currentColor;
+  border-radius: 999px;
+  opacity: 0;
+  transform-origin: center;
+  box-shadow: 0 0 10px color-mix(in srgb, var(--item-color), transparent 72%);
+}
+
+.exercise-glyph .ex-head {
+  width: 4px;
+  height: 4px;
+}
+
+.exercise-glyph .ex-body {
+  width: 3px;
+  height: 12px;
+}
+
+.exercise-glyph .ex-arm,
+.exercise-glyph .ex-leg {
+  width: 3px;
+  height: 11px;
+}
+
+.exercise-glyph .ex-bar {
+  height: 3px;
+}
+
+.exercise-glyph .ex-prop-a,
+.exercise-glyph .ex-prop-b {
+  width: 7px;
+  height: 7px;
+  background: transparent;
+  border: 2px solid currentColor;
+}
+
+.ex-pull-up .ex-bar,
+.ex-weighted-pull .ex-bar,
+.ex-chin-up .ex-bar,
+.ex-hang .ex-bar,
+.ex-one-arm-hang .ex-bar,
+.ex-toes-to-bar .ex-bar,
+.ex-toes-to-bar-kip .ex-bar {
+  left: 7px;
+  top: 6px;
+  width: 18px;
+  opacity: 1;
+}
+
+.ex-pull-up .ex-head,
+.ex-weighted-pull .ex-head,
+.ex-chin-up .ex-head,
+.ex-hang .ex-head,
+.ex-one-arm-hang .ex-head {
+  left: 14px;
+  top: 12px;
+  opacity: 1;
+}
+
+.ex-pull-up .ex-body,
+.ex-weighted-pull .ex-body,
+.ex-chin-up .ex-body,
+.ex-hang .ex-body,
+.ex-one-arm-hang .ex-body {
+  left: 15px;
+  top: 15px;
+  opacity: 1;
+}
+
+.ex-pull-up .ex-arm-a,
+.ex-weighted-pull .ex-arm-a,
+.ex-chin-up .ex-arm-a,
+.ex-hang .ex-arm-a {
+  left: 11px;
+  top: 7px;
+  height: 10px;
+  transform: rotate(22deg);
+  opacity: 1;
+}
+
+.ex-pull-up .ex-arm-b,
+.ex-weighted-pull .ex-arm-b,
+.ex-chin-up .ex-arm-b,
+.ex-hang .ex-arm-b {
+  right: 11px;
+  top: 7px;
+  height: 10px;
+  transform: rotate(-22deg);
+  opacity: 1;
+}
+
+.ex-one-arm-hang .ex-arm-a {
+  left: 15px;
+  top: 6px;
+  height: 13px;
+  opacity: 1;
+}
+
+.ex-weighted-pull .ex-prop-a,
+.ex-weighted-dip .ex-prop-a {
+  left: 12px;
+  bottom: 4px;
+  width: 8px;
+  height: 5px;
+  border-radius: 2px;
+  opacity: 1;
+}
+
+.ex-ring-row .ex-prop-a,
+.ex-ring-push-up .ex-prop-a,
+.ex-ring-dip .ex-prop-a {
+  left: 7px;
+  top: 7px;
+  opacity: 1;
+}
+
+.ex-ring-row .ex-prop-b,
+.ex-ring-push-up .ex-prop-b,
+.ex-ring-dip .ex-prop-b {
+  right: 7px;
+  top: 7px;
+  opacity: 1;
+}
+
+.ex-ring-row .ex-body,
+.ex-front-lever .ex-body,
+.ex-back-lever .ex-body,
+.ex-front-lever-pull .ex-body,
+.ex-back-lever-pull .ex-body {
+  left: 8px;
+  top: 18px;
+  width: 17px;
+  height: 3px;
+  opacity: 1;
+}
+
+.ex-ring-row .ex-arm-a,
+.ex-ring-row .ex-arm-b,
+.ex-front-lever .ex-arm-a,
+.ex-front-lever-pull .ex-arm-a,
+.ex-back-lever .ex-arm-a,
+.ex-back-lever-pull .ex-arm-a {
+  top: 11px;
+  height: 10px;
+  opacity: 1;
+}
+
+.ex-ring-row .ex-arm-a {
+  left: 10px;
+  transform: rotate(35deg);
+}
+
+.ex-ring-row .ex-arm-b {
+  right: 10px;
+  transform: rotate(-35deg);
+}
+
+.ex-ring-dip .ex-body,
+.ex-parallel-dip .ex-body,
+.ex-weighted-dip .ex-body {
+  left: 15px;
+  top: 12px;
+  opacity: 1;
+}
+
+.ex-ring-dip .ex-arm-a,
+.ex-parallel-dip .ex-arm-a,
+.ex-weighted-dip .ex-arm-a {
+  left: 10px;
+  top: 10px;
+  height: 13px;
+  transform: rotate(-8deg);
+  opacity: 1;
+}
+
+.ex-ring-dip .ex-arm-b,
+.ex-parallel-dip .ex-arm-b,
+.ex-weighted-dip .ex-arm-b {
+  right: 10px;
+  top: 10px;
+  height: 13px;
+  transform: rotate(8deg);
+  opacity: 1;
+}
+
+.ex-parallel-dip .ex-prop-a,
+.ex-parallel-dip .ex-prop-b,
+.ex-weighted-dip .ex-prop-b {
+  top: 9px;
+  width: 3px;
+  height: 15px;
+  border: 0;
+  background: currentColor;
+  opacity: 1;
+}
+
+.ex-parallel-dip .ex-prop-a,
+.ex-weighted-dip .ex-prop-b {
+  left: 7px;
+}
+
+.ex-parallel-dip .ex-prop-b {
+  right: 7px;
+}
+
+.ex-push-up .ex-body,
+.ex-ring-push-up .ex-body,
+.ex-deficit-push-up .ex-body,
+.ex-clap-push-up .ex-body,
+.ex-bench-press .ex-body,
+.ex-hollow .ex-body {
+  left: 7px;
+  top: 18px;
+  width: 18px;
+  height: 3px;
+  transform: rotate(-6deg);
+  opacity: 1;
+}
+
+.ex-push-up .ex-arm-a,
+.ex-ring-push-up .ex-arm-a,
+.ex-deficit-push-up .ex-arm-a,
+.ex-clap-push-up .ex-arm-a {
+  left: 12px;
+  top: 17px;
+  height: 9px;
+  transform: rotate(16deg);
+  opacity: 1;
+}
+
+.ex-push-up .ex-leg-a,
+.ex-ring-push-up .ex-leg-a,
+.ex-deficit-push-up .ex-leg-a,
+.ex-clap-push-up .ex-leg-a {
+  right: 6px;
+  top: 18px;
+  height: 8px;
+  transform: rotate(-54deg);
+  opacity: 1;
+}
+
+.ex-clap-push-up .ex-prop-a,
+.ex-clap-push-up .ex-prop-b {
+  top: 9px;
+  width: 6px;
+  height: 2px;
+  border: 0;
+  background: currentColor;
+  opacity: 1;
+}
+
+.ex-clap-push-up .ex-prop-a {
+  left: 9px;
+  transform: rotate(28deg);
+}
+
+.ex-clap-push-up .ex-prop-b {
+  right: 9px;
+  transform: rotate(-28deg);
+}
+
+.ex-deficit-push-up .ex-prop-a,
+.ex-deficit-push-up .ex-prop-b {
+  bottom: 5px;
+  width: 7px;
+  height: 3px;
+  border: 0;
+  background: currentColor;
+  opacity: 0.7;
+}
+
+.ex-deficit-push-up .ex-prop-a {
+  left: 6px;
+}
+
+.ex-deficit-push-up .ex-prop-b {
+  right: 6px;
+}
+
+.ex-bench-press .ex-bar,
+.ex-overhead-press .ex-bar,
+.ex-barbell-squat .ex-bar,
+.ex-deadlift .ex-bar {
+  left: 6px;
+  width: 20px;
+  opacity: 1;
+}
+
+.ex-bench-press .ex-bar {
+  top: 11px;
+}
+
+.ex-bench-press .ex-prop-a {
+  left: 6px;
+  bottom: 7px;
+  width: 20px;
+  height: 3px;
+  border: 0;
+  background: currentColor;
+  opacity: 0.55;
+}
+
+.ex-overhead-press .ex-bar {
+  top: 5px;
+}
+
+.ex-overhead-press .ex-body,
+.ex-air-squat .ex-body,
+.ex-barbell-squat .ex-body,
+.ex-pistol-squat .ex-body,
+.ex-split-squat .ex-body,
+.ex-sissy-squat .ex-body,
+.ex-leg-extension .ex-body,
+.ex-leg-curl .ex-body,
+.ex-handstand .ex-body,
+.ex-straddle-handstand .ex-body,
+.ex-press-handstand .ex-body {
+  left: 15px;
+  top: 11px;
+  opacity: 1;
+}
+
+.ex-overhead-press .ex-arm-a,
+.ex-overhead-press .ex-arm-b {
+  top: 5px;
+  height: 10px;
+  opacity: 1;
+}
+
+.ex-overhead-press .ex-arm-a {
+  left: 12px;
+  transform: rotate(18deg);
+}
+
+.ex-overhead-press .ex-arm-b {
+  right: 12px;
+  transform: rotate(-18deg);
+}
+
+.ex-hspu .ex-body,
+.ex-handstand .ex-body,
+.ex-straddle-handstand .ex-body {
+  left: 15px;
+  top: 7px;
+  height: 16px;
+}
+
+.ex-hspu .ex-head,
+.ex-handstand .ex-head,
+.ex-straddle-handstand .ex-head {
+  left: 14px;
+  bottom: 6px;
+  opacity: 1;
+}
+
+.ex-hspu .ex-arm-a,
+.ex-hspu .ex-arm-b,
+.ex-handstand .ex-arm-a,
+.ex-handstand .ex-arm-b,
+.ex-straddle-handstand .ex-arm-a,
+.ex-straddle-handstand .ex-arm-b {
+  bottom: 4px;
+  height: 9px;
+  opacity: 1;
+}
+
+.ex-hspu .ex-arm-a,
+.ex-handstand .ex-arm-a,
+.ex-straddle-handstand .ex-arm-a {
+  left: 11px;
+  transform: rotate(-18deg);
+}
+
+.ex-hspu .ex-arm-b,
+.ex-handstand .ex-arm-b,
+.ex-straddle-handstand .ex-arm-b {
+  right: 11px;
+  transform: rotate(18deg);
+}
+
+.ex-straddle-handstand .ex-leg-a,
+.ex-straddle-handstand .ex-leg-b {
+  top: 4px;
+  height: 12px;
+  opacity: 1;
+}
+
+.ex-straddle-handstand .ex-leg-a {
+  left: 11px;
+  transform: rotate(-34deg);
+}
+
+.ex-straddle-handstand .ex-leg-b {
+  right: 11px;
+  transform: rotate(34deg);
+}
+
+.ex-pike-push-up .ex-body,
+.ex-bridge-push-up .ex-body,
+.ex-bridge-hold .ex-body,
+.ex-bridge-walkover .ex-body {
+  left: 8px;
+  top: 16px;
+  width: 16px;
+  height: 3px;
+  transform: rotate(-34deg);
+  opacity: 1;
+}
+
+.ex-pike-push-up .ex-leg-a,
+.ex-bridge-push-up .ex-leg-a,
+.ex-bridge-hold .ex-leg-a,
+.ex-bridge-walkover .ex-leg-a {
+  right: 8px;
+  top: 14px;
+  height: 12px;
+  transform: rotate(38deg);
+  opacity: 1;
+}
+
+.ex-bridge-push-up .ex-body,
+.ex-bridge-hold .ex-body,
+.ex-bridge-walkover .ex-body {
+  width: 18px;
+  transform: rotate(-18deg);
+}
+
+.ex-bridge-walkover .ex-prop-a {
+  right: 5px;
+  top: 8px;
+  width: 8px;
+  height: 8px;
+  border-top-color: transparent;
+  border-left-color: transparent;
+  transform: rotate(-35deg);
+  opacity: 1;
+}
+
+.ex-front-lever .ex-bar,
+.ex-front-lever-pull .ex-bar,
+.ex-back-lever .ex-bar,
+.ex-back-lever-pull .ex-bar {
+  left: 5px;
+  top: 8px;
+  width: 10px;
+  opacity: 1;
+}
+
+.ex-front-lever .ex-arm-a,
+.ex-front-lever-pull .ex-arm-a,
+.ex-back-lever .ex-arm-a,
+.ex-back-lever-pull .ex-arm-a {
+  left: 11px;
+  transform: rotate(28deg);
+}
+
+.ex-front-lever-pull .ex-prop-a,
+.ex-back-lever-pull .ex-prop-a {
+  right: 6px;
+  top: 14px;
+  width: 6px;
+  height: 6px;
+  border-top-color: transparent;
+  border-left-color: transparent;
+  transform: rotate(45deg);
+  opacity: 1;
+}
+
+.ex-back-lever .ex-body,
+.ex-back-lever-pull .ex-body {
+  top: 13px;
+}
+
+.ex-air-squat .ex-leg-a,
+.ex-barbell-squat .ex-leg-a,
+.ex-sissy-squat .ex-leg-a,
+.ex-pistol-squat .ex-leg-a,
+.ex-split-squat .ex-leg-a {
+  left: 12px;
+  top: 20px;
+  height: 9px;
+  transform: rotate(34deg);
+  opacity: 1;
+}
+
+.ex-air-squat .ex-leg-b,
+.ex-barbell-squat .ex-leg-b,
+.ex-sissy-squat .ex-leg-b,
+.ex-pistol-squat .ex-leg-b,
+.ex-split-squat .ex-leg-b {
+  right: 10px;
+  top: 20px;
+  height: 9px;
+  transform: rotate(-34deg);
+  opacity: 1;
+}
+
+.ex-barbell-squat .ex-bar {
+  top: 12px;
+}
+
+.ex-pistol-squat .ex-leg-b {
+  right: 5px;
+  top: 18px;
+  height: 14px;
+  transform: rotate(72deg);
+}
+
+.ex-split-squat .ex-leg-b {
+  right: 5px;
+  top: 22px;
+  transform: rotate(-72deg);
+}
+
+.ex-deadlift .ex-bar {
+  bottom: 6px;
+}
+
+.ex-deadlift .ex-body,
+.ex-good-morning .ex-body,
+.ex-single-leg-hinge .ex-body,
+.ex-back-extension .ex-body,
+.ex-jefferson-curl .ex-body,
+.ex-straddle-fold .ex-body,
+.ex-nordic-curl .ex-body {
+  left: 14px;
+  top: 13px;
+  height: 13px;
+  transform: rotate(55deg);
+  opacity: 1;
+}
+
+.ex-deadlift .ex-arm-a,
+.ex-good-morning .ex-arm-a,
+.ex-jefferson-curl .ex-arm-a {
+  left: 13px;
+  top: 18px;
+  height: 10px;
+  transform: rotate(-34deg);
+  opacity: 1;
+}
+
+.ex-single-leg-hinge .ex-leg-b,
+.ex-back-extension .ex-leg-b,
+.ex-nordic-curl .ex-leg-b {
+  right: 4px;
+  top: 15px;
+  height: 15px;
+  transform: rotate(70deg);
+  opacity: 1;
+}
+
+.ex-leg-extension .ex-leg-a,
+.ex-leg-curl .ex-leg-a {
+  left: 15px;
+  bottom: 4px;
+  height: 14px;
+  transform: rotate(74deg);
+  opacity: 1;
+}
+
+.ex-toes-to-bar .ex-body,
+.ex-toes-to-bar-kip .ex-body,
+.ex-l-sit .ex-body {
+  left: 15px;
+  top: 13px;
+  opacity: 1;
+}
+
+.ex-toes-to-bar .ex-leg-a,
+.ex-toes-to-bar-kip .ex-leg-a,
+.ex-l-sit .ex-leg-a {
+  right: 7px;
+  top: 12px;
+  height: 15px;
+  transform: rotate(78deg);
+  opacity: 1;
+}
+
+.ex-hollow .ex-body {
+  top: 17px;
+  width: 19px;
+  transform: rotate(12deg);
+}
+
+.ex-hollow .ex-leg-a,
+.ex-hollow .ex-arm-a {
+  top: 10px;
+  height: 10px;
+  opacity: 1;
+}
+
+.ex-hollow .ex-arm-a {
+  left: 8px;
+  transform: rotate(55deg);
+}
+
+.ex-hollow .ex-leg-a {
+  right: 8px;
+  transform: rotate(-55deg);
+}
+
+.ex-generic .ex-body,
+.ex-generic .ex-head {
+  left: 15px;
+  top: 10px;
+  opacity: 1;
+}
+
+.ex-generic .ex-head {
+  left: 14px;
+  top: 6px;
+}
+
 .analytics-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

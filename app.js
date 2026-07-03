@@ -2716,7 +2716,7 @@ function renderSession() {
       </div>
     </div>
     <div class="selected-exercise-panel" style="--item-color:${denseCategoryColor(selected.category)}">
-      <span class="tiny-icon"><i data-lucide="${selected.icon || "dumbbell"}"></i></span>
+      ${denseExerciseIconMarkup(selected)}
       <div>
         <strong>${escapeHtml(selected.name)}</strong>
         <span>${escapeHtml(denseNatureLabel(selected.nature))} · ${schemes.length} esquemas disponibles</span>
@@ -4452,7 +4452,7 @@ function denseWorkoutPickerListMarkup(exercises, query) {
       return `
         <div class="exercise-group ${expanded ? "is-open" : ""}">
           <button class="exercise-group-head" type="button" data-action="toggle-exercise-group" data-group="${escapeAttr(group.family)}" aria-expanded="${expanded}">
-            <span class="tiny-icon" style="--item-color:${color}"><i data-lucide="${group.icon}"></i></span>
+            ${denseExerciseIconMarkup(children[0], { color })}
             <span class="exercise-group-text">
               <strong>${escapeHtml(group.label)}</strong>
               <small>${children.length} progresiones</small>
@@ -4541,7 +4541,7 @@ function openPlannedExerciseDeleteConfirm(planIndex) {
   nodes.modalTitle.textContent = "¿Quitar ejercicio del día?";
   nodes.modalBody.innerHTML = `
     <div class="confirm-box">
-      <span class="tiny-icon" style="--item-color:${denseCategoryColor(exercise.category)}"><i data-lucide="${exercise.icon || "dumbbell"}"></i></span>
+      ${denseExerciseIconMarkup(exercise)}
       <div>
         <strong>${escapeHtml(exercise.name)}</strong>
         <span>${escapeHtml(formatLongDate(selectedDate))} · programado sin marca</span>
@@ -4636,7 +4636,7 @@ function openDenseExerciseDetailModal(exerciseId) {
           ${
             entries.length
               ? entries.map((entry, index) => exerciseDetailRow(entry, index)).join("")
-              : `<article class="dense-selected-log-empty"><span class="tiny-icon"><i data-lucide="${exercise.icon || "dumbbell"}"></i></span><div><strong>No ranked yet</strong><span>Registra una marca y aparecerá aquí.</span></div></article>`
+              : `<article class="dense-selected-log-empty">${denseExerciseIconMarkup(exercise)}<div><strong>No ranked yet</strong><span>Registra una marca y aparecerá aquí.</span></div></article>`
           }
         </div>
       </section>
@@ -4794,7 +4794,7 @@ function openDenseFeedbackModal(entryId) {
     <form id="denseFeedbackForm" class="dense-feedback-form">
       <input type="hidden" name="entryId" value="${escapeAttr(entry.id)}" />
       <div class="feedback-entry-summary">
-        <span class="tiny-icon"><i data-lucide="${denseExerciseById(entry.exercise_id)?.icon || "dumbbell"}"></i></span>
+        ${denseExerciseIconMarkup(entry.exercise_id)}
         <div>
           <strong>${escapeHtml(entry.exercise_name)}</strong>
           <span>${escapeHtml(entry.scheme)} · ${escapeHtml(denseEntryValue(entry))}</span>
@@ -5447,7 +5447,7 @@ function denseExercisePickCard(exercise, selectedId, action = "pick-dense-exerci
       data-exercise="${escapeAttr(exercise.id)}"
     >
       <button class="exercise-pick-main" type="button" data-action="${escapeAttr(action)}" data-exercise="${escapeAttr(exercise.id)}">
-        <span class="tiny-icon" style="--item-color:${denseCategoryColor(exercise.category)}"><i data-lucide="${exercise.icon || "dumbbell"}"></i></span>
+        ${denseExerciseIconMarkup(exercise)}
         <span>
           <strong>${escapeHtml(exercise.name)}${hasVideo ? ' <i class="exercise-video-dot" data-lucide="play"></i>' : ""}</strong>
           <small>${escapeHtml(denseCategoryLabel(exercise.category))} · ${stats.count} marcas · ${last}</small>
@@ -6532,6 +6532,52 @@ function denseCategoryColor(category) {
   if (category === "mobility") return "var(--cyan)";
   if (category === "core") return "var(--amber)";
   return "var(--teal)";
+}
+
+function denseExerciseIconSlug(exercise = {}) {
+  const id = exercise.id || "";
+  const family = exercise.family || "";
+  if (id.includes("weighted_pull_up")) return "weighted-pull";
+  if (family === "strict_pull") return id.includes("chin") ? "chin-up" : "pull-up";
+  if (family === "cuelgue") return id.includes("one_hand") ? "one-arm-hang" : "hang";
+  if (family === "horizontal_pull") return "ring-row";
+  if (family === "strict_dip") return "ring-dip";
+  if (family === "parallel_dip") return exercise.nature === "weighted_calisthenics" ? "weighted-dip" : "parallel-dip";
+  if (family === "ring_push") return "ring-push-up";
+  if (family === "pushup") return id.includes("clap") ? "clap-push-up" : id.includes("deficit") ? "deficit-push-up" : "push-up";
+  if (family === "bench_press") return "bench-press";
+  if (id.includes("overhead_press") || id === "military_press" || family === "accessory") return "overhead-press";
+  if (family === "hspu") return id === "pike_push_up" ? "pike-push-up" : "hspu";
+  if (family === "handstand") return id.includes("press_to") ? "press-handstand" : id.includes("straddle") ? "straddle-handstand" : "handstand";
+  if (family === "bridge") return id.includes("walkover") ? "bridge-walkover" : id.includes("isometric") ? "bridge-hold" : "bridge-push-up";
+  if (family === "front_lever" || family === "front_lever_pull") return family.endsWith("_pull") ? "front-lever-pull" : "front-lever";
+  if (family === "back_lever" || family === "back_lever_pull") return family.endsWith("_pull") ? "back-lever-pull" : "back-lever";
+  if (family === "squat_weighted") return "barbell-squat";
+  if (family === "squat_bodyweight") return "air-squat";
+  if (family === "single_leg_squat" || family === "atg_split_squat") return id.includes("pistol") ? "pistol-squat" : "split-squat";
+  if (family === "knee_dominant") return id.includes("sissy") ? "sissy-squat" : "leg-extension";
+  if (family === "knee_isolation") return "leg-extension";
+  if (family === "hamstring_isolation") return "leg-curl";
+  if (family === "hinge_weighted") return "deadlift";
+  if (family === "hinge_bodyweight") return id.includes("nordic") ? "nordic-curl" : "single-leg-hinge";
+  if (family === "posterior_chain") return "back-extension";
+  if (family === "toes_to_bar") return id.includes("kip") ? "toes-to-bar-kip" : "toes-to-bar";
+  if (family === "l_sit") return "l-sit";
+  if (family === "hollow") return "hollow";
+  if (id.includes("jefferson")) return "jefferson-curl";
+  if (family === "mobility_strength") return id.includes("straddle") ? "straddle-fold" : "good-morning";
+  return "generic";
+}
+
+function denseExerciseIconMarkup(exerciseOrId, { color = "", className = "tiny-icon" } = {}) {
+  const exercise = typeof exerciseOrId === "string" ? denseExerciseById(exerciseOrId) : exerciseOrId;
+  const slug = denseExerciseIconSlug(exercise || {});
+  const tint = color || denseCategoryColor(exercise?.category);
+  return `
+    <span class="${className} exercise-glyph ex-${escapeAttr(slug)}" style="--item-color:${tint}" aria-hidden="true">
+      <i class="ex-bar"></i><i class="ex-body"></i><i class="ex-head"></i><i class="ex-arm ex-arm-a"></i><i class="ex-arm ex-arm-b"></i><i class="ex-leg ex-leg-a"></i><i class="ex-leg ex-leg-b"></i><i class="ex-prop ex-prop-a"></i><i class="ex-prop ex-prop-b"></i>
+    </span>
+  `;
 }
 
 function denseNatureLabel(nature) {
@@ -8079,7 +8125,7 @@ function denseEntryCard(entry) {
   return `
     <article class="dense-entry-card">
       <div class="dense-entry-main">
-        <span class="tiny-icon" style="--item-color:${denseNatureColor(entry.nature)}"><i data-lucide="${denseExerciseById(entry.exercise_id)?.icon || "dumbbell"}"></i></span>
+        ${denseExerciseIconMarkup(entry.exercise_id, { color: denseNatureColor(entry.nature) })}
         <div>
           <strong>${escapeHtml(entry.exercise_name)}</strong>
           <span>${escapeHtml(entry.date)} · ${escapeHtml(entry.scheme)} · ${escapeHtml(entry.effort)}</span>
@@ -8117,7 +8163,7 @@ function renderSelectedExerciseLog(exerciseId) {
           entries.length
             ? entries.map((entry) => selectedExerciseLogRow(entry)).join("")
             : `<article class="dense-selected-log-empty">
-                <span class="tiny-icon" style="--item-color:${denseCategoryColor(exercise.category)}"><i data-lucide="${exercise.icon || "dumbbell"}"></i></span>
+                ${denseExerciseIconMarkup(exercise)}
                 <div>
                   <strong>Primer registro pendiente</strong>
                   <span>Cuando guardes ${escapeHtml(exercise.name)}, sus últimas marcas aparecerán aquí.</span>
