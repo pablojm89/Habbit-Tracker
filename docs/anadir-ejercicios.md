@@ -12,8 +12,13 @@ se tocan a mano).
   name: "Bulgarian Split Squat",
   category: "push|pull|legs|core|skills|mobility",
   family: "single_leg_squat",         // ← CLAVE: conecta con denseTransferFamilyMeta
-  nature: "bodyweight",               // bodyweight | weighted | weighted_calisthenics | skill | banded | conditioning | plyometrics
-  allowedNatures: ["bodyweight", "weighted_calisthenics"],
+  nature: "bodyweight",               // modalidad POR DEFECTO al abrir el formulario
+  allowedNatures: ["bodyweight", "weighted_calisthenics"], // modalidades seleccionables:
+    // con >1 opción, el formulario muestra un selector "Modalidad" que reescribe
+    // qué campos (reps/hold/carga) y esquemas aparecen y con qué nature se guarda
+    // la marca. La 1ª suele ser la de defecto. `denseFormNatureOverride` guarda la
+    // elección transitoria; `saveDenseTrainingForm` valida data.nature contra esta
+    // lista. Ponla siempre coherente con lo que el ejercicio admite de verdad.
   isometric: true,                    // SOLO holds (levers, l-sit, cuelgues, hollow)
   bodyweightContributionPct: 80,      // % del peso corporal que mueve el ejercicio
   tonnageFactor: 1,

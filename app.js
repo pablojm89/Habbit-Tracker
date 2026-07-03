@@ -2930,30 +2930,37 @@ function denseReadinessField(selected = "normal") {
 
 function denseTrainingFormMarkup(defaults, { includePicker = false, modal = false, submitLabel = "Guardar marca Dense" } = {}) {
   const exercise = denseExerciseById(defaults.exerciseId);
-  const allowedSchemes = denseAllowedSchemes(exercise);
+  // The chosen modality drives which fields (reps / hold / load) and schemes
+  // appear. `activeExercise` is a shallow clone with that nature so every
+  // helper below reflects the selection without special-casing.
+  const allowedNatures = exercise.allowedNatures?.length ? exercise.allowedNatures : [exercise.nature];
+  const nature = defaults.nature && allowedNatures.includes(defaults.nature) ? defaults.nature : exercise.nature;
+  const activeExercise = { ...exercise, nature };
+  const allowedSchemes = denseAllowedSchemes(activeExercise);
   const readiness = defaults.readiness || "normal";
-  const suggestion = denseProgressionSuggestion(exercise, readiness, defaults.scheme);
+  const suggestion = denseProgressionSuggestion(activeExercise, readiness, defaults.scheme);
   return `
     <form id="denseTrainingForm" class="dense-training-form ${modal ? "is-modal-form" : ""}">
       ${includePicker ? denseExercisePicker(defaults) : ""}
-      ${modal ? denseSetModalSummary(exercise, defaults) : ""}
-      ${renderDenseFatigueWarning(exercise, defaults)}
+      ${modal ? denseSetModalSummary(activeExercise, defaults) : ""}
+      ${renderDenseFatigueWarning(activeExercise, defaults)}
       ${denseReadinessField(readiness)}
-      ${suggestion ? `<div class="dense-recommendation-wrap" data-recommendation>${renderDenseProgressionSuggestion(exercise, suggestion)}</div>` : ""}
+      ${denseNatureSelectorMarkup(exercise, nature)}
+      ${suggestion ? `<div class="dense-recommendation-wrap" data-recommendation>${renderDenseProgressionSuggestion(activeExercise, suggestion)}</div>` : ""}
       <div class="dense-form-grid">
         ${field("Peso corporal kg", "bodyweightKg", defaults.bodyweightKg, "number")}
         <input type="hidden" name="exerciseId" value="${escapeAttr(defaults.exerciseId)}" />
-        <input type="hidden" name="nature" value="${escapeAttr(exercise.nature)}" />
+        <input type="hidden" name="nature" value="${escapeAttr(nature)}" />
         <fieldset class="scheme-picker-field is-full">
           <legend>${modal ? "Scheme completed" : "Esquema Dense"}</legend>
           <div class="scheme-option-grid">
             ${allowedSchemes.map((scheme) => denseSchemeOption(scheme, defaults.scheme)).join("")}
           </div>
         </fieldset>
-        ${denseRepPerSetFields(exercise, defaults)}
-        ${denseIsIsometric(exercise) ? "" : field("Reps totales", "totalReps", defaults.totalReps, "number")}
-        ${denseHoldFields(exercise, defaults)}
-        ${denseLoadFields(exercise, defaults)}
+        ${denseRepPerSetFields(activeExercise, defaults)}
+        ${denseIsIsometric(activeExercise) ? "" : field("Reps totales", "totalReps", defaults.totalReps, "number")}
+        ${denseHoldFields(activeExercise, defaults)}
+        ${denseLoadFields(activeExercise, defaults)}
         <fieldset class="effort-picker-field is-full">
           <legend>Effort</legend>
           <div class="effort-option-grid">
@@ -2967,8 +2974,8 @@ function denseTrainingFormMarkup(defaults, { includePicker = false, modal = fals
       </div>
       <div class="dense-actions">
         <div class="dense-form-hint">
-          <strong>${escapeHtml(denseNatureLabel(exercise.nature))}</strong>
-          <span>${escapeHtml(denseExerciseHint(exercise))}</span>
+          <strong>${escapeHtml(denseNatureLabel(nature))}</strong>
+          <span>${escapeHtml(denseExerciseHint(activeExercise))}</span>
         </div>
         <button class="text-button is-hot" type="submit"><i data-lucide="save"></i>${escapeHtml(submitLabel)}</button>
       </div>
@@ -4014,6 +4021,7 @@ function handleClick(event) {
 
 function handleChange(event) {
   if (event.target.matches("#importFile")) importJson(event.target.files?.[0]);
+  if (event.target.matches("#denseTrainingForm input[name='natureChoice']")) updateDenseNatureSelection(event.target);
   if (event.target.matches("#denseTrainingForm input[name='scheme']")) updateDenseSchemeSelection(event.target);
   if (event.target.matches("#denseTrainingForm input[name='readiness']")) updateDenseReadinessSelection(event.target);
   if (event.target.matches("#denseTrainingForm input[name='effort']")) updateDenseEffortSelection(event.target);
@@ -4568,6 +4576,23 @@ function saveDayForm(form) {
   saveAndRender("Día guardado");
 }
 
+// Transient in-form modality choice (allowedNatures). Reset every time the set
+// modal opens fresh so it never leaks across exercises.
+let denseFormNatureOverride = null;
+let denseSetModalContext = { includePicker: false, editing: false };
+
+function denseSetModalBodyHtml() {
+  return `
+    <div class="dense-set-modal-shell">
+      ${denseTrainingFormMarkup(denseFormDefaults(), {
+        includePicker: denseSetModalContext.includePicker,
+        modal: true,
+        submitLabel: denseSetModalContext.editing ? "Update set" : "Save set",
+      })}
+    </div>
+  `;
+}
+
 function openDenseTrainingModal({ exerciseId = "", entryId = "" } = {}) {
   const entry = entryId ? getDenseEntries().find((item) => item.id === entryId) : null;
   const exercise = entry ? denseExerciseById(entry.exercise_id) : denseExerciseById(exerciseId || state.settings.denseSelectedExerciseId || "pull_up");
@@ -4577,22 +4602,46 @@ function openDenseTrainingModal({ exerciseId = "", entryId = "" } = {}) {
   if (entry) state.settings.denseDraftEntryId = entry.id;
   else delete state.settings.denseDraftEntryId;
 
-  const defaults = denseFormDefaults();
-  const editing = Boolean(entry);
+  denseFormNatureOverride = null;
+  denseSetModalContext = { includePicker: !entry && !exerciseId, editing: Boolean(entry) };
   nodes.modalCard.dataset.modalKind = "dense-set";
-  nodes.modalEyebrow.textContent = editing ? "Editing set" : "New set";
+  nodes.modalEyebrow.textContent = denseSetModalContext.editing ? "Editing set" : "New set";
   nodes.modalTitle.textContent = exercise.name;
-  nodes.modalBody.innerHTML = `
-    <div class="dense-set-modal-shell">
-      ${denseTrainingFormMarkup(defaults, {
-        includePicker: !entry && !exerciseId,
-        modal: true,
-        submitLabel: editing ? "Update set" : "Save set",
-      })}
-    </div>
-  `;
+  nodes.modalBody.innerHTML = denseSetModalBodyHtml();
   openModal();
   updateDenseHoldEstimate(nodes.modalBody.querySelector("#denseTrainingForm"));
+}
+
+// Re-render the set form after a modality switch, preserving the fields that
+// carry across modalities (bodyweight, effort, readiness, notes).
+function updateDenseNatureSelection(input) {
+  const form = input.closest("#denseTrainingForm");
+  if (!form) return;
+  const preserve = {
+    bodyweightKg: form.querySelector("[name='bodyweightKg']")?.value,
+    notes: form.querySelector("[name='notes']")?.value,
+    effort: form.querySelector("input[name='effort']:checked")?.value,
+    readiness: form.querySelector("input[name='readiness']:checked")?.value,
+  };
+  denseFormNatureOverride = input.value;
+  nodes.modalBody.innerHTML = denseSetModalBodyHtml();
+  const next = nodes.modalBody.querySelector("#denseTrainingForm");
+  if (next) {
+    const bw = next.querySelector("[name='bodyweightKg']");
+    if (bw && preserve.bodyweightKg) bw.value = preserve.bodyweightKg;
+    const notes = next.querySelector("[name='notes']");
+    if (notes && preserve.notes) notes.value = preserve.notes;
+    ["effort", "readiness"].forEach((name) => {
+      if (!preserve[name]) return;
+      const radio = next.querySelector(`input[name='${name}'][value='${preserve[name]}']`);
+      if (!radio) return;
+      radio.checked = true;
+      const optionClass = name === "effort" ? ".effort-option" : ".readiness-option";
+      next.querySelectorAll(optionClass).forEach((option) => option.classList.toggle("is-selected", option.contains(radio)));
+    });
+  }
+  refreshIcons();
+  updateDenseHoldEstimate(next);
 }
 
 function openWorkoutExercisePickerModal() {
@@ -4934,16 +4983,22 @@ function saveDenseTrainingForm(form) {
     return;
   }
 
+  // Modality chosen in the form (allowedNatures) drives how the entry is
+  // computed; falls back to the exercise default if the value is unexpected.
+  const allowedNatures = exercise.allowedNatures?.length ? exercise.allowedNatures : [exercise.nature];
+  const activeNature = allowedNatures.includes(data.nature) ? data.nature : exercise.nature;
+  const activeExercise = { ...exercise, nature: activeNature };
+
   const bodyweightKg = positiveNumber(data.bodyweightKg);
   const weightPerDumbbellKg = positiveNumber(data.weightPerDumbbellKg);
   const externalLoadFromPair = exercise.loadPattern === "dumbbell_pair" && weightPerDumbbellKg ? weightPerDumbbellKg * 2 : 0;
   const isometric = denseIsIsometric(exercise);
-  const scheme = data.scheme || (exercise.nature === "bodyweight" || isometric ? "10D" : "10D5");
+  const scheme = data.scheme || (activeNature === "bodyweight" || isometric ? "10D" : "10D5");
   const durationMinutes = denseSchemeMinutes(scheme) || 0;
   const targetRepsPerMin = isometric
     ? 0
-    : denseIsLoadExercise(exercise)
-      ? denseDefaultRepsPerSet(exercise, scheme) || 0
+    : denseIsLoadExercise(activeExercise)
+      ? denseDefaultRepsPerSet(activeExercise, scheme) || 0
       : positiveNumber(data.repsPerSet) || denseSchemePrescriptionAverage(scheme) || 0;
   const targetTotalReps = isometric ? 0 : denseTotalFromRepsPerSet(targetRepsPerMin, scheme) || 0;
   const totalReps = isometric ? 0 : positiveNumber(data.totalReps);
@@ -4967,7 +5022,7 @@ function saveDenseTrainingForm(form) {
     exercise_family_id: exercise.family,
     family: exercise.family,
     variant_id: exercise.id,
-    nature: exercise.nature,
+    nature: activeNature,
     movement_pattern: exercise.category,
     load_pattern: exercise.loadPattern || "",
     scheme,
@@ -5852,6 +5907,46 @@ function denseHoldFields(exercise, defaults) {
     ${field("Hold/ronda s", "holdSecondsPerRound", holdDefault || "", "number")}
     ${field("Rondas", "rounds", defaults.rounds || denseSchemeMinutes(defaults.scheme) || "", "number")}
     <div class="dense-hold-preview" data-hold-preview>Hold off</div>
+  `;
+}
+
+// Short labels for the in-form modality toggle (allowedNatures).
+function denseNatureShort(nature) {
+  return (
+    {
+      weighted: "Con peso",
+      weighted_calisthenics: "Peso corporal + lastre",
+      bodyweight: "Peso corporal",
+      banded: "Con goma",
+      conditioning: "Motor",
+      plyometrics: "Pliometría",
+      skill: "Skill / hold",
+      active_recovery: "Recovery",
+    }[nature] || nature
+  );
+}
+
+// Modality selector: lets an exercise be logged in any of its allowedNatures
+// (e.g. a good morning as bodyweight or with added load). Hidden when there is
+// only one option, so nothing changes for single-modality exercises.
+function denseNatureSelectorMarkup(exercise, currentNature) {
+  const options = exercise.allowedNatures?.length ? exercise.allowedNatures : [exercise.nature];
+  if (options.length <= 1) return "";
+  return `
+    <fieldset class="readiness-field nature-field is-full">
+      <legend>Modalidad</legend>
+      <div class="readiness-grid">
+        ${options
+          .map(
+            (nat) => `
+              <label class="readiness-option ${nat === currentNature ? "is-selected" : ""}" data-nature="${escapeAttr(nat)}">
+                <input type="radio" name="natureChoice" value="${escapeAttr(nat)}" ${nat === currentNature ? "checked" : ""} />
+                <span>${escapeHtml(denseNatureShort(nat))}</span>
+              </label>`,
+          )
+          .join("")}
+      </div>
+    </fieldset>
   `;
 }
 
@@ -8225,20 +8320,27 @@ function denseFormDefaults() {
   const latestForExercise = latestDenseEntryForExercise(exercise.id);
   const referenceEntry = selectedId ? latestForExercise : latest;
   const shouldUseLatest = Boolean(referenceEntry);
-  const allowedSchemes = denseAllowedSchemes(exercise);
-  const preferredScheme = shouldUseLatest && referenceEntry?.scheme ? referenceEntry.scheme : exercise.nature === "weighted" || exercise.nature === "weighted_calisthenics" ? "10D5" : "10D";
+  // Effective modality: an explicit in-form choice wins, else the last logged
+  // modality for this exercise, else the exercise default. Everything below
+  // (schemes, suggestion, field targets) is computed for that modality.
+  const allowedNatures = exercise.allowedNatures?.length ? exercise.allowedNatures : [exercise.nature];
+  const overrideNature = denseFormNatureOverride && allowedNatures.includes(denseFormNatureOverride) ? denseFormNatureOverride : null;
+  const nature = overrideNature || (shouldUseLatest && referenceEntry?.nature && allowedNatures.includes(referenceEntry.nature) ? referenceEntry.nature : exercise.nature);
+  const activeExercise = { ...exercise, nature };
+  const allowedSchemes = denseAllowedSchemes(activeExercise);
+  const preferredScheme = !overrideNature && shouldUseLatest && referenceEntry?.scheme ? referenceEntry.scheme : nature === "weighted" || nature === "weighted_calisthenics" ? "10D5" : "10D";
   const scheme = allowedSchemes.includes(preferredScheme) ? preferredScheme : allowedSchemes[0];
-  const suggestion = denseProgressionSuggestion(exercise, "normal", scheme);
-  const repsPerSet = suggestion?.repsPerSet || denseDefaultRepsPerSet(exercise, scheme);
+  const suggestion = denseProgressionSuggestion(activeExercise, "normal", scheme);
+  const repsPerSet = suggestion?.repsPerSet || denseDefaultRepsPerSet(activeExercise, scheme);
   return {
     date: dateKey(selectedDate),
     bodyweightKg: latestKnownBodyweight(dateKey(selectedDate)) || 80,
     exerciseId: exercise.id,
-    nature: shouldUseLatest && referenceEntry?.nature ? referenceEntry.nature : exercise.nature,
+    nature,
     scheme,
     repsPerSet,
-    totalReps: suggestion?.totalReps || (repsPerSet ? denseTotalFromRepsPerSet(repsPerSet, scheme) : denseDefaultTotalReps(exercise, scheme)),
-    holdSecondsPerRound: suggestion?.holdSecondsPerRound || (shouldUseLatest && referenceEntry?.hold_seconds_per_round ? referenceEntry.hold_seconds_per_round : ""),
+    totalReps: suggestion?.totalReps || (repsPerSet ? denseTotalFromRepsPerSet(repsPerSet, scheme) : denseDefaultTotalReps(activeExercise, scheme)),
+    holdSecondsPerRound: suggestion?.holdSecondsPerRound || (!overrideNature && shouldUseLatest && referenceEntry?.hold_seconds_per_round ? referenceEntry.hold_seconds_per_round : ""),
     rounds: suggestion?.rounds || (shouldUseLatest && referenceEntry?.rounds ? referenceEntry.rounds : denseSchemeMinutes(scheme) || ""),
     effort: "N",
     externalLoadKg: suggestion?.externalLoadKg || "",
