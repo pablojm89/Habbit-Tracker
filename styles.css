@@ -1534,8 +1534,8 @@ button:active:not(:disabled),
   height: calc(100% - 4px);
   color: currentColor;
   fill: none;
-  stroke: #f5f7f1;
-  stroke-width: 3.1;
+  stroke: #f6f7f2;
+  stroke-width: 2.15;
   stroke-linecap: round;
   stroke-linejoin: round;
   filter:
@@ -1566,6 +1566,50 @@ button:active:not(:disabled),
 
 .exercise-glyph-svg .icon-faint {
   opacity: 0.48;
+}
+
+.exercise-glyph-svg .icon-bone {
+  stroke: #f6f7f2;
+  stroke-width: 2.7;
+  filter:
+    drop-shadow(0 1px 0 rgba(255, 255, 255, 0.72))
+    drop-shadow(0 0 5px rgba(255, 255, 255, 0.22));
+}
+
+.exercise-glyph-svg .icon-scapula,
+.exercise-glyph-svg .icon-pelvis,
+.exercise-glyph-svg .icon-spine {
+  stroke: #ffffff;
+  stroke-width: 3;
+  filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.22));
+}
+
+.exercise-glyph-svg .icon-head {
+  fill: #f8f8f2;
+  stroke: rgba(255, 255, 255, 0.92);
+  stroke-width: 1.2;
+  filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.75));
+}
+
+.exercise-glyph-svg .icon-joint {
+  fill: #f8f8f2;
+  stroke: rgba(8, 10, 9, 0.35);
+  stroke-width: 0.55;
+}
+
+.exercise-glyph-svg .icon-apparatus,
+.exercise-glyph-svg .icon-motion,
+.exercise-glyph-svg .icon-plate-line {
+  stroke: var(--item-color);
+  stroke-width: 2.1;
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--item-color), transparent 12%));
+}
+
+.exercise-glyph-svg .icon-plate {
+  fill: color-mix(in srgb, var(--item-color), transparent 18%);
+  stroke: var(--item-color);
+  stroke-width: 1.5;
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--item-color), transparent 12%));
 }
 
 .exercise-glyph .ex-head {
