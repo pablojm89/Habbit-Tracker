@@ -2761,7 +2761,7 @@ function denseTrainingFormMarkup(defaults, { includePicker = false, modal = fals
   const exercise = denseExerciseById(defaults.exerciseId);
   const allowedSchemes = denseAllowedSchemes(exercise);
   const readiness = defaults.readiness || "normal";
-  const suggestion = denseProgressionSuggestion(exercise, readiness, denseSchemeBase(defaults.scheme));
+  const suggestion = denseProgressionSuggestion(exercise, readiness, defaults.scheme);
   return `
     <form id="denseTrainingForm" class="dense-training-form ${modal ? "is-modal-form" : ""}">
       ${includePicker ? denseExercisePicker(defaults) : ""}
@@ -4016,8 +4016,8 @@ function startExerciseTimer(exerciseId) {
     toast("Ejercicio no válido");
     return;
   }
-  const suggestion = denseProgressionSuggestion(exercise);
-  const scheme = suggestion?.scheme || densePlannedScheme(exercise);
+  const scheme = densePlannedScheme(exercise);
+  const suggestion = denseProgressionSuggestion(exercise, "normal", scheme);
   const base = denseSchemeBase(scheme);
   if (bodyweightSchemes.includes(base)) quickTimerState.scheme = base;
   quickTimerState.rounds = Number(suggestion?.rounds) || denseSchemeMinutes(scheme) || quickTimerState.rounds || 5;
@@ -5484,15 +5484,13 @@ function denseFormReadiness(form) {
 
 // Writes the deterministic per-scheme, readiness-aware targets into the form and
 // refreshes the recommendation card. Shared by scheme and readiness changes.
-function applyDenseFormTargets(form) {
+function applyDenseFormTargets(form, { resetStaleLoad = false } = {}) {
   if (!form) return;
   const exercise = denseExerciseById(form.querySelector("[name='exerciseId']")?.value);
   if (!exercise) return;
   const scheme = form.querySelector("input[name='scheme']:checked")?.value || denseAllowedSchemes(exercise)[0];
   const readiness = denseFormReadiness(form);
-  // Suggestion remembers the selected dense block: switching to 10D progresses
-  // from your last 10D session, not from the latest mark overall.
-  const suggestion = denseProgressionSuggestion(exercise, readiness, denseSchemeBase(scheme));
+  const suggestion = denseProgressionSuggestion(exercise, readiness, scheme);
   const repsPerSetInput = form.querySelector("[name='repsPerSet']");
   if (repsPerSetInput) repsPerSetInput.value = denseFormTargetRepsPerSet(exercise, scheme, suggestion) || "";
   const reps = repsPerSetInput ? denseTotalFromRepsPerSet(repsPerSetInput.value, scheme) : denseDefaultTotalReps(exercise, scheme);
@@ -5507,8 +5505,24 @@ function applyDenseFormTargets(form) {
     const suggested = denseFormTargetHoldPerRound(exercise, scheme, suggestion);
     if (suggested) holdInput.value = suggested;
   }
+  if (suggestion?.type === "load" && suggestion.scheme === scheme) {
+    const loadTargets = {
+      externalLoadKg: suggestion.externalLoadKg,
+      addedLoadKg: suggestion.addedLoadKg,
+      weightPerDumbbellKg: suggestion.weightPerDumbbellKg,
+    };
+    Object.entries(loadTargets).forEach(([name, value]) => {
+      const input = form.querySelector(`[name='${name}']`);
+      if (input && value !== undefined && value !== null && value !== "") input.value = value;
+    });
+  } else if (resetStaleLoad && denseIsLoadExercise(exercise)) {
+    ["externalLoadKg", "addedLoadKg", "weightPerDumbbellKg"].forEach((name) => {
+      const input = form.querySelector(`[name='${name}']`);
+      if (input) input.value = "";
+    });
+  }
   const rec = form.querySelector("[data-recommendation]");
-  if (rec && suggestion) {
+  if (rec) {
     rec.innerHTML = renderDenseProgressionSuggestion(exercise, suggestion);
     if (window.lucide?.createIcons) window.lucide.createIcons({ nameAttr: "data-lucide" });
   }
@@ -5519,7 +5533,7 @@ function updateDenseSchemeSelection(input) {
   const form = input.closest("#denseTrainingForm");
   if (!form) return;
   form.querySelectorAll(".scheme-option").forEach((option) => option.classList.toggle("is-selected", option.contains(input)));
-  applyDenseFormTargets(form);
+  applyDenseFormTargets(form, { resetStaleLoad: true });
 }
 
 function updateDenseReadinessSelection(input) {
@@ -6911,16 +6925,124 @@ function denseDirectionTone(direction, failed, effort) {
   return "neutral";
 }
 
-function denseProgressionSuggestion(exercise, readiness = "normal", baseFilter = "") {
-  // Per-block memory: when a dense base is requested (2D/5D/10D/20D), the
-  // suggestion progresses from the last session of THAT block, not from the
-  // latest mark overall (your last 10D easy -> 10D+1, even if yesterday was 5D).
+function denseBestWeightedE1rmSource(exerciseId) {
+  const entries = getDenseEntries()
+    .filter((entry) => entry.exercise_id === exerciseId && !entry.deleted_at && Number(entry.e1rm_kg) > 0)
+    .sort((a, b) => Number(b.e1rm_kg || 0) - Number(a.e1rm_kg || 0));
+  const bestEntry = entries[0] || null;
+  const estimated = Number(state.denseEstimates?.[exerciseId]?.e1rm_kg) || 0;
+  const best = Math.max(Number(bestEntry?.e1rm_kg || 0), estimated);
+  if (!best) return null;
+  return { e1rm: denseBoosted(exerciseId, best), entry: bestEntry };
+}
+
+function denseEstimatedLoadSuggestion(exercise, scheme, readiness = "normal") {
+  if (!denseIsLoadExercise(exercise) || !denseWorkingPct[scheme]) return null;
+  const source = denseBestWeightedE1rmSource(exercise.id);
+  if (!source) return null;
+  const sourceEntry = source.entry || latestDenseEntryForExercise(exercise.id);
+  const bw = latestKnownBodyweight(dateKey(selectedDate)) || sourceEntry?.bodyweight_kg || 0;
+  const totalLoad = source.e1rm * denseWorkingPct[scheme];
+  const fieldLoad =
+    exercise.loadPattern === "dumbbell_pair"
+      ? totalLoad / 2
+      : exercise.nature === "weighted_calisthenics"
+        ? Math.max(0, totalLoad - bw)
+        : totalLoad;
+  const load = roundTo(fieldLoad, 1);
+  return {
+    entry: sourceEntry || {
+      scheme,
+      effort: "estimado",
+      exercise_id: exercise.id,
+      exercise_name: exercise.name,
+      e1rm_kg: source.e1rm,
+    },
+    scheme,
+    rounds: denseSchemeMinutes(scheme) || "",
+    effort: sourceEntry?.effort || "N",
+    readiness,
+    step: 0,
+    direction: "hold",
+    tone: "neutral",
+    type: "load",
+    repsPerSet: denseDefaultRepsPerSet(exercise, scheme) || "",
+    totalReps: denseDefaultTotalReps(exercise, scheme) || "",
+    externalLoadKg: exercise.nature === "weighted" && exercise.loadPattern !== "dumbbell_pair" ? load : "",
+    addedLoadKg: exercise.nature === "weighted_calisthenics" ? load : "",
+    weightPerDumbbellKg: exercise.loadPattern === "dumbbell_pair" ? load : "",
+    estimated: true,
+    title: `${scheme} · ${exercise.nature === "weighted_calisthenics" ? "+" : ""}${formatKg(load)}`,
+    reason: `Estimado desde e1RM ${formatKg(source.e1rm)}; falta test directo en ${scheme}.`,
+  };
+}
+
+// Cross-estimate for a bodyweight/hold block without direct history: same
+// capacity math the form inputs use, so the card and the prefill always agree.
+function denseEstimatedBodySuggestion(exercise, scheme, readiness = "normal") {
+  const capacityKey = denseIsIsometric(exercise) ? "isometric_capacity" : "bodyweight_capacity";
+  if (!denseBestCapacity(exercise.id, capacityKey)) return null;
+  const sourceEntry = latestDenseEntryForExercise(exercise.id);
+  if (!sourceEntry) return null;
+  const minutes = denseSchemeMinutes(scheme) || 0;
+  const base = {
+    entry: sourceEntry,
+    scheme,
+    rounds: minutes || "",
+    effort: sourceEntry.effort || "N",
+    readiness,
+    step: 0,
+    direction: "hold",
+    tone: "neutral",
+    estimated: true,
+    reason: `Estimado por capacidad desde ${sourceEntry.scheme}; falta marca directa en ${scheme}.`,
+  };
+  if (denseIsIsometric(exercise)) {
+    const holdSecondsPerRound = Number(denseFormTargetHoldPerRound(exercise, scheme, null)) || 0;
+    if (!holdSecondsPerRound) return null;
+    return {
+      ...base,
+      type: "hold",
+      holdSecondsPerRound,
+      totalHoldSeconds: holdSecondsPerRound * (minutes || 1),
+      title: `${scheme} · ${holdSecondsPerRound}s hold/ronda`,
+    };
+  }
+  const repsPerSet = Number(denseFormTargetRepsPerSet(exercise, scheme, null)) || 0;
+  if (!repsPerSet) return null;
+  return {
+    ...base,
+    type: "reps",
+    repsPerSet,
+    totalReps: denseTotalFromRepsPerSet(repsPerSet, scheme),
+    title: `${scheme}${repsPerSet} · ${denseTotalFromRepsPerSet(repsPerSet, scheme)} reps`,
+  };
+}
+
+function denseProgressionSuggestion(exercise, readiness = "normal", schemeFilter = "") {
+  // Scheme-aware memory:
+  // - load exercises progress from the exact scheme (10D5 does not borrow 10D10)
+  // - bodyweight / holds use the dense block (10D) so reps or seconds can move
+  //   within that block without falling back to the latest mark overall.
   let entry = null;
-  if (baseFilter) {
-    entry =
-      [...getDenseEntries()]
-        .filter((item) => item.exercise_id === exercise.id && !item.deleted_at && denseSchemeBase(item.scheme) === baseFilter)
-        .sort((a, b) => (b.created_at || b.date || "").localeCompare(a.created_at || a.date || ""))[0] || null;
+  if (schemeFilter) {
+    entry = latestDenseEntryForExercise(exercise.id, schemeFilter);
+    if (!entry && !denseIsLoadExercise(exercise)) {
+      const baseFilter = denseSchemeBase(schemeFilter);
+      entry =
+        [...getDenseEntries()]
+          .filter((item) => item.exercise_id === exercise.id && !item.deleted_at && denseSchemeBase(item.scheme) === baseFilter)
+          .sort((a, b) => (b.created_at || b.date || "").localeCompare(a.created_at || a.date || ""))[0] || null;
+    }
+    if (!entry) {
+      // No history in this block: honest cross-estimate labeled as such,
+      // instead of a recommendation card that talks about another block.
+      const estimated = denseIsLoadExercise(exercise)
+        ? denseEstimatedLoadSuggestion(exercise, schemeFilter, readiness)
+        : denseEstimatedBodySuggestion(exercise, schemeFilter, readiness);
+      if (estimated) return estimated;
+      if (denseIsLoadExercise(exercise)) return null;
+    }
   }
   entry ||= latestDenseEntryForExercise(exercise.id);
   if (!entry) return null;
@@ -7739,12 +7861,12 @@ function denseFormDefaults() {
   }
   const exercise = denseExerciseById(selectedId || latest?.exercise_id || "pull_up");
   const latestForExercise = latestDenseEntryForExercise(exercise.id);
-  const suggestion = denseProgressionSuggestion(exercise);
   const referenceEntry = selectedId ? latestForExercise : latest;
   const shouldUseLatest = Boolean(referenceEntry);
   const allowedSchemes = denseAllowedSchemes(exercise);
-  const preferredScheme = suggestion?.scheme || (shouldUseLatest && referenceEntry?.scheme ? referenceEntry.scheme : exercise.nature === "weighted" || exercise.nature === "weighted_calisthenics" ? "10D5" : "10D");
+  const preferredScheme = shouldUseLatest && referenceEntry?.scheme ? referenceEntry.scheme : exercise.nature === "weighted" || exercise.nature === "weighted_calisthenics" ? "10D5" : "10D";
   const scheme = allowedSchemes.includes(preferredScheme) ? preferredScheme : allowedSchemes[0];
+  const suggestion = denseProgressionSuggestion(exercise, "normal", scheme);
   const repsPerSet = suggestion?.repsPerSet || denseDefaultRepsPerSet(exercise, scheme);
   return {
     date: dateKey(selectedDate),
