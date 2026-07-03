@@ -7048,16 +7048,158 @@ function denseExerciseIconProgression(exercise = {}) {
   return match?.[1] || "";
 }
 
+function denseExerciseIconKey(exercise = {}, slug = "") {
+  const id = exercise.id || "";
+  const family = exercise.family || "";
+  if (slug.includes("weighted")) return slug;
+  if (family === "strict_pull") return "pull";
+  if (family === "cuelgue") return id.includes("one_hand") ? "one-arm-hang" : id.includes("active") ? "active-hang" : "hang";
+  if (family === "horizontal_pull") return "row";
+  if (family === "strict_dip" || family === "parallel_dip") return "dip";
+  if (family === "ring_push") return "ring-push";
+  if (family === "pushup") return id.includes("clap") ? "clap-push" : id.includes("deficit") ? "deficit-push" : "push";
+  if (family === "bench_press") return "bench";
+  if (id === "seated_db_overhead_press") return "db-press";
+  if (family === "accessory") return "overhead";
+  if (family === "hspu") return id === "pike_push_up" ? "pike" : "hspu";
+  if (family === "handstand") return id.includes("press_to") ? "press-handstand" : "handstand";
+  if (family === "bridge") return id.includes("walkover") ? "bridge-walkover" : id.includes("isometric") ? "bridge-hold" : "bridge";
+  if (family === "front_lever" || family === "front_lever_pull") return family.endsWith("_pull") ? "front-lever-pull" : "front-lever";
+  if (family === "back_lever" || family === "back_lever_pull") return family.endsWith("_pull") ? "back-lever-pull" : "back-lever";
+  if (family === "squat_weighted") return id.includes("front") ? "front-squat" : "barbell-squat";
+  if (family === "squat_bodyweight") return "squat";
+  if (family === "single_leg_squat" || family === "atg_split_squat") return id.includes("pistol") ? "pistol" : "split-squat";
+  if (family === "knee_dominant") return id.includes("sissy") ? "sissy" : "natural-leg-extension";
+  if (family === "knee_isolation") return "leg-extension";
+  if (family === "hamstring_isolation") return "leg-curl";
+  if (family === "hinge_weighted") return "deadlift";
+  if (family === "hinge_bodyweight") return id.includes("nordic") ? "nordic" : "single-leg-hinge";
+  if (family === "posterior_chain") return "back-extension";
+  if (family === "toes_to_bar") return id.includes("kip") ? "toes-kip" : "toes";
+  if (family === "l_sit") return id === "v_sit" ? "v-sit" : id.includes("straddle") ? "straddle-l-sit" : "l-sit";
+  if (family === "hollow") return "hollow";
+  if (family === "side_split") return id.includes("horse") ? "horse" : id.includes("frog") ? "frog" : "side-split";
+  if (family === "pancake") return id.includes("good_morning") || id.includes("jefferson") ? "pancake-rep" : "pancake";
+  if (family === "mobility_strength") {
+    if (id.includes("tiptoe")) return "tiptoe";
+    if (id.includes("cossack")) return "cossack";
+    if (id.includes("jefferson")) return "jefferson";
+    if (id.includes("seated")) return "seated-good-morning";
+    return "good-morning";
+  }
+  return "generic";
+}
+
+function denseExerciseIconSvg(key, exercise = {}) {
+  const loaded = exercise.nature === "weighted" || exercise.nature === "weighted_calisthenics" || String(exercise.id || "").includes("weighted");
+  const reps = exercise.isometric ? '<path d="M8 24h16" class="icon-faint"/>' : '<path d="M24 8l3 3-3 3" class="icon-accent"/>';
+  const load = loaded ? '<rect x="22" y="20" width="6" height="6" rx="1.5" class="icon-fill"/>' : "";
+  switch (key) {
+    case "weighted-pull":
+    case "pull":
+      return `<path d="M7 7h18"/><path d="M12 8l3 6 2 7"/><path d="M20 8l-3 6"/><circle cx="16" cy="12" r="2.1"/><path d="M14 22h5"/>${load}`;
+    case "active-hang":
+    case "hang":
+      return `<path d="M7 7h18"/><circle cx="16" cy="13" r="2"/><path d="M12 8l4 7 4-7"/><path d="M16 15v8"/><path d="M13 24h6" class="icon-faint"/>`;
+    case "one-arm-hang":
+      return `<path d="M7 7h18"/><circle cx="16" cy="13" r="2"/><path d="M16 8v7"/><path d="M16 15l-4 5"/><path d="M16 15l4 5"/><path d="M13 24h6" class="icon-faint"/>`;
+    case "row":
+      return `<circle cx="9" cy="8" r="2.2"/><circle cx="23" cy="8" r="2.2"/><path d="M10 10l5 7 8-7"/><path d="M8 23h16"/><path d="M12 19h10"/>`;
+    case "weighted-ring-dip":
+    case "weighted-parallel-dip":
+    case "dip":
+      return `<path d="M9 7v17M23 7v17"/><circle cx="16" cy="10" r="2"/><path d="M11 11l5 5 5-5"/><path d="M16 16v7"/>${load}`;
+    case "ring-push":
+      return `<circle cx="9" cy="21" r="2"/><circle cx="23" cy="21" r="2"/><path d="M8 18h17"/><circle cx="18" cy="14" r="2"/><path d="M11 18l7-4 7 4"/>`;
+    case "clap-push":
+      return `<path d="M7 23h18"/><path d="M9 17h15"/><circle cx="17" cy="12" r="2"/><path d="M11 17l6-5 7 5"/><path d="M12 8l2 2M20 8l-2 2" class="icon-accent"/>`;
+    case "deficit-push":
+    case "push":
+      return `<path d="M7 23h18"/><path d="M9 18h15"/><circle cx="18" cy="13" r="2"/><path d="M11 18l7-5 7 5"/>`;
+    case "bench":
+      return `<path d="M7 11h18"/><path d="M9 20h14"/><path d="M11 18h10"/><circle cx="16" cy="15" r="2"/><path d="M11 15h10"/><path d="M8 9v4M24 9v4"/>`;
+    case "db-press":
+      return `<circle cx="16" cy="17" r="2"/><path d="M16 19v6"/><path d="M11 12l5 5 5-5"/><path d="M9 10l4-4M23 10l-4-4"/><path d="M7 8l4 4M25 8l-4 4"/>`;
+    case "overhead":
+      return `<path d="M8 7h16"/><circle cx="16" cy="14" r="2"/><path d="M10 8l6 6 6-6"/><path d="M16 16v9"/>`;
+    case "pike":
+      return `<path d="M7 24h18"/><circle cx="16" cy="17" r="2"/><path d="M9 22l7-5 7 5"/><path d="M16 17l4-9"/><path d="M16 17l-4-9"/>`;
+    case "hspu":
+      return `<path d="M8 25h16"/><circle cx="16" cy="21" r="2"/><path d="M12 20h8"/><path d="M14 19V8M18 19V8"/><path d="M12 8h8"/>`;
+    case "press-handstand":
+    case "handstand":
+      return `<path d="M8 25h16"/><circle cx="16" cy="21" r="2"/><path d="M12 20h8"/><path d="M16 19V9"/><path d="M12 9l4 5 4-5"/>`;
+    case "bridge-walkover":
+    case "bridge-hold":
+    case "bridge":
+      return `<path d="M7 24c2-9 16-9 18 0"/><path d="M8 24h4M20 24h5"/><circle cx="16" cy="14" r="2"/><path d="M12 21l4-7 4 7"/>${reps}`;
+    case "front-lever-pull":
+    case "front-lever":
+      return `<path d="M7 8h18"/><path d="M10 8l5 8h10"/><circle cx="16" cy="16" r="2"/><path d="M15 16h10"/><path d="M13 16l-3 5"/>${key.endsWith("pull") ? reps : ""}`;
+    case "back-lever-pull":
+    case "back-lever":
+      return `<path d="M7 8h18"/><path d="M22 8l-5 8H7"/><circle cx="16" cy="16" r="2"/><path d="M7 16h10"/><path d="M19 16l3 5"/>${key.endsWith("pull") ? reps : ""}`;
+    case "barbell-squat":
+    case "front-squat":
+      return `<path d="M8 9h16"/><circle cx="16" cy="13" r="2"/><path d="M11 13h10"/><path d="M16 15l-4 8h8l-4-8"/><path d="M10 24h12"/>`;
+    case "tiptoe":
+    case "squat":
+      return `<circle cx="16" cy="10" r="2"/><path d="M16 12v5"/><path d="M10 18h12"/><path d="M12 18l-3 6M20 18l3 6"/><path d="M10 24h14"/>`;
+    case "split-squat":
+    case "pistol":
+      return `<circle cx="15" cy="9" r="2"/><path d="M15 11v6"/><path d="M15 17l-6 7"/><path d="M15 17h10"/><path d="M8 24h7"/>`;
+    case "sissy":
+    case "natural-leg-extension":
+      return `<circle cx="13" cy="9" r="2"/><path d="M13 11l5 7"/><path d="M18 18l5 5"/><path d="M9 22h14"/><path d="M10 14l3-3"/>`;
+    case "leg-extension":
+    case "leg-curl":
+      return `<path d="M9 9h10v7H9z"/><path d="M19 15l5 4"/><circle cx="25" cy="20" r="2"/><path d="M9 16v8"/>`;
+    case "deadlift":
+      return `<path d="M7 24h18"/><path d="M8 22h16"/><circle cx="16" cy="10" r="2"/><path d="M16 12l-4 8h8l-4-8"/><path d="M11 20h10"/>`;
+    case "nordic":
+    case "single-leg-hinge":
+    case "back-extension":
+      return `<path d="M8 24h17"/><circle cx="13" cy="11" r="2"/><path d="M13 13l7 6"/><path d="M10 20h10"/><path d="M12 14l-3 8"/>`;
+    case "toes-kip":
+    case "toes":
+      return `<path d="M7 7h18"/><circle cx="16" cy="13" r="2"/><path d="M12 8l4 7 4-7"/><path d="M16 15l6 6"/><path d="M16 15l-6 6"/>`;
+    case "v-sit":
+    case "straddle-l-sit":
+    case "l-sit":
+      return `<path d="M9 23h14"/><circle cx="14" cy="12" r="2"/><path d="M14 14v7"/><path d="M14 21h10"/><path d="M10 21h4"/>`;
+    case "hollow":
+      return `<path d="M8 20c5-6 11-6 16 0"/><circle cx="13" cy="17" r="1.8"/><path d="M9 15l3 2M20 17l4-3"/>`;
+    case "frog":
+    case "horse":
+    case "side-split":
+      return `<circle cx="16" cy="10" r="2"/><path d="M16 12v6"/><path d="M16 18L7 24"/><path d="M16 18l9 6"/><path d="M7 24h18"/>`;
+    case "pancake-rep":
+    case "pancake":
+      return `<circle cx="16" cy="10" r="2"/><path d="M16 12l-3 7"/><path d="M13 19H7"/><path d="M13 19h12"/><path d="M12 16l8 2"/>`;
+    case "cossack":
+      return `<circle cx="14" cy="10" r="2"/><path d="M14 12v6"/><path d="M14 18l-6 6"/><path d="M14 18h11"/><path d="M8 24h17"/>`;
+    case "jefferson":
+    case "seated-good-morning":
+    case "good-morning":
+      return `<circle cx="13" cy="10" r="2"/><path d="M13 12l6 6"/><path d="M9 22h14"/><path d="M12 17l-3 5"/><path d="M18 18l5 2"/>`;
+    default:
+      return `<circle cx="16" cy="16" r="8"/><path d="M16 10v12M10 16h12"/>`;
+  }
+}
+
 function denseExerciseIconMarkup(exerciseOrId, { color = "", className = "tiny-icon", state: visualState = "" } = {}) {
   const exercise = typeof exerciseOrId === "string" ? denseExerciseById(exerciseOrId) : exerciseOrId;
   const slug = denseExerciseIconSlug(exercise || {});
+  const key = denseExerciseIconKey(exercise || {}, slug);
   const tint = color || denseCategoryColor(exercise?.category);
   const tier = denseExerciseIconTier(exercise || {});
   const progression = denseExerciseIconProgression(exercise || {});
   const stateClass = visualState ? ` ex-state-${escapeAttr(visualState)}` : "";
   return `
-    <span class="${className} exercise-glyph ex-${escapeAttr(slug)}${stateClass}" style="--item-color:${tint}" data-tier="${escapeAttr(tier)}" data-progression="${escapeAttr(progression)}" aria-hidden="true">
-      <i class="ex-bar"></i><i class="ex-body"></i><i class="ex-head"></i><i class="ex-arm ex-arm-a"></i><i class="ex-arm ex-arm-b"></i><i class="ex-leg ex-leg-a"></i><i class="ex-leg ex-leg-b"></i><i class="ex-prop ex-prop-a"></i><i class="ex-prop ex-prop-b"></i>
+    <span class="${className} exercise-glyph ex-${escapeAttr(slug)}${stateClass}" style="--item-color:${tint}" data-tier="${escapeAttr(tier)}" data-progression="${escapeAttr(progression)}" data-icon-key="${escapeAttr(key)}" aria-hidden="true">
+      <svg class="exercise-glyph-svg" viewBox="0 0 32 32" focusable="false">
+        ${denseExerciseIconSvg(key, exercise || {})}
+      </svg>
       <b class="ex-badge"></b>
     </span>
   `;

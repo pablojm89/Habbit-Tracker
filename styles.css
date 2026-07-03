@@ -1517,6 +1517,38 @@ button:active:not(:disabled),
   box-shadow: 0 0 10px color-mix(in srgb, var(--item-color), transparent 72%);
 }
 
+.exercise-glyph-svg {
+  position: absolute;
+  inset: 3px;
+  z-index: 1;
+  width: calc(100% - 6px);
+  height: calc(100% - 6px);
+  color: currentColor;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--item-color), transparent 76%));
+}
+
+.exercise-glyph-svg * {
+  vector-effect: non-scaling-stroke;
+}
+
+.exercise-glyph-svg .icon-fill {
+  fill: currentColor;
+  stroke: none;
+}
+
+.exercise-glyph-svg .icon-accent {
+  stroke: #b7fb48;
+}
+
+.exercise-glyph-svg .icon-faint {
+  opacity: 0.48;
+}
+
 .exercise-glyph .ex-head {
   width: 4px;
   height: 4px;
@@ -7929,7 +7961,7 @@ button:focus-visible {
   }
 
   .workout-set-card {
-    grid-template-columns: minmax(0, 1fr) 72px auto;
+    grid-template-columns: 34px minmax(0, 1fr) 72px auto;
     min-height: 78px;
     padding: 8px;
   }
@@ -9009,4 +9041,66 @@ body[data-density="compact"] .workout-exercise-icon {
   width: 28px;
   height: 28px;
   border-radius: 9px;
+}
+
+/* Workout cards use a dense 4-column layout. Keep the CSS-built exercise
+   glyphs square and pinned to the first column so mobile/minimal rules never
+   stretch the icon into the text column. */
+.workout-set-card > .workout-exercise-icon {
+  grid-column: 1;
+  grid-row: 1;
+  align-self: center;
+  justify-self: center;
+  box-sizing: border-box;
+  width: 38px;
+  min-width: 38px;
+  max-width: 38px;
+  height: 38px;
+  min-height: 38px;
+  max-height: 38px;
+  aspect-ratio: 1 / 1;
+  flex: 0 0 38px;
+  contain: layout paint;
+}
+
+.workout-set-card > .workout-set-main {
+  grid-column: 2;
+}
+
+.workout-set-card > .workout-set-volume {
+  grid-column: 3;
+}
+
+.workout-set-card > .workout-set-actions {
+  grid-column: 4;
+}
+
+@media (max-width: 760px) {
+  .workout-set-card {
+    grid-template-columns: 40px minmax(0, 1fr) minmax(58px, 0.22fr) auto;
+  }
+
+  .workout-set-card > .workout-exercise-icon {
+    width: 34px;
+    min-width: 34px;
+    max-width: 34px;
+    height: 34px;
+    min-height: 34px;
+    max-height: 34px;
+    flex-basis: 34px;
+  }
+}
+
+body[data-density="compact"] .workout-set-card {
+  grid-template-columns: 40px minmax(0, 1fr) minmax(52px, auto) auto;
+}
+
+body[data-density="compact"] .workout-set-card > .workout-exercise-icon {
+  width: 34px;
+  min-width: 34px;
+  max-width: 34px;
+  height: 34px;
+  min-height: 34px;
+  max-height: 34px;
+  flex-basis: 34px;
 }
