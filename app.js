@@ -2015,6 +2015,18 @@ function runDenseSelfTests() {
   });
   test("boost aplicado a estimaciones", () => denseBoosted("chin_up", 100) > 100 || denseTransferBoost("chin_up") === 0);
 
+  // e1RM efectivo: el e1RM sale de la densidad real hecha, no del % nominal.
+  const okBench = computeDenseEntry({ id: "e1", exercise_id: "bench_press", nature: "weighted", scheme: "5D5", external_load_kg: 92.8, total_reps: 25 });
+  const failBench = computeDenseEntry({ id: "e2", exercise_id: "bench_press", nature: "weighted", scheme: "5D5", external_load_kg: 92.8, total_reps: 15, failed: true, effort: "fallo" });
+  test("e1RM efectivo: esquema completado = nominal", () => Math.abs(okBench.e1rm_kg - 92.8 / 0.688) < 0.5);
+  test("e1RM efectivo: fallo (15/25 reps) baja e1RM ~13%", () => failBench.e1rm_kg < okBench.e1rm_kg * 0.9 && failBench.e1rm_kg > okBench.e1rm_kg * 0.8);
+  test("e1RM efectivo: sin reps registradas cae a nominal", () => Math.abs(computeDenseEntry({ id: "e3", exercise_id: "bench_press", nature: "weighted", scheme: "5D5", external_load_kg: 92.8, total_reps: 0 }).e1rm_kg - 92.8 / 0.688) < 0.5);
+  add({ ...failBench, date: "2026-06-29", created_at: "2026-06-29T10:00:00Z" });
+  test("fallo lastrado: siguiente carga ≤ lo que tu e1RM real sostiene", () => {
+    const s = denseProgressionSuggestion(denseExerciseById("bench_press"), "normal", "5D5");
+    return s && s.type === "load" && Number(s.externalLoadKg) <= denseRoundLoad(failBench.e1rm_kg * 0.688);
+  });
+
   state.denseTrainingEntries = savedEntries;
   denseNeighborCache = null;
   rebuildTransferState();
@@ -6930,8 +6942,11 @@ function denseBestWeightedE1rmSource(exerciseId) {
     .filter((entry) => entry.exercise_id === exerciseId && !entry.deleted_at && Number(entry.e1rm_kg) > 0)
     .sort((a, b) => Number(b.e1rm_kg || 0) - Number(a.e1rm_kg || 0));
   const bestEntry = entries[0] || null;
+  // Prefer the smoothed estimate (recency + effort weighted): after a failed
+  // heavy attempt it walks DOWN, while the all-time max would keep proposing
+  // the same impossible load forever. Entry max only when no estimate exists.
   const estimated = Number(state.denseEstimates?.[exerciseId]?.e1rm_kg) || 0;
-  const best = Math.max(Number(bestEntry?.e1rm_kg || 0), estimated);
+  const best = estimated || Number(bestEntry?.e1rm_kg || 0);
   if (!best) return null;
   return { e1rm: denseBoosted(exerciseId, best), entry: bestEntry };
 }
@@ -7083,7 +7098,19 @@ function denseProgressionSuggestion(exercise, readiness = "normal", schemeFilter
     const currentLoad = Number(entry[loadKey] || entry.external_load_kg || entry.added_load_kg || entry.weight_per_dumbbell_kg || 0);
     const pctPerStep = 0.025;
     const factor = failed || effort === "fallo" ? 0.95 : 1 + step * pctPerStep;
-    const nextLoad = denseRoundLoad(currentLoad * factor) || currentLoad;
+    let nextLoad = denseRoundLoad(currentLoad * factor) || currentLoad;
+    // After a failure, a flat -5% can stay impossible for sessions (a botched
+    // cross-estimate walks down forever). The entry's effective e1RM already
+    // encodes the density actually achieved: cap the next load at what that
+    // honest e1RM sustains on this scheme.
+    if ((failed || effort === "fallo") && Number(entry.e1rm_kg) > 0 && denseWorkingPct[scheme]) {
+      const system = Number(entry.e1rm_kg) * denseWorkingPct[scheme];
+      const bw = Number(entry.bodyweight_kg) || latestKnownBodyweight(entry.date) || 0;
+      const honest = denseRoundLoad(
+        loadKey === "weight_per_dumbbell_kg" ? system / 2 : exercise.nature === "weighted_calisthenics" ? Math.max(0, system - bw) : system,
+      );
+      if (honest !== "" && honest < nextLoad) nextLoad = honest;
+    }
     return {
       ...base,
       type: "load",
@@ -7921,7 +7948,19 @@ function computeDenseEntry(raw) {
     totalSystemLoad = 0;
   }
 
-  const e1rmKg = workingPct && totalSystemLoad ? totalSystemLoad / workingPct : 0;
+  // Effective e1RM: derived from the density actually achieved on the rep-max
+  // curve, not the scheme's nominal %. Completing the scheme reproduces the
+  // table value exactly; a failed attempt (fewer reps/min) implies a LOWER
+  // e1RM instead of inflating it (no fake PRs from failed heavy attempts),
+  // and extra reps raise it. Clamped around nominal to survive typos; falls
+  // back to nominal when reps weren't logged.
+  const nominalE1rm = workingPct && totalSystemLoad ? totalSystemLoad / workingPct : 0;
+  const effectivePct = totalSystemLoad && repsPerMin > 0 ? densePctForReps(base, repsPerMin) : 0;
+  const e1rmKg = effectivePct
+    ? nominalE1rm
+      ? clamp(totalSystemLoad / effectivePct, nominalE1rm * 0.5, nominalE1rm * 1.3)
+      : totalSystemLoad / effectivePct
+    : nominalE1rm;
   const relativeStrength = bw && totalSystemLoad ? totalSystemLoad / bw : 0;
   const visibleAddedLoad = raw.nature === "weighted_calisthenics" && bw ? totalSystemLoad - bw : 0;
   const capacity = repsPerMin && multiplier ? repsPerMin / multiplier : 0;
@@ -8153,10 +8192,14 @@ function renderDenseEstimateCards(entry) {
   const techExtra = tech.technical && tech.t < 0.6 ? (0.6 - tech.t) * 0.25 : 0;
 
   if (entry.nature === "weighted" || entry.nature === "weighted_calisthenics") {
-    // Unified e1RM: a bodyweight-only history can now estimate loads too.
-    const e1rm = Math.max(bestMetric("e1rm_kg"), unified?.e1rm || 0);
+    // Current-level e1RM: the smoothed estimate follows recent sessions in both
+    // directions (a failed attempt lowers next targets instead of freezing the
+    // all-time max). Unified/max only when there is no weighted estimate yet —
+    // e.g. a bodyweight-only history estimating loads for the first time.
+    const emaE1rm = denseBoosted(entry.exercise_id, Number(estimate.e1rm_kg) || 0);
+    const e1rm = emaE1rm || Math.max(bestMetric("e1rm_kg"), unified?.e1rm || 0);
     if (!e1rm) return "";
-    const cross = !bestMetric("e1rm_kg") && Boolean(unified?.cross);
+    const cross = !emaE1rm && !bestMetric("e1rm_kg") && Boolean(unified?.cross);
     const bw = entry.bodyweight_kg || latestKnownBodyweight(entry.date) || 0;
     const targets = ["2D5", "5D3", "5D5", "10D3", "10D5", "10D1-2-3", "20D3", "20D5"];
     return targets

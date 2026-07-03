@@ -47,7 +47,7 @@ Derivados que se guardan en cada entrada:
 |---|---|
 | `reps_per_min` | `total_reps / duration_minutes` |
 | `total_system_load_kg` | weighted_calisthenics: `bw + lastre`; weighted: carga externa; bodyweight/banded/plyo/conditioning: 0 |
-| `e1rm_kg` | `total_system_load / denseWorkingPct[scheme]` (solo si hay carga y esquema lastrado) |
+| `e1rm_kg` | **e1RM efectivo**: `total_system_load / densePctForReps(base, reps_per_min_real)` — sale de la densidad realmente hecha. Completar el esquema reproduce el % nominal exacto; un fallo con menos reps implica MENOS e1RM (nunca infla ni fabrica PRs falsos). Clamp `[0.5, 1.3]×nominal` contra typos; sin reps registradas cae al nominal `total_system_load / denseWorkingPct[scheme]` |
 | `bodyweight_capacity` | `reps_per_min / bodyweightMultipliers[base]` |
 | `isometric_capacity` | `(total_hold_seconds / minutos) / multiplier` |
 | `effective_load_kg` | weighted_cal: sistema; resto: `carga + bw × bodyweightContributionPct/100` |
@@ -91,6 +91,12 @@ transferencias.
 
 `denseBestCapacity(exerciseId, key)` = máx(estimación suavizada, todas las marcas) con boost.
 Es la fuente única que usan el formulario y la analítica (deben coincidir siempre).
+
+**Para e1RM de lastrados, las superficies de ESTIMACIÓN prefieren la EMA, no el máximo
+histórico** (`denseBestWeightedE1rmSource` y la tabla "Objetivo por densidad" en
+`renderDenseEstimateCards`): tras un intento fallido la EMA baja y los objetivos
+propuestos bajan con ella; el máximo de siempre solo se usa como fallback sin EMA y en la
+página de PRs (donde "mejor marca" sí es la semántica correcta).
 
 ## 5. Sugerencia de progresión — `denseProgressionSuggestion(exercise, readiness, schemeFilter)` (~línea 6990)
 
@@ -137,7 +143,10 @@ mantener; `H` + normal/flojo = bajar.
 - **Isométrico** (`hold`): ±3 s/ronda por paso; fallo = −3 s.
 - **Lastrado/con carga** (`load`): ±2.5% por paso sobre la carga del campo correcto
   (`added_load_kg` weighted_cal, `weight_per_dumbbell_kg` mancuernas, `external_load_kg`
-  resto); fallo = ×0.95. Redondeo a 0.5 kg (`denseRoundLoad`).
+  resto); fallo = ×0.95 **con tope en lo que el e1RM efectivo de esa marca sostiene**
+  (`e1rm_kg × denseWorkingPct[scheme]`, min de ambos): una estimación cruzada desastrosa
+  se corrige en UNA sesión en vez de bajar 5% por sesión durante semanas. Redondeo a
+  0.5 kg (`denseRoundLoad`).
 - **Reps** (`reps`): ±1 rep/min por paso; fallo = bajar al menos 1 desde el rpm real.
   Siempre pasa por `denseCapRpm` (techo fisiológico de reps/min por ejercicio).
 
