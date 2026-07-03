@@ -2679,7 +2679,8 @@ function denseTestSuggestion() {
         .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")))[0];
       const days = last ? Math.round((today.getTime() - parseDate(last.date).getTime()) / 86400000) : 999;
       if (days < 14) return null;
-      return { exercise, pct: slot.pct, days, from: slot.from?.[0]?.name || "" };
+      const scheme = denseDefaultScheme(exercise);
+      return { exercise, pct: slot.pct, days, from: slot.from?.[0]?.name || "", scheme, target: densePlannedTargetValue(exercise, scheme) };
     })
     .filter(Boolean)
     .sort((a, b) => b.pct - a.pct);
@@ -2694,8 +2695,8 @@ function renderTestSuggestionCard() {
     <div class="test-suggestion-card">
       <span class="tiny-icon"><i data-lucide="flask-conical"></i></span>
       <div>
-        <strong>Testea esta semana: ${escapeHtml(suggestion.exercise.name)}</strong>
-        <span>Estimación +${roundTo(suggestion.pct * 100, 1)}%${suggestion.from ? ` por transferencia de ${escapeHtml(suggestion.from)}` : ""} sin verificar · ${daysLabel}</span>
+        <strong>Testea esta semana: ${escapeHtml(suggestion.exercise.name)} · ${escapeHtml(suggestion.scheme)}</strong>
+        <span>Estimación +${roundTo(suggestion.pct * 100, 1)}%${suggestion.from ? ` por transferencia de ${escapeHtml(suggestion.from)}` : ""} sin verificar · objetivo ${escapeHtml(suggestion.target)} · ${daysLabel}</span>
       </div>
       <button class="dc-badge calibration-add" type="button" data-action="add-planned-exercise" data-exercise="${escapeAttr(suggestion.exercise.id)}">+ hoy</button>
     </div>
@@ -6646,11 +6647,20 @@ function denseEntryIsPr(entry) {
   return !getDenseEntries().some((item) => item.id !== entry.id && item.exercise_id === entry.exercise_id && item.scheme === entry.scheme && denseEntryScore(item) > score);
 }
 
-function densePlannedScheme(exercise) {
+// Single source of truth for the default scheme of an exercise: the last
+// session's scheme if it's still valid, else a sensible mid-range default
+// (10D bodyweight / 10D5 loaded). Used by BOTH the planned card and the set
+// form so the "Target" shown and the scheme the form opens with always match.
+function denseDefaultScheme(exercise) {
   const allowed = denseAllowedSchemes(exercise);
   const last = latestDenseEntryForExercise(exercise.id);
   if (last && allowed.includes(last.scheme)) return last.scheme;
-  return allowed[0] || (denseIsIsometric(exercise) || exercise.nature === "bodyweight" ? "10D" : "10D5");
+  const preferred = denseIsLoadExercise(exercise) ? "10D5" : "10D";
+  return allowed.includes(preferred) ? preferred : allowed[0] || preferred;
+}
+
+function densePlannedScheme(exercise) {
+  return denseDefaultScheme(exercise);
 }
 
 function densePlannedTargetValue(exercise, scheme) {
@@ -6892,8 +6902,8 @@ function denseExerciseIconSlug(exercise = {}) {
     return id.includes("active") ? "active-hang" : "hang";
   }
   if (family === "horizontal_pull") return "ring-row";
-  if (family === "strict_dip") return exercise.nature === "weighted_calisthenics" || id.includes("weighted") ? "weighted-dip" : "ring-dip";
-  if (family === "parallel_dip") return exercise.nature === "weighted_calisthenics" ? "weighted-dip" : "parallel-dip";
+  if (family === "strict_dip") return exercise.nature === "weighted_calisthenics" || id.includes("weighted") ? "weighted-ring-dip" : "ring-dip";
+  if (family === "parallel_dip") return exercise.nature === "weighted_calisthenics" ? "weighted-parallel-dip" : "parallel-dip";
   if (family === "ring_push") return "ring-push-up";
   if (family === "pushup") return id.includes("clap") ? "clap-push-up" : id.includes("deficit") ? "deficit-push-up" : "push-up";
   if (family === "bench_press") return "bench-press";
@@ -6916,9 +6926,19 @@ function denseExerciseIconSlug(exercise = {}) {
   if (family === "hinge_bodyweight") return id.includes("nordic") ? "nordic-curl" : id.includes("good_morning") ? "single-leg-good-morning" : "single-leg-hinge";
   if (family === "posterior_chain") return "back-extension";
   if (family === "toes_to_bar") return id.includes("kip") ? "toes-to-bar-kip" : "toes-to-bar";
-  if (family === "l_sit") return "l-sit";
+  if (family === "l_sit") return id === "v_sit" ? "v-sit" : "l-sit";
   if (family === "hollow") return "hollow";
   if (id.includes("jefferson")) return "jefferson-curl";
+  if (family === "side_split") {
+    if (id.includes("frog")) return "frog-stretch";
+    if (id.includes("horse")) return "horse-stance";
+    if (id.includes("iso")) return "side-split-hold";
+    return "side-split-squat";
+  }
+  if (family === "pancake") {
+    if (id.includes("good_morning") || id.includes("straddle_good_morning")) return "pancake-good-morning";
+    return "pancake-hold";
+  }
   if (family === "mobility_strength") {
     if (id.includes("straddle")) return "straddle-fold";
     if (id.includes("seated")) return "seated-good-morning";
@@ -6930,10 +6950,15 @@ function denseExerciseIconSlug(exercise = {}) {
 }
 
 function denseExerciseIconTier(exercise = {}) {
-  const match = String(exercise.id || "").match(/_(tuck|one_quarter|adv_tuck|one_leg|straddle|half|three_quarter|full)(?:_pull)?$/);
-  if (!match) return "";
+  const progression = denseExerciseIconProgression(exercise);
+  if (!progression) return "";
   const order = ["tuck", "one_quarter", "adv_tuck", "one_leg", "straddle", "half", "three_quarter", "full"];
-  return String(order.indexOf(match[1]) + 1 || "");
+  return String(order.indexOf(progression) + 1 || "");
+}
+
+function denseExerciseIconProgression(exercise = {}) {
+  const match = String(exercise.id || "").match(/_(tuck|one_quarter|adv_tuck|one_leg|straddle|half|three_quarter|full)(?:_pull)?$/);
+  return match?.[1] || "";
 }
 
 function denseExerciseIconMarkup(exerciseOrId, { color = "", className = "tiny-icon", state: visualState = "" } = {}) {
@@ -6941,9 +6966,10 @@ function denseExerciseIconMarkup(exerciseOrId, { color = "", className = "tiny-i
   const slug = denseExerciseIconSlug(exercise || {});
   const tint = color || denseCategoryColor(exercise?.category);
   const tier = denseExerciseIconTier(exercise || {});
+  const progression = denseExerciseIconProgression(exercise || {});
   const stateClass = visualState ? ` ex-state-${escapeAttr(visualState)}` : "";
   return `
-    <span class="${className} exercise-glyph ex-${escapeAttr(slug)}${stateClass}" style="--item-color:${tint}" data-tier="${escapeAttr(tier)}" aria-hidden="true">
+    <span class="${className} exercise-glyph ex-${escapeAttr(slug)}${stateClass}" style="--item-color:${tint}" data-tier="${escapeAttr(tier)}" data-progression="${escapeAttr(progression)}" aria-hidden="true">
       <i class="ex-bar"></i><i class="ex-body"></i><i class="ex-head"></i><i class="ex-arm ex-arm-a"></i><i class="ex-arm ex-arm-b"></i><i class="ex-leg ex-leg-a"></i><i class="ex-leg ex-leg-b"></i><i class="ex-prop ex-prop-a"></i><i class="ex-prop ex-prop-b"></i>
       <b class="ex-badge"></b>
     </span>
@@ -8328,7 +8354,10 @@ function denseFormDefaults() {
   const nature = overrideNature || (shouldUseLatest && referenceEntry?.nature && allowedNatures.includes(referenceEntry.nature) ? referenceEntry.nature : exercise.nature);
   const activeExercise = { ...exercise, nature };
   const allowedSchemes = denseAllowedSchemes(activeExercise);
-  const preferredScheme = !overrideNature && shouldUseLatest && referenceEntry?.scheme ? referenceEntry.scheme : nature === "weighted" || nature === "weighted_calisthenics" ? "10D5" : "10D";
+  // Same default resolver the planned card uses, so the "Target" preview and
+  // the scheme the form opens with agree. An explicit modality switch drops
+  // the old scheme and picks the mid-range default for the new modality.
+  const preferredScheme = overrideNature ? (denseIsLoadExercise(activeExercise) ? "10D5" : "10D") : denseDefaultScheme(activeExercise);
   const scheme = allowedSchemes.includes(preferredScheme) ? preferredScheme : allowedSchemes[0];
   const suggestion = denseProgressionSuggestion(activeExercise, "normal", scheme);
   const repsPerSet = suggestion?.repsPerSet || denseDefaultRepsPerSet(activeExercise, scheme);
