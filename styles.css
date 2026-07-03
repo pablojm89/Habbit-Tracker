@@ -1484,6 +1484,29 @@ button:active:not(:disabled),
   pointer-events: none;
 }
 
+.exercise-glyph::before {
+  content: attr(data-tier);
+  position: absolute;
+  left: 4px;
+  top: 4px;
+  z-index: 2;
+  display: none;
+  min-width: 8px;
+  height: 8px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--item-color), #000 36%);
+  color: #0d100a;
+  font-size: 0.42rem;
+  font-weight: 1000;
+  line-height: 1;
+}
+
+.exercise-glyph:not([data-tier=""])::before {
+  display: flex;
+}
+
 .exercise-glyph > i {
   position: absolute;
   display: block;
@@ -1522,11 +1545,71 @@ button:active:not(:disabled),
   border: 2px solid currentColor;
 }
 
+.exercise-glyph .ex-badge {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  z-index: 3;
+  display: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 10px color-mix(in srgb, currentColor, transparent 50%);
+}
+
+.exercise-glyph.ex-state-planned .ex-badge {
+  display: block;
+  background: transparent;
+  border: 1.5px dashed currentColor;
+}
+
+.exercise-glyph.ex-state-done .ex-badge {
+  display: block;
+  background: #b7fb48;
+}
+
+.exercise-glyph.ex-state-pr .ex-badge {
+  display: block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px 2px 999px 999px;
+  background: #ffd24a;
+}
+
+.exercise-glyph.ex-state-failed .ex-badge {
+  display: block;
+  width: 9px;
+  height: 2px;
+  border-radius: 999px;
+  background: #ff6b6b;
+  transform: rotate(-38deg);
+}
+
+.exercise-glyph.ex-state-favorite .ex-badge {
+  display: block;
+  width: 9px;
+  height: 9px;
+  border-radius: 0;
+  background: #ffd24a;
+  clip-path: polygon(50% 0, 62% 34%, 98% 36%, 69% 56%, 79% 92%, 50% 70%, 21% 92%, 31% 56%, 2% 36%, 38% 34%);
+}
+
+.exercise-glyph.ex-state-pr,
+.exercise-glyph.ex-state-favorite {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -10px 22px rgba(0, 0, 0, 0.2),
+    0 0 18px rgba(255, 205, 70, 0.14);
+}
+
 .ex-pull-up .ex-bar,
 .ex-weighted-pull .ex-bar,
 .ex-chin-up .ex-bar,
 .ex-hang .ex-bar,
+.ex-active-hang .ex-bar,
 .ex-one-arm-hang .ex-bar,
+.ex-one-arm-active-hang .ex-bar,
 .ex-toes-to-bar .ex-bar,
 .ex-toes-to-bar-kip .ex-bar {
   left: 7px;
@@ -1539,6 +1622,7 @@ button:active:not(:disabled),
 .ex-weighted-pull .ex-head,
 .ex-chin-up .ex-head,
 .ex-hang .ex-head,
+.ex-active-hang .ex-head,
 .ex-one-arm-hang .ex-head {
   left: 14px;
   top: 12px;
@@ -1549,6 +1633,7 @@ button:active:not(:disabled),
 .ex-weighted-pull .ex-body,
 .ex-chin-up .ex-body,
 .ex-hang .ex-body,
+.ex-active-hang .ex-body,
 .ex-one-arm-hang .ex-body {
   left: 15px;
   top: 15px;
@@ -1577,10 +1662,53 @@ button:active:not(:disabled),
   opacity: 1;
 }
 
+.ex-active-hang .ex-arm-a {
+  left: 10px;
+  top: 8px;
+  height: 9px;
+  transform: rotate(38deg);
+  opacity: 1;
+}
+
+.ex-active-hang .ex-arm-b {
+  right: 10px;
+  top: 8px;
+  height: 9px;
+  transform: rotate(-38deg);
+  opacity: 1;
+}
+
 .ex-one-arm-hang .ex-arm-a {
   left: 15px;
   top: 6px;
   height: 13px;
+  opacity: 1;
+}
+
+.ex-one-arm-active-hang .ex-head,
+.ex-one-arm-active-hang .ex-body {
+  left: 14px;
+  top: 12px;
+  opacity: 1;
+}
+
+.ex-one-arm-active-hang .ex-body {
+  left: 15px;
+  top: 15px;
+}
+
+.ex-one-arm-active-hang .ex-arm-a {
+  left: 15px;
+  top: 6px;
+  height: 13px;
+  opacity: 1;
+}
+
+.ex-one-arm-active-hang .ex-arm-b {
+  right: 10px;
+  top: 14px;
+  height: 7px;
+  transform: rotate(-55deg);
   opacity: 1;
 }
 
@@ -1767,6 +1895,8 @@ button:active:not(:disabled),
 
 .ex-bench-press .ex-bar,
 .ex-overhead-press .ex-bar,
+.ex-db-press .ex-bar,
+.ex-front-squat .ex-bar,
 .ex-barbell-squat .ex-bar,
 .ex-deadlift .ex-bar {
   left: 6px;
@@ -1793,13 +1923,19 @@ button:active:not(:disabled),
 }
 
 .ex-overhead-press .ex-body,
+.ex-db-press .ex-body,
 .ex-air-squat .ex-body,
+.ex-tiptoe-squat .ex-body,
+.ex-cossack-squat .ex-body,
 .ex-barbell-squat .ex-body,
+.ex-front-squat .ex-body,
 .ex-pistol-squat .ex-body,
+.ex-bulgarian-split-squat .ex-body,
 .ex-split-squat .ex-body,
 .ex-sissy-squat .ex-body,
-.ex-leg-extension .ex-body,
-.ex-leg-curl .ex-body,
+.ex-natural-leg-extension .ex-body,
+.ex-machine-leg-extension .ex-body,
+.ex-machine-leg-curl .ex-body,
 .ex-handstand .ex-body,
 .ex-straddle-handstand .ex-body,
 .ex-press-handstand .ex-body {
@@ -1825,7 +1961,50 @@ button:active:not(:disabled),
   transform: rotate(-18deg);
 }
 
+.ex-db-press .ex-bar {
+  top: 7px;
+  left: 8px;
+  width: 16px;
+  height: 0;
+}
+
+.ex-db-press .ex-arm-a,
+.ex-db-press .ex-arm-b {
+  top: 6px;
+  height: 10px;
+  opacity: 1;
+}
+
+.ex-db-press .ex-arm-a {
+  left: 12px;
+  transform: rotate(18deg);
+}
+
+.ex-db-press .ex-arm-b {
+  right: 12px;
+  transform: rotate(-18deg);
+}
+
+.ex-db-press .ex-prop-a,
+.ex-db-press .ex-prop-b {
+  top: 4px;
+  width: 7px;
+  height: 3px;
+  border: 0;
+  background: currentColor;
+  opacity: 1;
+}
+
+.ex-db-press .ex-prop-a {
+  left: 8px;
+}
+
+.ex-db-press .ex-prop-b {
+  right: 8px;
+}
+
 .ex-hspu .ex-body,
+.ex-full-rom-hspu .ex-body,
 .ex-handstand .ex-body,
 .ex-straddle-handstand .ex-body {
   left: 15px;
@@ -1834,6 +2013,7 @@ button:active:not(:disabled),
 }
 
 .ex-hspu .ex-head,
+.ex-full-rom-hspu .ex-head,
 .ex-handstand .ex-head,
 .ex-straddle-handstand .ex-head {
   left: 14px;
@@ -1843,6 +2023,8 @@ button:active:not(:disabled),
 
 .ex-hspu .ex-arm-a,
 .ex-hspu .ex-arm-b,
+.ex-full-rom-hspu .ex-arm-a,
+.ex-full-rom-hspu .ex-arm-b,
 .ex-handstand .ex-arm-a,
 .ex-handstand .ex-arm-b,
 .ex-straddle-handstand .ex-arm-a,
@@ -1853,6 +2035,7 @@ button:active:not(:disabled),
 }
 
 .ex-hspu .ex-arm-a,
+.ex-full-rom-hspu .ex-arm-a,
 .ex-handstand .ex-arm-a,
 .ex-straddle-handstand .ex-arm-a {
   left: 11px;
@@ -1860,10 +2043,29 @@ button:active:not(:disabled),
 }
 
 .ex-hspu .ex-arm-b,
+.ex-full-rom-hspu .ex-arm-b,
 .ex-handstand .ex-arm-b,
 .ex-straddle-handstand .ex-arm-b {
   right: 11px;
   transform: rotate(18deg);
+}
+
+.ex-full-rom-hspu .ex-prop-a,
+.ex-full-rom-hspu .ex-prop-b {
+  bottom: 3px;
+  width: 7px;
+  height: 3px;
+  border: 0;
+  background: currentColor;
+  opacity: 0.7;
+}
+
+.ex-full-rom-hspu .ex-prop-a {
+  left: 6px;
+}
+
+.ex-full-rom-hspu .ex-prop-b {
+  right: 6px;
 }
 
 .ex-straddle-handstand .ex-leg-a,
@@ -1960,9 +2162,13 @@ button:active:not(:disabled),
 }
 
 .ex-air-squat .ex-leg-a,
+.ex-tiptoe-squat .ex-leg-a,
+.ex-cossack-squat .ex-leg-a,
 .ex-barbell-squat .ex-leg-a,
+.ex-front-squat .ex-leg-a,
 .ex-sissy-squat .ex-leg-a,
 .ex-pistol-squat .ex-leg-a,
+.ex-bulgarian-split-squat .ex-leg-a,
 .ex-split-squat .ex-leg-a {
   left: 12px;
   top: 20px;
@@ -1972,9 +2178,13 @@ button:active:not(:disabled),
 }
 
 .ex-air-squat .ex-leg-b,
+.ex-tiptoe-squat .ex-leg-b,
+.ex-cossack-squat .ex-leg-b,
 .ex-barbell-squat .ex-leg-b,
+.ex-front-squat .ex-leg-b,
 .ex-sissy-squat .ex-leg-b,
 .ex-pistol-squat .ex-leg-b,
+.ex-bulgarian-split-squat .ex-leg-b,
 .ex-split-squat .ex-leg-b {
   right: 10px;
   top: 20px;
@@ -1985,6 +2195,39 @@ button:active:not(:disabled),
 
 .ex-barbell-squat .ex-bar {
   top: 12px;
+}
+
+.ex-front-squat .ex-bar {
+  top: 14px;
+  left: 10px;
+  width: 17px;
+}
+
+.ex-tiptoe-squat .ex-prop-a,
+.ex-tiptoe-squat .ex-prop-b {
+  bottom: 4px;
+  width: 5px;
+  height: 2px;
+  border: 0;
+  background: currentColor;
+  opacity: 1;
+}
+
+.ex-tiptoe-squat .ex-prop-a {
+  left: 10px;
+  transform: rotate(-24deg);
+}
+
+.ex-tiptoe-squat .ex-prop-b {
+  right: 8px;
+  transform: rotate(24deg);
+}
+
+.ex-cossack-squat .ex-leg-b {
+  right: 3px;
+  top: 22px;
+  height: 13px;
+  transform: rotate(78deg);
 }
 
 .ex-pistol-squat .ex-leg-b {
@@ -2000,12 +2243,30 @@ button:active:not(:disabled),
   transform: rotate(-72deg);
 }
 
+.ex-bulgarian-split-squat .ex-leg-b {
+  right: 4px;
+  top: 22px;
+  transform: rotate(-74deg);
+}
+
+.ex-bulgarian-split-squat .ex-prop-a {
+  right: 1px;
+  bottom: 8px;
+  width: 8px;
+  height: 3px;
+  border: 0;
+  background: currentColor;
+  opacity: 0.58;
+}
+
 .ex-deadlift .ex-bar {
   bottom: 6px;
 }
 
 .ex-deadlift .ex-body,
 .ex-good-morning .ex-body,
+.ex-seated-good-morning .ex-body,
+.ex-single-leg-good-morning .ex-body,
 .ex-single-leg-hinge .ex-body,
 .ex-back-extension .ex-body,
 .ex-jefferson-curl .ex-body,
@@ -2020,6 +2281,8 @@ button:active:not(:disabled),
 
 .ex-deadlift .ex-arm-a,
 .ex-good-morning .ex-arm-a,
+.ex-seated-good-morning .ex-arm-a,
+.ex-single-leg-good-morning .ex-arm-a,
 .ex-jefferson-curl .ex-arm-a {
   left: 13px;
   top: 18px;
@@ -2028,7 +2291,18 @@ button:active:not(:disabled),
   opacity: 1;
 }
 
+.ex-seated-good-morning .ex-prop-a {
+  left: 7px;
+  bottom: 5px;
+  width: 17px;
+  height: 3px;
+  border: 0;
+  background: currentColor;
+  opacity: 0.48;
+}
+
 .ex-single-leg-hinge .ex-leg-b,
+.ex-single-leg-good-morning .ex-leg-b,
 .ex-back-extension .ex-leg-b,
 .ex-nordic-curl .ex-leg-b {
   right: 4px;
@@ -2038,13 +2312,29 @@ button:active:not(:disabled),
   opacity: 1;
 }
 
-.ex-leg-extension .ex-leg-a,
-.ex-leg-curl .ex-leg-a {
+.ex-natural-leg-extension .ex-leg-a,
+.ex-machine-leg-extension .ex-leg-a,
+.ex-machine-leg-curl .ex-leg-a {
   left: 15px;
   bottom: 4px;
   height: 14px;
   transform: rotate(74deg);
   opacity: 1;
+}
+
+.ex-machine-leg-extension .ex-prop-a,
+.ex-machine-leg-curl .ex-prop-a {
+  left: 7px;
+  bottom: 5px;
+  width: 18px;
+  height: 3px;
+  border: 0;
+  background: currentColor;
+  opacity: 0.45;
+}
+
+.ex-machine-leg-curl .ex-leg-a {
+  transform: rotate(-74deg);
 }
 
 .ex-toes-to-bar .ex-body,
@@ -2754,7 +3044,7 @@ button:active:not(:disabled),
 }
 
 .workout-set-card {
-  grid-template-columns: minmax(0, 1fr) minmax(72px, 0.26fr) auto;
+  grid-template-columns: 38px minmax(0, 1fr) minmax(72px, 0.26fr) auto;
   min-height: 84px;
   border-radius: var(--radius-lg);
   border-color: var(--line);
@@ -2764,6 +3054,11 @@ button:active:not(:disabled),
     #161714;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
   cursor: pointer;
+}
+
+.workout-exercise-icon {
+  align-self: center;
+  justify-self: center;
 }
 
 /* Done, no PR: restrained lime wash (DENSE style) */
@@ -3023,6 +3318,178 @@ button:active:not(:disabled),
   background:
     linear-gradient(90deg, color-mix(in srgb, var(--item-color), transparent 84%), transparent),
     var(--panel-2);
+}
+
+.icon-gallery-head {
+  align-items: start;
+}
+
+.icon-audit-pills {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: end;
+}
+
+.icon-state-strip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.icon-state-chip {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 7px;
+  align-items: center;
+  min-width: 0;
+  padding: 7px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.icon-state-glyph {
+  width: 28px;
+  height: 28px;
+}
+
+.icon-state-chip > span:not(.exercise-glyph) {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.icon-gallery-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.icon-gallery-group {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, var(--item-color), transparent 72%);
+  border-radius: 16px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--item-color), transparent 92%), transparent 46%),
+    rgba(255, 255, 255, 0.025);
+}
+
+.icon-gallery-group-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.icon-gallery-group-head strong {
+  color: var(--text);
+  font-size: 0.88rem;
+}
+
+.icon-gallery-group-head span {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 850;
+}
+
+.icon-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+}
+
+.icon-gallery-card {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 9px;
+  align-items: center;
+  min-width: 0;
+  min-height: 64px;
+  padding: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(15, 16, 14, 0.72);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.icon-gallery-card:hover {
+  border-color: color-mix(in srgb, var(--item-color), transparent 52%);
+  background: color-mix(in srgb, var(--item-color), #11130f 88%);
+}
+
+.icon-gallery-glyph {
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+}
+
+.icon-gallery-card span,
+.icon-gallery-card strong,
+.icon-gallery-card small,
+.icon-gallery-card em {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.icon-gallery-card strong {
+  color: var(--text);
+  font-size: 0.78rem;
+  line-height: 1.12;
+}
+
+.icon-gallery-card small {
+  margin-top: 3px;
+  color: var(--lime-soft);
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  font-style: normal;
+  font-weight: 850;
+}
+
+.icon-gallery-card em {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.6rem;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.icon-audit-warning {
+  display: grid;
+  gap: 4px;
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px solid rgba(255, 209, 102, 0.34);
+  border-radius: 14px;
+  background: rgba(255, 209, 102, 0.07);
+}
+
+.icon-audit-warning.is-clear {
+  border-color: rgba(168, 230, 53, 0.34);
+  background: rgba(168, 230, 53, 0.06);
+}
+
+.icon-audit-warning strong {
+  color: var(--text);
+  font-size: 0.82rem;
+}
+
+.icon-audit-warning span {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 750;
 }
 
 .dense-progression-card {
@@ -7887,4 +8354,79 @@ button:focus-visible {
   color: var(--muted);
   font-size: 0.68rem;
   line-height: 1.35;
+}
+
+@media (max-width: 760px) {
+  .workout-set-card {
+    grid-template-columns: 34px minmax(0, 1fr) minmax(58px, 0.22fr) auto;
+  }
+
+  .workout-exercise-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 10px;
+  }
+
+  .icon-state-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .icon-card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .icon-gallery-card {
+    min-height: 58px;
+  }
+
+  .icon-gallery-glyph {
+    width: 38px;
+    height: 38px;
+  }
+}
+
+body[data-density="compact"] .icon-state-strip {
+  grid-template-columns: repeat(5, minmax(32px, 1fr));
+  gap: 6px;
+}
+
+body[data-density="compact"] .icon-state-chip {
+  grid-template-columns: 1fr;
+  justify-items: center;
+  padding: 5px;
+}
+
+body[data-density="compact"] .icon-state-chip > span:not(.exercise-glyph) {
+  display: none;
+}
+
+body[data-density="compact"] .icon-gallery-group {
+  padding: 8px;
+}
+
+body[data-density="compact"] .icon-card-grid {
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 6px;
+}
+
+body[data-density="compact"] .icon-gallery-card {
+  grid-template-columns: 32px minmax(0, 1fr);
+  min-height: 48px;
+  padding: 6px;
+}
+
+body[data-density="compact"] .icon-gallery-glyph {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+}
+
+body[data-density="compact"] .icon-gallery-card em {
+  display: none;
+}
+
+body[data-density="compact"] .workout-exercise-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
 }
