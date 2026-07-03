@@ -2679,10 +2679,11 @@ function denseWeeklyFailureStatus(weekDayKeys) {
   return status;
 }
 
-// Weekly test nudge: the most-boosted exercise that hasn't been verified —
-// "tu patrón sube, testéalo esta semana".
-function denseTestSuggestion() {
-  const rows = Object.entries(state.transfer?.boosts || {})
+// Weekly test nudges: every boosted-but-unverified exercise, most-boosted
+// first. The card shows the top one and folds the rest into a dropdown so a
+// pending test never scrolls out of reach when the ranking shifts.
+function denseTestSuggestions() {
+  return Object.entries(state.transfer?.boosts || {})
     .map(([id, slot]) => {
       const exercise = denseExerciseById(id);
       if (!exercise || !(slot?.pct >= 0.03)) return null;
@@ -2696,22 +2697,41 @@ function denseTestSuggestion() {
     })
     .filter(Boolean)
     .sort((a, b) => b.pct - a.pct);
-  return rows[0] || null;
 }
 
-function renderTestSuggestionCard() {
-  const suggestion = denseTestSuggestion();
-  if (!suggestion) return "";
+function denseTestSuggestion() {
+  return denseTestSuggestions()[0] || null;
+}
+
+function denseTestSuggestionRow(suggestion, { lead = false } = {}) {
   const daysLabel = suggestion.days >= 999 ? "sin test directo" : `${suggestion.days}d sin test`;
+  const title = `${lead ? "Testea esta semana: " : ""}${suggestion.exercise.name} · ${suggestion.scheme}`;
   return `
     <div class="test-suggestion-card">
       <span class="tiny-icon"><i data-lucide="flask-conical"></i></span>
       <div>
-        <strong>Testea esta semana: ${escapeHtml(suggestion.exercise.name)} · ${escapeHtml(suggestion.scheme)}</strong>
+        <strong>${escapeHtml(title)}</strong>
         <span>Estimación +${roundTo(suggestion.pct * 100, 1)}%${suggestion.from ? ` por transferencia de ${escapeHtml(suggestion.from)}` : ""} sin verificar · objetivo ${escapeHtml(suggestion.target)} · ${daysLabel}</span>
       </div>
       <button class="dc-badge calibration-add" type="button" data-action="add-planned-exercise" data-exercise="${escapeAttr(suggestion.exercise.id)}">+ hoy</button>
     </div>
+  `;
+}
+
+function renderTestSuggestionCard() {
+  const suggestions = denseTestSuggestions();
+  if (!suggestions.length) return "";
+  const [top, ...rest] = suggestions;
+  return `
+    ${denseTestSuggestionRow(top, { lead: true })}
+    ${
+      rest.length
+        ? `<details class="test-suggestion-extra">
+            <summary class="text-button"><i data-lucide="list-checks"></i>Ver ${rest.length} test${rest.length === 1 ? "" : "s"} pendiente${rest.length === 1 ? "" : "s"} más por prioridad</summary>
+            ${rest.map((suggestion) => denseTestSuggestionRow(suggestion)).join("")}
+          </details>`
+        : ""
+    }
   `;
 }
 
