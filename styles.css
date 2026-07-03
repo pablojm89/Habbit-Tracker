@@ -1467,19 +1467,25 @@ button:active:not(:disabled),
   position: relative;
   overflow: hidden;
   isolation: isolate;
+  border-radius: 14px;
+  color: #f5f7f1;
   background:
-    radial-gradient(circle at 62% 20%, color-mix(in srgb, var(--item-color), transparent 76%), transparent 38%),
-    linear-gradient(145deg, color-mix(in srgb, var(--item-color), #11130f 74%), rgba(255, 255, 255, 0.025));
+    linear-gradient(135deg, rgba(255, 255, 255, 0.18), transparent 32%),
+    radial-gradient(circle at 52% 76%, color-mix(in srgb, var(--item-color), transparent 70%), transparent 46%),
+    linear-gradient(145deg, color-mix(in srgb, var(--item-color), #050809 86%), #060807 72%);
+  border: 1px solid color-mix(in srgb, var(--item-color), #f5f7f1 18%);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.1),
-    inset 0 -10px 22px rgba(0, 0, 0, 0.2);
+    inset 0 1px 0 rgba(255, 255, 255, 0.34),
+    inset 0 -14px 26px rgba(0, 0, 0, 0.32),
+    0 0 0 1px color-mix(in srgb, var(--item-color), transparent 58%),
+    0 0 18px color-mix(in srgb, var(--item-color), transparent 68%);
 }
 
 .exercise-glyph::after {
   content: "";
   position: absolute;
-  inset: 4px;
-  border: 1px solid color-mix(in srgb, var(--item-color), transparent 72%);
+  inset: 3px;
+  border: 1px solid color-mix(in srgb, var(--item-color), transparent 38%);
   border-radius: inherit;
   pointer-events: none;
 }
@@ -1496,11 +1502,14 @@ button:active:not(:disabled),
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--item-color), #000 36%);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.2), transparent 52%),
+    color-mix(in srgb, var(--item-color), #030404 28%);
   color: #0d100a;
   font-size: 0.42rem;
   font-weight: 1000;
   line-height: 1;
+  box-shadow: 0 0 10px color-mix(in srgb, var(--item-color), transparent 52%);
 }
 
 .exercise-glyph:not([data-tier=""])::before {
@@ -1519,17 +1528,19 @@ button:active:not(:disabled),
 
 .exercise-glyph-svg {
   position: absolute;
-  inset: 3px;
+  inset: 2px;
   z-index: 1;
-  width: calc(100% - 6px);
-  height: calc(100% - 6px);
+  width: calc(100% - 4px);
+  height: calc(100% - 4px);
   color: currentColor;
   fill: none;
-  stroke: currentColor;
-  stroke-width: 2.4;
+  stroke: #f5f7f1;
+  stroke-width: 3.1;
   stroke-linecap: round;
   stroke-linejoin: round;
-  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--item-color), transparent 76%));
+  filter:
+    drop-shadow(0 1px 0 rgba(255, 255, 255, 0.62))
+    drop-shadow(0 0 8px rgba(255, 255, 255, 0.2));
 }
 
 .exercise-glyph-svg * {
@@ -1537,12 +1548,20 @@ button:active:not(:disabled),
 }
 
 .exercise-glyph-svg .icon-fill {
-  fill: currentColor;
-  stroke: none;
+  fill: var(--item-color);
+  stroke: var(--item-color);
 }
 
 .exercise-glyph-svg .icon-accent {
-  stroke: #b7fb48;
+  stroke: var(--item-color);
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--item-color), transparent 15%));
+}
+
+.exercise-glyph-svg .icon-glow {
+  opacity: 0.9;
+  stroke: var(--item-color);
+  stroke-width: 2.3;
+  filter: drop-shadow(0 0 7px color-mix(in srgb, var(--item-color), transparent 10%));
 }
 
 .exercise-glyph-svg .icon-faint {
@@ -9103,4 +9122,83 @@ body[data-density="compact"] .workout-set-card > .workout-exercise-icon {
   min-height: 34px;
   max-height: 34px;
   flex-basis: 34px;
+}
+
+/* Neon tile icon pass: closer to the original reference board. */
+.icon-gallery-card {
+  grid-template-columns: 58px minmax(0, 1fr);
+  min-height: 76px;
+}
+
+.icon-gallery-glyph {
+  width: 56px;
+  height: 56px;
+  border-radius: 17px;
+}
+
+.workout-set-card {
+  grid-template-columns: 50px minmax(0, 1fr) minmax(58px, auto) auto;
+}
+
+.workout-set-card > .workout-exercise-icon {
+  width: 46px;
+  min-width: 46px;
+  max-width: 46px;
+  height: 46px;
+  min-height: 46px;
+  max-height: 46px;
+  flex-basis: 46px;
+  border-radius: 15px;
+}
+
+@media (max-width: 760px) {
+  .icon-gallery-card {
+    grid-template-columns: 52px minmax(0, 1fr);
+    min-height: 68px;
+  }
+
+  .icon-gallery-glyph {
+    width: 50px;
+    height: 50px;
+    border-radius: 15px;
+  }
+
+  .workout-set-card {
+    grid-template-columns: 46px minmax(0, 1fr) minmax(58px, 0.22fr) auto;
+  }
+
+  .workout-set-card > .workout-exercise-icon {
+    width: 42px;
+    min-width: 42px;
+    max-width: 42px;
+    height: 42px;
+    min-height: 42px;
+    max-height: 42px;
+    flex-basis: 42px;
+  }
+}
+
+body[data-density="compact"] .icon-gallery-card {
+  grid-template-columns: 48px minmax(0, 1fr);
+  min-height: 62px;
+}
+
+body[data-density="compact"] .icon-gallery-glyph {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+}
+
+body[data-density="compact"] .workout-set-card {
+  grid-template-columns: 46px minmax(0, 1fr) minmax(52px, auto) auto;
+}
+
+body[data-density="compact"] .workout-set-card > .workout-exercise-icon {
+  width: 42px;
+  min-width: 42px;
+  max-width: 42px;
+  height: 42px;
+  min-height: 42px;
+  max-height: 42px;
+  flex-basis: 42px;
 }

@@ -7187,6 +7187,84 @@ function denseExerciseIconSvg(key, exercise = {}) {
   }
 }
 
+function denseExerciseIconAccentSvg(key, exercise = {}) {
+  const loaded = exercise.nature === "weighted" || exercise.nature === "weighted_calisthenics" || String(exercise.id || "").includes("weighted");
+  const load = loaded ? '<rect x="22" y="20" width="6" height="6" rx="1.5" class="icon-fill"/>' : "";
+  switch (key) {
+    case "weighted-pull":
+    case "pull":
+    case "active-hang":
+    case "hang":
+    case "one-arm-hang":
+    case "toes":
+    case "toes-kip":
+      return `<path d="M6.5 7h19" class="icon-glow"/>${load}`;
+    case "row":
+    case "ring-push":
+      return `<circle cx="9" cy="8" r="2.6" class="icon-glow"/><circle cx="23" cy="8" r="2.6" class="icon-glow"/>`;
+    case "weighted-ring-dip":
+    case "dip":
+      return `<path d="M9 7v17M23 7v17" class="icon-glow"/>${load}`;
+    case "weighted-parallel-dip":
+      return `<path d="M9 7v17M23 7v17" class="icon-glow"/>${load}`;
+    case "clap-push":
+    case "deficit-push":
+    case "push":
+    case "pike":
+    case "hspu":
+    case "press-handstand":
+    case "handstand":
+    case "bridge-walkover":
+    case "bridge-hold":
+    case "bridge":
+      return `<path d="M6.5 24.5h19" class="icon-glow"/>`;
+    case "bench":
+      return `<path d="M7 11h18M9 20h14" class="icon-glow"/>`;
+    case "db-press":
+      return `<path d="M9 10l4-4M23 10l-4-4M7 8l4 4M25 8l-4 4" class="icon-glow"/>`;
+    case "overhead":
+      return `<path d="M8 7h16" class="icon-glow"/>`;
+    case "front-lever-pull":
+    case "front-lever":
+    case "back-lever-pull":
+    case "back-lever":
+      return `<path d="M7 8h18" class="icon-glow"/>`;
+    case "barbell-squat":
+    case "front-squat":
+      return `<path d="M8 9h16" class="icon-glow"/>`;
+    case "deadlift":
+      return `<path d="M8 22h16" class="icon-glow"/><circle cx="7" cy="22" r="2" class="icon-glow"/><circle cx="25" cy="22" r="2" class="icon-glow"/>`;
+    case "leg-extension":
+    case "leg-curl":
+      return `<path d="M9 9h10v7H9z" class="icon-glow"/>`;
+    case "squat":
+    case "tiptoe":
+    case "split-squat":
+    case "pistol":
+    case "sissy":
+    case "natural-leg-extension":
+    case "nordic":
+    case "single-leg-hinge":
+    case "back-extension":
+    case "frog":
+    case "horse":
+    case "side-split":
+    case "cossack":
+    case "jefferson":
+    case "seated-good-morning":
+    case "good-morning":
+    case "pancake-rep":
+    case "pancake":
+    case "l-sit":
+    case "straddle-l-sit":
+    case "v-sit":
+    case "hollow":
+      return `<path d="M7 24h18" class="icon-glow"/>`;
+    default:
+      return "";
+  }
+}
+
 function denseExerciseIconMarkup(exerciseOrId, { color = "", className = "tiny-icon", state: visualState = "" } = {}) {
   const exercise = typeof exerciseOrId === "string" ? denseExerciseById(exerciseOrId) : exerciseOrId;
   const slug = denseExerciseIconSlug(exercise || {});
@@ -7199,6 +7277,7 @@ function denseExerciseIconMarkup(exerciseOrId, { color = "", className = "tiny-i
     <span class="${className} exercise-glyph ex-${escapeAttr(slug)}${stateClass}" style="--item-color:${tint}" data-tier="${escapeAttr(tier)}" data-progression="${escapeAttr(progression)}" data-icon-key="${escapeAttr(key)}" aria-hidden="true">
       <svg class="exercise-glyph-svg" viewBox="0 0 32 32" focusable="false">
         ${denseExerciseIconSvg(key, exercise || {})}
+        ${denseExerciseIconAccentSvg(key, exercise || {})}
       </svg>
       <b class="ex-badge"></b>
     </span>
