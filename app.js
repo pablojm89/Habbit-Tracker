@@ -2250,23 +2250,31 @@ function render() {
     button.classList.toggle("is-active", button.dataset.density === (state.settings.uiDensity || "normal"));
   });
 
-  renderHero();
-  renderQuests();
-  renderDay();
-  renderCalendar();
-  renderTrainingCard();
-  renderHabitEditor();
-  renderHabitAnalytics();
-  renderTrainingMode();
-  renderMesocycle();
-  renderDenseTraining();
-  renderTrainingAnalytics();
-  renderDensePrs();
-  renderLogbook();
-  renderExerciseIconGallery();
-  renderReview();
-  renderData();
-  refreshIcons();
+  safeRender("hero", renderHero);
+  safeRender("quests", renderQuests);
+  safeRender("day", renderDay);
+  safeRender("calendar", renderCalendar);
+  safeRender("trainingCard", renderTrainingCard);
+  safeRender("habitEditor", renderHabitEditor);
+  safeRender("habitAnalytics", renderHabitAnalytics);
+  safeRender("trainingMode", renderTrainingMode);
+  safeRender("exerciseIconGallery", renderExerciseIconGallery);
+  safeRender("mesocycle", renderMesocycle);
+  safeRender("denseTraining", renderDenseTraining);
+  safeRender("trainingAnalytics", renderTrainingAnalytics);
+  safeRender("densePrs", renderDensePrs);
+  safeRender("logbook", renderLogbook);
+  safeRender("review", renderReview);
+  safeRender("data", renderData);
+  safeRender("icons", refreshIcons);
+}
+
+function safeRender(name, fn) {
+  try {
+    fn();
+  } catch (error) {
+    console.error(`${name} render failed`, error);
+  }
 }
 
 function renderHero() {
@@ -3807,7 +3815,9 @@ function renderLogbook() {
 }
 
 function renderExerciseIconGallery() {
-  if (!nodes.exerciseIconGalleryPanel) return;
+  const panel = nodes.exerciseIconGalleryPanel || document.querySelector("#exerciseIconGalleryPanel");
+  if (!panel) return;
+  nodes.exerciseIconGalleryPanel = panel;
   const favorites = denseExerciseFavorites();
   const rows = denseExerciseCatalog.map((exercise) => {
     const stats = denseExerciseStats(exercise.id);
@@ -3824,7 +3834,7 @@ function renderExerciseIconGallery() {
     }))
     .filter((group) => group.rows.length);
 
-  nodes.exerciseIconGalleryPanel.innerHTML = `
+  panel.innerHTML = `
     <div class="section-head icon-gallery-head">
       <div>
         <p class="eyebrow">Icon system</p>
@@ -7048,9 +7058,80 @@ function denseExerciseIconProgression(exercise = {}) {
   return match?.[1] || "";
 }
 
+const denseExactIconKeys = {
+  pull_up: "pull-up",
+  weighted_pull_up: "weighted-pull-up",
+  chin_up: "chin-up",
+  ring_dip: "ring-dip",
+  weighted_ring_dip: "weighted-ring-dip",
+  parallel_bar_dip: "parallel-dip",
+  weighted_parallel_bar_dip: "weighted-parallel-dip",
+  ring_push_up: "ring-push-up",
+  ring_row: "ring-row",
+  floor_push_up: "floor-push-up",
+  clap_push_up: "clap-push-up",
+  deficit_push_up: "deficit-push-up",
+  bench_press: "bench-press",
+  military_press: "barbell-overhead-press",
+  seated_db_overhead_press: "seated-db-press",
+  pike_push_up: "pike-push-up",
+  headstand_push_up: "headstand-push-up",
+  full_rom_hspu: "full-rom-hspu",
+  straight_handstand: "straight-handstand",
+  straddle_handstand: "straddle-handstand",
+  press_to_handstand: "press-to-handstand",
+  bridge_push_up: "bridge-push-up",
+  bridge_isometric: "bridge-isometric",
+  bridge_walkover: "bridge-walkover",
+  tiptoe_squat: "tiptoe-squat",
+  air_squat: "air-squat",
+  pistol_squat: "pistol-squat",
+  atg_split_squat: "atg-split-squat",
+  weighted_atg_split_squat: "weighted-atg-split-squat",
+  bulgarian_split_squat: "bulgarian-split-squat",
+  cossack_squat: "cossack-squat",
+  back_squat: "back-squat",
+  front_squat: "front-squat",
+  sissy_squat: "sissy-squat",
+  natural_leg_extension: "natural-leg-extension",
+  machine_leg_extension: "machine-leg-extension",
+  machine_leg_curl: "machine-leg-curl",
+  deadlift: "deadlift",
+  single_leg_good_morning: "single-leg-good-morning",
+  seated_bent_leg_good_morning: "seated-good-morning",
+  back_extension: "back-extension",
+  nordic_curl: "nordic-curl",
+  toes_to_bar_strict: "toes-to-bar",
+  toes_to_bar_kip: "toes-to-bar-kip",
+  cuelgue_passive_bilateral: "passive-hang",
+  cuelgue_active: "active-hang",
+  cuelgue_active_ig: "active-hang",
+  cuelgue_passive_one_hand: "one-arm-passive-hang",
+  cuelgue_active_one_hand: "one-arm-active-hang",
+  l_sit_tuck: "tuck-l-sit",
+  l_sit_one_leg: "one-leg-l-sit",
+  l_sit: "l-sit",
+  l_sit_straddle: "straddle-l-sit",
+  v_sit: "v-sit",
+  hollow_body_hold: "hollow-body",
+  frog_stretch: "frog-stretch",
+  horse_stance_hold: "horse-stance",
+  side_split_squat: "side-split-squat",
+  side_split_iso: "side-split-iso",
+  pancake_hold: "pancake-hold",
+  straddle_good_morning: "straddle-good-morning",
+  pancake_good_morning: "pancake-good-morning",
+  jefferson_curl: "jefferson-curl",
+  straddle_jefferson_curl: "straddle-jefferson-curl",
+};
+
 function denseExerciseIconKey(exercise = {}, slug = "") {
   const id = exercise.id || "";
   const family = exercise.family || "";
+  if (denseExactIconKeys[id]) return denseExactIconKeys[id];
+  const progression = denseExerciseIconProgression(exercise);
+  if (family === "front_lever" || family === "front_lever_pull") return `front-lever-${progression || "base"}${family.endsWith("_pull") ? "-pull" : ""}`;
+  if (family === "back_lever" || family === "back_lever_pull") return `back-lever-${progression || "base"}${family.endsWith("_pull") ? "-pull" : ""}`;
   if (slug.includes("weighted")) return slug;
   if (family === "strict_pull") return "pull";
   if (family === "cuelgue") return id.includes("one_hand") ? "one-arm-hang" : id.includes("active") ? "active-hang" : "hang";
@@ -7090,14 +7171,72 @@ function denseExerciseIconKey(exercise = {}, slug = "") {
   return "generic";
 }
 
+function denseIconShapeKey(key = "") {
+  if (key.startsWith("front-lever-")) return key.endsWith("-pull") ? "front-lever-pull" : "front-lever";
+  if (key.startsWith("back-lever-")) return key.endsWith("-pull") ? "back-lever-pull" : "back-lever";
+  const aliases = {
+    "pull-up": "pull",
+    "weighted-pull-up": "weighted-pull",
+    "passive-hang": "hang",
+    "one-arm-passive-hang": "one-arm-hang",
+    "one-arm-active-hang": "one-arm-hang",
+    "ring-row": "row",
+    "ring-push-up": "ring-push",
+    "floor-push-up": "push",
+    "clap-push-up": "clap-push",
+    "deficit-push-up": "deficit-push",
+    "bench-press": "bench",
+    "barbell-overhead-press": "overhead",
+    "seated-db-press": "db-press",
+    "pike-push-up": "pike",
+    "headstand-push-up": "hspu",
+    "straight-handstand": "handstand",
+    "press-to-handstand": "press-handstand",
+    "bridge-push-up": "bridge",
+    "bridge-isometric": "bridge-hold",
+    "tiptoe-squat": "tiptoe",
+    "air-squat": "squat",
+    "pistol-squat": "pistol",
+    "atg-split-squat": "split-squat",
+    "weighted-atg-split-squat": "split-squat",
+    "bulgarian-split-squat": "split-squat",
+    "cossack-squat": "cossack",
+    "back-squat": "barbell-squat",
+    "machine-leg-extension": "leg-extension",
+    "machine-leg-curl": "leg-curl",
+    "single-leg-good-morning": "single-leg-hinge",
+    "seated-good-morning": "seated-good-morning",
+    "back-extension": "back-extension",
+    "nordic-curl": "nordic",
+    "toes-to-bar": "toes",
+    "toes-to-bar-kip": "toes-kip",
+    "tuck-l-sit": "tuck-l-sit",
+    "one-leg-l-sit": "one-leg-l-sit",
+    "hollow-body": "hollow",
+    "frog-stretch": "frog",
+    "horse-stance": "horse",
+    "side-split-squat": "side-split",
+    "side-split-iso": "side-split",
+    "pancake-hold": "pancake",
+    "straddle-good-morning": "pancake-rep",
+    "pancake-good-morning": "pancake-rep",
+    "jefferson-curl": "jefferson",
+    "straddle-jefferson-curl": "pancake-rep",
+  };
+  return aliases[key] || key;
+}
+
 function denseExerciseIconSvg(key, exercise = {}) {
+  const shapeKey = denseIconShapeKey(key);
   const loaded = exercise.nature === "weighted" || exercise.nature === "weighted_calisthenics" || String(exercise.id || "").includes("weighted");
   const reps = exercise.isometric ? '<path d="M8 24h16" class="icon-faint"/>' : '<path d="M24 8l3 3-3 3" class="icon-accent"/>';
   const load = loaded ? '<rect x="22" y="20" width="6" height="6" rx="1.5" class="icon-fill"/>' : "";
-  switch (key) {
+  switch (shapeKey) {
     case "weighted-pull":
     case "pull":
       return `<path d="M7 7h18"/><path d="M12 8l3 6 2 7"/><path d="M20 8l-3 6"/><circle cx="16" cy="12" r="2.1"/><path d="M14 22h5"/>${load}`;
+    case "chin-up":
+      return `<path d="M7 7h18"/><path d="M13 8l2 6 2 7"/><path d="M19 8l-2 6"/><circle cx="16" cy="12" r="2.1"/><path d="M12 8h8"/><path d="M13 22h6"/>`;
     case "active-hang":
     case "hang":
       return `<path d="M7 7h18"/><circle cx="16" cy="13" r="2"/><path d="M12 8l4 7 4-7"/><path d="M16 15v8"/><path d="M13 24h6" class="icon-faint"/>`;
@@ -7106,9 +7245,12 @@ function denseExerciseIconSvg(key, exercise = {}) {
     case "row":
       return `<circle cx="9" cy="8" r="2.2"/><circle cx="23" cy="8" r="2.2"/><path d="M10 10l5 7 8-7"/><path d="M8 23h16"/><path d="M12 19h10"/>`;
     case "weighted-ring-dip":
-    case "weighted-parallel-dip":
+    case "ring-dip":
     case "dip":
       return `<path d="M9 7v17M23 7v17"/><circle cx="16" cy="10" r="2"/><path d="M11 11l5 5 5-5"/><path d="M16 16v7"/>${load}`;
+    case "weighted-parallel-dip":
+    case "parallel-dip":
+      return `<path d="M9 8v16M23 8v16"/><path d="M9 12h14"/><circle cx="16" cy="10" r="2"/><path d="M11 13l5 5 5-5"/><path d="M16 18v6"/>${load}`;
     case "ring-push":
       return `<circle cx="9" cy="21" r="2"/><circle cx="23" cy="21" r="2"/><path d="M8 18h17"/><circle cx="18" cy="14" r="2"/><path d="M11 18l7-4 7 4"/>`;
     case "clap-push":
@@ -7126,10 +7268,15 @@ function denseExerciseIconSvg(key, exercise = {}) {
       return `<path d="M7 24h18"/><circle cx="16" cy="17" r="2"/><path d="M9 22l7-5 7 5"/><path d="M16 17l4-9"/><path d="M16 17l-4-9"/>`;
     case "hspu":
       return `<path d="M8 25h16"/><circle cx="16" cy="21" r="2"/><path d="M12 20h8"/><path d="M14 19V8M18 19V8"/><path d="M12 8h8"/>`;
+    case "full-rom-hspu":
+      return `<path d="M7 25h6M19 25h6"/><circle cx="16" cy="22" r="2"/><path d="M12 21h8"/><path d="M14 20V7M18 20V7"/><path d="M11 7h10"/>`;
     case "press-handstand":
     case "handstand":
       return `<path d="M8 25h16"/><circle cx="16" cy="21" r="2"/><path d="M12 20h8"/><path d="M16 19V9"/><path d="M12 9l4 5 4-5"/>`;
+    case "straddle-handstand":
+      return `<path d="M8 25h16"/><circle cx="16" cy="21" r="2"/><path d="M12 20h8"/><path d="M16 19V12"/><path d="M16 12L9 7M16 12l7-5"/>`;
     case "bridge-walkover":
+      return `<path d="M7 24c2-9 16-9 18 0"/><path d="M8 24h4M20 24h5"/><circle cx="17" cy="14" r="2"/><path d="M12 21l5-7 4 7"/><path d="M23 12l3-3" class="icon-accent"/>`;
     case "bridge-hold":
     case "bridge":
       return `<path d="M7 24c2-9 16-9 18 0"/><path d="M8 24h4M20 24h5"/><circle cx="16" cy="14" r="2"/><path d="M12 21l4-7 4 7"/>${reps}`;
@@ -7148,6 +7295,8 @@ function denseExerciseIconSvg(key, exercise = {}) {
     case "split-squat":
     case "pistol":
       return `<circle cx="15" cy="9" r="2"/><path d="M15 11v6"/><path d="M15 17l-6 7"/><path d="M15 17h10"/><path d="M8 24h7"/>`;
+    case "cossack":
+      return `<circle cx="14" cy="10" r="2"/><path d="M14 12v6"/><path d="M14 18l-6 6"/><path d="M14 18h11"/><path d="M8 24h17"/>`;
     case "sissy":
     case "natural-leg-extension":
       return `<circle cx="13" cy="9" r="2"/><path d="M13 11l5 7"/><path d="M18 18l5 5"/><path d="M9 22h14"/><path d="M10 14l3-3"/>`;
@@ -7164,20 +7313,26 @@ function denseExerciseIconSvg(key, exercise = {}) {
     case "toes":
       return `<path d="M7 7h18"/><circle cx="16" cy="13" r="2"/><path d="M12 8l4 7 4-7"/><path d="M16 15l6 6"/><path d="M16 15l-6 6"/>`;
     case "v-sit":
+      return `<path d="M9 24h14"/><circle cx="13" cy="14" r="2"/><path d="M13 16v5"/><path d="M13 21l10-8"/><path d="M13 21h-3"/>`;
+    case "one-leg-l-sit":
+      return `<path d="M9 23h14"/><circle cx="14" cy="12" r="2"/><path d="M14 14v7"/><path d="M14 21h10"/><path d="M14 21l-4-4"/>`;
+    case "tuck-l-sit":
+      return `<path d="M9 23h14"/><circle cx="14" cy="12" r="2"/><path d="M14 14v7"/><path d="M14 21l6-3"/><path d="M10 21h4"/>`;
     case "straddle-l-sit":
+      return `<path d="M9 23h14"/><circle cx="14" cy="12" r="2"/><path d="M14 14v7"/><path d="M14 21l10-3"/><path d="M14 21l-6-3"/>`;
     case "l-sit":
       return `<path d="M9 23h14"/><circle cx="14" cy="12" r="2"/><path d="M14 14v7"/><path d="M14 21h10"/><path d="M10 21h4"/>`;
     case "hollow":
       return `<path d="M8 20c5-6 11-6 16 0"/><circle cx="13" cy="17" r="1.8"/><path d="M9 15l3 2M20 17l4-3"/>`;
     case "frog":
+      return `<circle cx="16" cy="10" r="2"/><path d="M16 12v6"/><path d="M16 18L8 23"/><path d="M16 18l8 5"/><path d="M8 23h16"/><path d="M10 18l-3 3M22 18l3 3"/>`;
     case "horse":
+      return `<circle cx="16" cy="9" r="2"/><path d="M16 11v7"/><path d="M9 18h14"/><path d="M11 18l-2 6M21 18l2 6"/><path d="M8 24h16"/>`;
     case "side-split":
       return `<circle cx="16" cy="10" r="2"/><path d="M16 12v6"/><path d="M16 18L7 24"/><path d="M16 18l9 6"/><path d="M7 24h18"/>`;
     case "pancake-rep":
     case "pancake":
       return `<circle cx="16" cy="10" r="2"/><path d="M16 12l-3 7"/><path d="M13 19H7"/><path d="M13 19h12"/><path d="M12 16l8 2"/>`;
-    case "cossack":
-      return `<circle cx="14" cy="10" r="2"/><path d="M14 12v6"/><path d="M14 18l-6 6"/><path d="M14 18h11"/><path d="M8 24h17"/>`;
     case "jefferson":
     case "seated-good-morning":
     case "good-morning":
@@ -7188,11 +7343,13 @@ function denseExerciseIconSvg(key, exercise = {}) {
 }
 
 function denseExerciseIconAccentSvg(key, exercise = {}) {
+  const shapeKey = denseIconShapeKey(key);
   const loaded = exercise.nature === "weighted" || exercise.nature === "weighted_calisthenics" || String(exercise.id || "").includes("weighted");
   const load = loaded ? '<rect x="22" y="20" width="6" height="6" rx="1.5" class="icon-fill"/>' : "";
-  switch (key) {
+  switch (shapeKey) {
     case "weighted-pull":
     case "pull":
+    case "chin-up":
     case "active-hang":
     case "hang":
     case "one-arm-hang":
@@ -7203,17 +7360,21 @@ function denseExerciseIconAccentSvg(key, exercise = {}) {
     case "ring-push":
       return `<circle cx="9" cy="8" r="2.6" class="icon-glow"/><circle cx="23" cy="8" r="2.6" class="icon-glow"/>`;
     case "weighted-ring-dip":
+    case "ring-dip":
     case "dip":
       return `<path d="M9 7v17M23 7v17" class="icon-glow"/>${load}`;
     case "weighted-parallel-dip":
+    case "parallel-dip":
       return `<path d="M9 7v17M23 7v17" class="icon-glow"/>${load}`;
     case "clap-push":
     case "deficit-push":
     case "push":
     case "pike":
     case "hspu":
+    case "full-rom-hspu":
     case "press-handstand":
     case "handstand":
+    case "straddle-handstand":
     case "bridge-walkover":
     case "bridge-hold":
     case "bridge":
@@ -7255,6 +7416,8 @@ function denseExerciseIconAccentSvg(key, exercise = {}) {
     case "good-morning":
     case "pancake-rep":
     case "pancake":
+    case "tuck-l-sit":
+    case "one-leg-l-sit":
     case "l-sit":
     case "straddle-l-sit":
     case "v-sit":
