@@ -41,6 +41,12 @@ clamp [0, 0.9]
 - `denseModalityFactor`: iso↔dinámico 0.6; naturalezas distintas (weighted vs bodyweight)
   0.9; igual 1.
 - La especificidad **del destino** amortigua: un skill absorbe poco.
+- **Guard de movilidad** (`denseIsSpuriousMobilityPair`): dos ejercicios de
+  `category: "mobility"` de **familias distintas** dan coeficiente **0**. Solo
+  comparten el patrón genérico `range_strength`, que no es transferencia real
+  (un bridge = extensión de columna vs un side split = abducción de cadera). La
+  movilidad de la **misma familia** (progresiones de pancake, de side split…) sí
+  transfiere, y un `densePairOverride` explícito puede reactivar un par concreto.
 - `densePairOverrides` (~línea 1068): pares afinados a mano que los vectores no capturan
   (`pull_up>chin_up: 0.8`, gemelos con/sin lastre 0.85/0.9, `back_squat<>deadlift: 0.45`,
   `front_squat<>deadlift: 0.35`, bench↔military...). El override sustituye a la fórmula

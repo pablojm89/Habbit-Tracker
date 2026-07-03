@@ -1255,9 +1255,19 @@ function densePairK(e, f) {
   return clamp(Number(state.transfer?.pairK?.[key]) || 1, 0.3, 2);
 }
 
+// Two mobility exercises are only "clearly related" — and thus allowed to
+// transfer — when they belong to the same family (e.g. two pancake or two
+// side-split progressions). Across families they share only the generic
+// `range_strength` tag, which is not real transfer: a bridge (spinal
+// extension) and a side split (hip abduction) have nothing to carry over.
+function denseIsSpuriousMobilityPair(e, f) {
+  return e.category === "mobility" && f.category === "mobility" && e.family !== f.family;
+}
+
 function denseTransferCoefficient(e, f) {
   const override = densePairOverrides[`${e.id}>${f.id}`];
   if (override != null) return clamp(override * densePairK(e, f), 0, 0.9);
+  if (denseIsSpuriousMobilityPair(e, f)) return 0;
   const A = denseMetaFor(e);
   const B = denseMetaFor(f);
   // Patterns and muscles both carry transfer: disjoint patterns (vertical vs
@@ -2144,6 +2154,8 @@ function runDenseSelfTests() {
   test("coef: pull→bench ≈ 0", () => C("pull_up", "bench_press") < 0.05);
   test("coef: squat↔deadlift = 0.45", () => C("back_squat", "deadlift") === 0.45 && C("deadlift", "back_squat") === 0.45);
   test("coef: FL hold recibe menos que FL pull", () => C("pull_up", "front_lever_tuck") < C("pull_up", "front_lever_tuck_pull"));
+  test("coef: movilidad cruzada no transfiere (bridge→side split)", () => C("bridge_push_up", "side_split_iso") === 0 && C("side_split_iso", "bridge_push_up") === 0);
+  test("coef: movilidad misma familia sí transfiere", () => C("frog_stretch", "side_split_iso") > 0);
 
   test("técnica: no-técnico expresa 1", () => denseTechMasteryInfo(denseExerciseById("air_squat")).t === 1);
   test("técnica: skill sin historial 0.35", () => denseTechMasteryInfo(denseExerciseById("front_lever_full")).t === 0.35);
