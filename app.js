@@ -4912,12 +4912,23 @@ function loadDenseEntry(entryId) {
 function toggleDenseFavorite(exerciseId) {
   state.denseExerciseFavorites ||= [];
   const index = state.denseExerciseFavorites.indexOf(exerciseId);
+  const nowFavorite = index < 0;
   if (index >= 0) state.denseExerciseFavorites.splice(index, 1);
   else state.denseExerciseFavorites.push(exerciseId);
   saveState();
-  renderDenseTraining();
+  // Update the star in place so the list keeps its scroll position instead of
+  // re-rendering the whole picker (which also lost focus on the search field).
+  const exercise = denseExerciseById(exerciseId);
+  const label = `${nowFavorite ? "Quitar favorito" : "Marcar favorito"} ${exercise?.name || ""}`.trim();
+  document.querySelectorAll(`.exercise-fav[data-exercise="${CSS.escape(exerciseId)}"]`).forEach((btn) => {
+    btn.classList.toggle("is-hot", nowFavorite);
+    btn.title = nowFavorite ? "Quitar favorito" : "Marcar favorito";
+    btn.setAttribute("aria-label", label);
+  });
+  // If the current sort is "favoritos", order changed — re-render that surface.
+  if (state.settings.denseExerciseSort === "favorite") refreshDenseExercisePickerSurface();
   refreshIcons();
-  toast(index >= 0 ? "Favorito quitado" : "Favorito guardado");
+  toast(nowFavorite ? "Favorito guardado" : "Favorito quitado");
 }
 
 function exportJson() {
