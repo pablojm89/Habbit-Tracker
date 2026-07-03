@@ -92,13 +92,32 @@ transferencias.
 `denseBestCapacity(exerciseId, key)` = máx(estimación suavizada, todas las marcas) con boost.
 Es la fuente única que usan el formulario y la analítica (deben coincidir siempre).
 
-## 5. Sugerencia de progresión — `denseProgressionSuggestion(exercise, readiness, baseFilter)` (~línea 6914)
+## 5. Sugerencia de progresión — `denseProgressionSuggestion(exercise, readiness, schemeFilter)` (~línea 6990)
 
-**Memoria por bloque** (fix importante): si el usuario selecciona una base (`baseFilter` =
-`"2D" | "5D" | "10D" | "20D"`), la sugerencia parte de la **última sesión de ESA base**, no
-de la última marca global. Solo si no hay historial de esa base cae a
-`latestDenseEntryForExercise`. El formulario pasa `denseSchemeBase(scheme)` al cambiar de
-esquema (`applyDenseFormTargets`).
+**Memoria por bloque** (fix importante): el formulario pasa el esquema completo
+seleccionado (`applyDenseFormTargets`). Resolución del historial de referencia:
+
+1. **Esquema exacto** primero (`latestDenseEntryForExercise(id, scheme)`): en lastrados,
+   5D5 y 5D10 llevan cargas distintas y no se prestan entre sí. En peso corporal el
+   esquema ES la base, así que equivale al filtro por bloque.
+2. **Misma base** como fallback, solo para NO-lastrados (reps/holds se mueven dentro del
+   bloque 10D aunque la prescripción cambie).
+3. **Sin historial en el bloque** → sugerencia "estimado" explícita (`estimated: true`,
+   direction hold, razón "Estimado…"), nunca la recomendación de otro bloque:
+   - Lastrados: `denseEstimatedLoadSuggestion` — carga = mejor e1RM (marcas + EMA,
+     con boost) × `denseWorkingPct[scheme]`; en weighted_calisthenics resta el peso
+     corporal (clamp ≥ 0); mancuernas divide entre 2.
+   - Peso corporal/holds: `denseEstimatedBodySuggestion` — usa las MISMAS funciones que
+     los inputs del formulario (`denseFormTargetRepsPerSet`/`denseFormTargetHoldPerRound`
+     con sugerencia null → capacidad probada × multiplicador), para que tarjeta y
+     prefill coincidan siempre.
+
+Además `applyDenseFormTargets` escribe también los campos de carga (`addedLoadKg`/
+`externalLoadKg`/`weightPerDumbbellKg`) cuando la sugerencia es de tipo load y coincide el
+esquema, y los limpia (`resetStaleLoad`) al cambiar a un bloque sin datos ni estimación.
+Verificado (harness DOM): lastrado recuerda 5D5↔2D5 en ambas direcciones, readiness
+ajusta la carga sugerida, isométricos recuerdan hold por bloque, y los bloques sin
+historial muestran "Estimado…" coherente entre tarjeta e inputs.
 
 ### Paso de progresión (`denseAppliedProgressStep`, ~línea 6888)
 
