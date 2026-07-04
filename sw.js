@@ -1,9 +1,9 @@
-const CACHE_NAME = "bittracker-mobile-20260703-articulated-stick-icons-21";
+const CACHE_NAME = "bittracker-mobile-20260704-icons-rollback-01";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=20260703-articulated-stick-icons-21",
-  "./app.js?v=20260703-articulated-stick-icons-21",
+  "./styles.css?v=20260704-icons-rollback-01",
+  "./app.js?v=20260704-icons-rollback-01",
   "./manifest.webmanifest?v=20260627-mobile-01",
   "./icon.svg"
 ];

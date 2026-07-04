@@ -2250,31 +2250,23 @@ function render() {
     button.classList.toggle("is-active", button.dataset.density === (state.settings.uiDensity || "normal"));
   });
 
-  safeRender("hero", renderHero);
-  safeRender("quests", renderQuests);
-  safeRender("day", renderDay);
-  safeRender("calendar", renderCalendar);
-  safeRender("trainingCard", renderTrainingCard);
-  safeRender("habitEditor", renderHabitEditor);
-  safeRender("habitAnalytics", renderHabitAnalytics);
-  safeRender("trainingMode", renderTrainingMode);
-  safeRender("exerciseIconGallery", renderExerciseIconGallery);
-  safeRender("mesocycle", renderMesocycle);
-  safeRender("denseTraining", renderDenseTraining);
-  safeRender("trainingAnalytics", renderTrainingAnalytics);
-  safeRender("densePrs", renderDensePrs);
-  safeRender("logbook", renderLogbook);
-  safeRender("review", renderReview);
-  safeRender("data", renderData);
-  safeRender("icons", refreshIcons);
-}
-
-function safeRender(name, fn) {
-  try {
-    fn();
-  } catch (error) {
-    console.error(`${name} render failed`, error);
-  }
+  renderHero();
+  renderQuests();
+  renderDay();
+  renderCalendar();
+  renderTrainingCard();
+  renderHabitEditor();
+  renderHabitAnalytics();
+  renderTrainingMode();
+  renderMesocycle();
+  renderDenseTraining();
+  renderTrainingAnalytics();
+  renderDensePrs();
+  renderLogbook();
+  renderExerciseIconGallery();
+  renderReview();
+  renderData();
+  refreshIcons();
 }
 
 function renderHero() {
@@ -2965,7 +2957,7 @@ function renderSession() {
       </div>
     </div>
     <div class="selected-exercise-panel" style="--item-color:${denseCategoryColor(selected.category)}">
-      ${denseExerciseIconMarkup(selected)}
+      <span class="tiny-icon"><i data-lucide="${selected.icon || "dumbbell"}"></i></span>
       <div>
         <strong>${escapeHtml(selected.name)}</strong>
         <span>${escapeHtml(denseNatureLabel(selected.nature))} · ${schemes.length} esquemas disponibles</span>
@@ -3815,9 +3807,7 @@ function renderLogbook() {
 }
 
 function renderExerciseIconGallery() {
-  const panel = nodes.exerciseIconGalleryPanel || document.querySelector("#exerciseIconGalleryPanel");
-  if (!panel) return;
-  nodes.exerciseIconGalleryPanel = panel;
+  if (!nodes.exerciseIconGalleryPanel) return;
   const favorites = denseExerciseFavorites();
   const rows = denseExerciseCatalog.map((exercise) => {
     const stats = denseExerciseStats(exercise.id);
@@ -3834,7 +3824,7 @@ function renderExerciseIconGallery() {
     }))
     .filter((group) => group.rows.length);
 
-  panel.innerHTML = `
+  nodes.exerciseIconGalleryPanel.innerHTML = `
     <div class="section-head icon-gallery-head">
       <div>
         <p class="eyebrow">Icon system</p>
@@ -4848,7 +4838,7 @@ function denseWorkoutPickerListMarkup(exercises, query) {
       return `
         <div class="exercise-group ${expanded ? "is-open" : ""}">
           <button class="exercise-group-head" type="button" data-action="toggle-exercise-group" data-group="${escapeAttr(group.family)}" aria-expanded="${expanded}">
-            ${denseExerciseIconMarkup(children[0], { color })}
+            <span class="tiny-icon" style="--item-color:${color}"><i data-lucide="${group.icon}"></i></span>
             <span class="exercise-group-text">
               <strong>${escapeHtml(group.label)}</strong>
               <small>${children.length} progresiones</small>
@@ -4937,7 +4927,7 @@ function openPlannedExerciseDeleteConfirm(planIndex) {
   nodes.modalTitle.textContent = "¿Quitar ejercicio del día?";
   nodes.modalBody.innerHTML = `
     <div class="confirm-box">
-      ${denseExerciseIconMarkup(exercise)}
+      <span class="tiny-icon" style="--item-color:${denseCategoryColor(exercise.category)}"><i data-lucide="${exercise.icon || "dumbbell"}"></i></span>
       <div>
         <strong>${escapeHtml(exercise.name)}</strong>
         <span>${escapeHtml(formatLongDate(selectedDate))} · programado sin marca</span>
@@ -5032,7 +5022,7 @@ function openDenseExerciseDetailModal(exerciseId) {
           ${
             entries.length
               ? entries.map((entry, index) => exerciseDetailRow(entry, index)).join("")
-              : `<article class="dense-selected-log-empty">${denseExerciseIconMarkup(exercise)}<div><strong>No ranked yet</strong><span>Registra una marca y aparecerá aquí.</span></div></article>`
+              : `<article class="dense-selected-log-empty"><span class="tiny-icon"><i data-lucide="${exercise.icon || "dumbbell"}"></i></span><div><strong>No ranked yet</strong><span>Registra una marca y aparecerá aquí.</span></div></article>`
           }
         </div>
       </section>
@@ -5196,7 +5186,7 @@ function openDenseFeedbackModal(entryId) {
     <form id="denseFeedbackForm" class="dense-feedback-form">
       <input type="hidden" name="entryId" value="${escapeAttr(entry.id)}" />
       <div class="feedback-entry-summary">
-        ${denseExerciseIconMarkup(entry.exercise_id)}
+        <span class="tiny-icon"><i data-lucide="${denseExerciseById(entry.exercise_id)?.icon || "dumbbell"}"></i></span>
         <div>
           <strong>${escapeHtml(entry.exercise_name)}</strong>
           <span>${escapeHtml(entry.scheme)} · ${escapeHtml(denseEntryValue(entry))}</span>
@@ -6990,621 +6980,28 @@ function denseCategoryColor(category) {
 }
 
 function denseExerciseIconSlug(exercise = {}) {
-  const id = exercise.id || "";
-  const family = exercise.family || "";
-  if (id.includes("weighted_pull_up")) return "weighted-pull";
-  if (family === "strict_pull") return id.includes("chin") ? "chin-up" : "pull-up";
-  if (family === "cuelgue") {
-    if (id.includes("one_hand")) return id.includes("active") ? "one-arm-active-hang" : "one-arm-hang";
-    return id.includes("active") ? "active-hang" : "hang";
-  }
-  if (family === "horizontal_pull") return "ring-row";
-  if (family === "strict_dip") return exercise.nature === "weighted_calisthenics" || id.includes("weighted") ? "weighted-ring-dip" : "ring-dip";
-  if (family === "parallel_dip") return exercise.nature === "weighted_calisthenics" ? "weighted-parallel-dip" : "parallel-dip";
-  if (family === "ring_push") return "ring-push-up";
-  if (family === "pushup") return id.includes("clap") ? "clap-push-up" : id.includes("deficit") ? "deficit-push-up" : "push-up";
-  if (family === "bench_press") return "bench-press";
-  if (id === "seated_db_overhead_press") return "db-press";
-  if (id.includes("overhead_press") || id === "military_press" || family === "accessory") return "overhead-press";
-  if (family === "hspu") return id === "pike_push_up" ? "pike-push-up" : id.includes("full_rom") ? "full-rom-hspu" : "hspu";
-  if (family === "handstand") return id.includes("press_to") ? "press-handstand" : id.includes("straddle") ? "straddle-handstand" : "handstand";
-  if (family === "bridge") return id.includes("walkover") ? "bridge-walkover" : id.includes("isometric") ? "bridge-hold" : "bridge-push-up";
-  if (family === "front_lever" || family === "front_lever_pull") return family.endsWith("_pull") ? "front-lever-pull" : "front-lever";
-  if (family === "back_lever" || family === "back_lever_pull") return family.endsWith("_pull") ? "back-lever-pull" : "back-lever";
-  if (family === "squat_weighted") return id.includes("front") ? "front-squat" : "barbell-squat";
-  if (family === "squat_bodyweight") return "air-squat";
-  if (id.includes("tiptoe")) return "tiptoe-squat";
-  if (id.includes("cossack")) return "cossack-squat";
-  if (family === "single_leg_squat" || family === "atg_split_squat") return id.includes("pistol") ? "pistol-squat" : id.includes("bulgarian") ? "bulgarian-split-squat" : "split-squat";
-  if (family === "knee_dominant") return id.includes("sissy") ? "sissy-squat" : "natural-leg-extension";
-  if (family === "knee_isolation") return "machine-leg-extension";
-  if (family === "hamstring_isolation") return "machine-leg-curl";
-  if (family === "hinge_weighted") return "deadlift";
-  if (family === "hinge_bodyweight") return id.includes("nordic") ? "nordic-curl" : id.includes("good_morning") ? "single-leg-good-morning" : "single-leg-hinge";
-  if (family === "posterior_chain") return "back-extension";
-  if (family === "toes_to_bar") return id.includes("kip") ? "toes-to-bar-kip" : "toes-to-bar";
-  if (family === "l_sit") return id === "v_sit" ? "v-sit" : "l-sit";
-  if (family === "hollow") return "hollow";
-  if (id.includes("jefferson")) return "jefferson-curl";
-  if (family === "side_split") {
-    if (id.includes("frog")) return "frog-stretch";
-    if (id.includes("horse")) return "horse-stance";
-    if (id.includes("iso")) return "side-split-hold";
-    return "side-split-squat";
-  }
-  if (family === "pancake") {
-    if (id.includes("good_morning") || id.includes("straddle_good_morning")) return "pancake-good-morning";
-    return "pancake-hold";
-  }
-  if (family === "mobility_strength") {
-    if (id.includes("straddle")) return "straddle-fold";
-    if (id.includes("seated")) return "seated-good-morning";
-    if (id.includes("tiptoe")) return "tiptoe-squat";
-    if (id.includes("cossack")) return "cossack-squat";
-    return "good-morning";
-  }
-  return "generic";
+  return slugify(exercise?.icon || exercise?.category || "exercise");
 }
 
-function denseExerciseIconTier(exercise = {}) {
-  const progression = denseExerciseIconProgression(exercise);
-  if (!progression) return "";
-  const order = ["tuck", "one_quarter", "adv_tuck", "one_leg", "straddle", "half", "three_quarter", "full"];
-  return String(order.indexOf(progression) + 1 || "");
-}
-
-function denseExerciseIconProgression(exercise = {}) {
-  const match = String(exercise.id || "").match(/_(tuck|one_quarter|adv_tuck|one_leg|straddle|half|three_quarter|full)(?:_pull)?$/);
-  return match?.[1] || "";
-}
-
-const denseExactIconKeys = {
-  pull_up: "pull-up",
-  weighted_pull_up: "weighted-pull-up",
-  chin_up: "chin-up",
-  ring_dip: "ring-dip",
-  weighted_ring_dip: "weighted-ring-dip",
-  parallel_bar_dip: "parallel-dip",
-  weighted_parallel_bar_dip: "weighted-parallel-dip",
-  ring_push_up: "ring-push-up",
-  ring_row: "ring-row",
-  floor_push_up: "floor-push-up",
-  clap_push_up: "clap-push-up",
-  deficit_push_up: "deficit-push-up",
-  bench_press: "bench-press",
-  military_press: "barbell-overhead-press",
-  seated_db_overhead_press: "seated-db-press",
-  pike_push_up: "pike-push-up",
-  headstand_push_up: "headstand-push-up",
-  full_rom_hspu: "full-rom-hspu",
-  straight_handstand: "straight-handstand",
-  straddle_handstand: "straddle-handstand",
-  press_to_handstand: "press-to-handstand",
-  bridge_push_up: "bridge-push-up",
-  bridge_isometric: "bridge-isometric",
-  bridge_walkover: "bridge-walkover",
-  tiptoe_squat: "tiptoe-squat",
-  air_squat: "air-squat",
-  pistol_squat: "pistol-squat",
-  atg_split_squat: "atg-split-squat",
-  weighted_atg_split_squat: "weighted-atg-split-squat",
-  bulgarian_split_squat: "bulgarian-split-squat",
-  cossack_squat: "cossack-squat",
-  back_squat: "back-squat",
-  front_squat: "front-squat",
-  sissy_squat: "sissy-squat",
-  natural_leg_extension: "natural-leg-extension",
-  machine_leg_extension: "machine-leg-extension",
-  machine_leg_curl: "machine-leg-curl",
-  deadlift: "deadlift",
-  single_leg_good_morning: "single-leg-good-morning",
-  seated_bent_leg_good_morning: "seated-good-morning",
-  back_extension: "back-extension",
-  nordic_curl: "nordic-curl",
-  toes_to_bar_strict: "toes-to-bar",
-  toes_to_bar_kip: "toes-to-bar-kip",
-  cuelgue_passive_bilateral: "passive-hang",
-  cuelgue_active: "active-hang",
-  cuelgue_active_ig: "active-hang",
-  cuelgue_passive_one_hand: "one-arm-passive-hang",
-  cuelgue_active_one_hand: "one-arm-active-hang",
-  l_sit_tuck: "tuck-l-sit",
-  l_sit_one_leg: "one-leg-l-sit",
-  l_sit: "l-sit",
-  l_sit_straddle: "straddle-l-sit",
-  v_sit: "v-sit",
-  hollow_body_hold: "hollow-body",
-  frog_stretch: "frog-stretch",
-  horse_stance_hold: "horse-stance",
-  side_split_squat: "side-split-squat",
-  side_split_iso: "side-split-iso",
-  pancake_hold: "pancake-hold",
-  straddle_good_morning: "straddle-good-morning",
-  pancake_good_morning: "pancake-good-morning",
-  jefferson_curl: "jefferson-curl",
-  straddle_jefferson_curl: "straddle-jefferson-curl",
-};
-
-function denseExerciseIconKey(exercise = {}, slug = "") {
-  const id = exercise.id || "";
-  const family = exercise.family || "";
-  if (denseExactIconKeys[id]) return denseExactIconKeys[id];
-  const progression = denseExerciseIconProgression(exercise);
-  if (family === "front_lever" || family === "front_lever_pull") return `front-lever-${progression || "base"}${family.endsWith("_pull") ? "-pull" : ""}`;
-  if (family === "back_lever" || family === "back_lever_pull") return `back-lever-${progression || "base"}${family.endsWith("_pull") ? "-pull" : ""}`;
-  if (slug.includes("weighted")) return slug;
-  if (family === "strict_pull") return "pull";
-  if (family === "cuelgue") return id.includes("one_hand") ? "one-arm-hang" : id.includes("active") ? "active-hang" : "hang";
-  if (family === "horizontal_pull") return "row";
-  if (family === "strict_dip" || family === "parallel_dip") return "dip";
-  if (family === "ring_push") return "ring-push";
-  if (family === "pushup") return id.includes("clap") ? "clap-push" : id.includes("deficit") ? "deficit-push" : "push";
-  if (family === "bench_press") return "bench";
-  if (id === "seated_db_overhead_press") return "db-press";
-  if (family === "accessory") return "overhead";
-  if (family === "hspu") return id === "pike_push_up" ? "pike" : "hspu";
-  if (family === "handstand") return id.includes("press_to") ? "press-handstand" : "handstand";
-  if (family === "bridge") return id.includes("walkover") ? "bridge-walkover" : id.includes("isometric") ? "bridge-hold" : "bridge";
-  if (family === "front_lever" || family === "front_lever_pull") return family.endsWith("_pull") ? "front-lever-pull" : "front-lever";
-  if (family === "back_lever" || family === "back_lever_pull") return family.endsWith("_pull") ? "back-lever-pull" : "back-lever";
-  if (family === "squat_weighted") return id.includes("front") ? "front-squat" : "barbell-squat";
-  if (family === "squat_bodyweight") return "squat";
-  if (family === "single_leg_squat" || family === "atg_split_squat") return id.includes("pistol") ? "pistol" : "split-squat";
-  if (family === "knee_dominant") return id.includes("sissy") ? "sissy" : "natural-leg-extension";
-  if (family === "knee_isolation") return "leg-extension";
-  if (family === "hamstring_isolation") return "leg-curl";
-  if (family === "hinge_weighted") return "deadlift";
-  if (family === "hinge_bodyweight") return id.includes("nordic") ? "nordic" : "single-leg-hinge";
-  if (family === "posterior_chain") return "back-extension";
-  if (family === "toes_to_bar") return id.includes("kip") ? "toes-kip" : "toes";
-  if (family === "l_sit") return id === "v_sit" ? "v-sit" : id.includes("straddle") ? "straddle-l-sit" : "l-sit";
-  if (family === "hollow") return "hollow";
-  if (family === "side_split") return id.includes("horse") ? "horse" : id.includes("frog") ? "frog" : "side-split";
-  if (family === "pancake") return id.includes("good_morning") || id.includes("jefferson") ? "pancake-rep" : "pancake";
-  if (family === "mobility_strength") {
-    if (id.includes("tiptoe")) return "tiptoe";
-    if (id.includes("cossack")) return "cossack";
-    if (id.includes("jefferson")) return "jefferson";
-    if (id.includes("seated")) return "seated-good-morning";
-    return "good-morning";
-  }
-  return "generic";
-}
-
-function denseIconShapeKey(key = "") {
-  if (key.startsWith("front-lever-")) return key.endsWith("-pull") ? "front-lever-pull" : "front-lever";
-  if (key.startsWith("back-lever-")) return key.endsWith("-pull") ? "back-lever-pull" : "back-lever";
-  const aliases = {
-    "pull-up": "pull",
-    "weighted-pull-up": "weighted-pull",
-    "passive-hang": "hang",
-    "one-arm-passive-hang": "one-arm-hang",
-    "one-arm-active-hang": "one-arm-hang",
-    "ring-row": "row",
-    "ring-push-up": "ring-push",
-    "floor-push-up": "push",
-    "clap-push-up": "clap-push",
-    "deficit-push-up": "deficit-push",
-    "bench-press": "bench",
-    "barbell-overhead-press": "overhead",
-    "seated-db-press": "db-press",
-    "pike-push-up": "pike",
-    "headstand-push-up": "hspu",
-    "straight-handstand": "handstand",
-    "press-to-handstand": "press-handstand",
-    "bridge-push-up": "bridge",
-    "bridge-isometric": "bridge-hold",
-    "tiptoe-squat": "tiptoe",
-    "air-squat": "squat",
-    "pistol-squat": "pistol",
-    "atg-split-squat": "split-squat",
-    "weighted-atg-split-squat": "split-squat",
-    "bulgarian-split-squat": "split-squat",
-    "cossack-squat": "cossack",
-    "back-squat": "barbell-squat",
-    "machine-leg-extension": "leg-extension",
-    "machine-leg-curl": "leg-curl",
-    "single-leg-good-morning": "single-leg-hinge",
-    "seated-good-morning": "seated-good-morning",
-    "back-extension": "back-extension",
-    "nordic-curl": "nordic",
-    "toes-to-bar": "toes",
-    "toes-to-bar-kip": "toes-kip",
-    "tuck-l-sit": "tuck-l-sit",
-    "one-leg-l-sit": "one-leg-l-sit",
-    "hollow-body": "hollow",
-    "frog-stretch": "frog",
-    "horse-stance": "horse",
-    "side-split-squat": "side-split",
-    "side-split-iso": "side-split",
-    "pancake-hold": "pancake",
-    "straddle-good-morning": "pancake-rep",
-    "pancake-good-morning": "pancake-rep",
-    "jefferson-curl": "jefferson",
-    "straddle-jefferson-curl": "pancake-rep",
-  };
-  return aliases[key] || key;
-}
-
-function densePoint(value) {
-  return Array.isArray(value) ? `${value[0]} ${value[1]}` : "";
-}
-
-function denseLine(a, b, className = "icon-bone") {
-  if (!a || !b) return "";
-  return `<path class="${className}" d="M${densePoint(a)}L${densePoint(b)}"/>`;
-}
-
-function denseCircle(point, radius = 1.45, className = "icon-joint") {
-  if (!point) return "";
-  return `<circle class="${className}" cx="${point[0]}" cy="${point[1]}" r="${radius}"/>`;
-}
-
-function denseArticulatedFigure(pose = {}) {
-  const neck = pose.neck || [16, 12];
-  const head = pose.head || [16, 8.5];
-  const lShoulder = pose.lShoulder || [12, 13];
-  const rShoulder = pose.rShoulder || [20, 13];
-  const lHip = pose.lHip || [14, 21];
-  const rHip = pose.rHip || [18, 21];
-  const pelvis = pose.pelvis || [(lHip[0] + rHip[0]) / 2, (lHip[1] + rHip[1]) / 2];
-  const chest = pose.chest || [(lShoulder[0] + rShoulder[0]) / 2, (lShoulder[1] + rShoulder[1]) / 2];
-  const joints = [lShoulder, rShoulder, pose.lElbow, pose.rElbow, pose.lHand, pose.rHand, lHip, rHip, pose.lKnee, pose.rKnee, pose.lFoot, pose.rFoot].filter(Boolean);
-  return `
-    ${denseLine(lShoulder, rShoulder, "icon-scapula")}
-    ${denseLine(lHip, rHip, "icon-pelvis")}
-    ${denseLine(chest, pelvis, "icon-spine")}
-    ${denseLine(lShoulder, pose.lElbow)}
-    ${denseLine(pose.lElbow, pose.lHand)}
-    ${denseLine(rShoulder, pose.rElbow)}
-    ${denseLine(pose.rElbow, pose.rHand)}
-    ${denseLine(lHip, pose.lKnee)}
-    ${denseLine(pose.lKnee, pose.lFoot)}
-    ${denseLine(rHip, pose.rKnee)}
-    ${denseLine(pose.rKnee, pose.rFoot)}
-    ${denseCircle(head, pose.headRadius || 2.15, "icon-head")}
-    ${denseCircle(lShoulder)}${denseCircle(rShoulder)}
-    ${denseCircle(lHip)}${denseCircle(rHip)}
-    ${joints.map((joint) => denseCircle(joint, 0.78, "icon-joint")).join("")}
-  `;
-}
-
-function denseLoadGlyph(exercise = {}) {
-  const loaded = exercise.nature === "weighted" || exercise.nature === "weighted_calisthenics" || String(exercise.id || "").includes("weighted");
-  return loaded ? `<circle cx="24" cy="24" r="3.2" class="icon-plate"/><path d="M24 20.8v6.4M20.8 24h6.4" class="icon-plate-line"/>` : "";
-}
-
-function denseArticulatedIconSvg(shapeKey, key, exercise = {}) {
-  const load = denseLoadGlyph(exercise);
-  const bar = `<path d="M6 7h20" class="icon-apparatus"/>`;
-  const floor = `<path d="M6 25h20" class="icon-apparatus"/>`;
-  const rings = `<path d="M9 6v6M23 6v6" class="icon-apparatus"/><circle cx="9" cy="13" r="2.3" class="icon-apparatus"/><circle cx="23" cy="13" r="2.3" class="icon-apparatus"/>`;
-  const parallel = `<path d="M9 8v17M23 8v17" class="icon-apparatus"/><path d="M9 13h14" class="icon-apparatus"/>`;
-  const bench = `<path d="M8 21h16M10 18h12" class="icon-apparatus"/><path d="M8 11h18" class="icon-apparatus"/>`;
-  const dumbbells = `<path d="M8 8l4 4M24 8l-4 4" class="icon-apparatus"/><circle cx="8" cy="8" r="1.7" class="icon-plate"/><circle cx="24" cy="8" r="1.7" class="icon-plate"/>`;
-  const barbellLow = `<path d="M6 23h20" class="icon-apparatus"/><circle cx="6" cy="23" r="2.4" class="icon-plate"/><circle cx="26" cy="23" r="2.4" class="icon-plate"/>`;
-  const barbellShoulder = `<path d="M7 10h18" class="icon-apparatus"/><circle cx="7" cy="10" r="1.7" class="icon-plate"/><circle cx="25" cy="10" r="1.7" class="icon-plate"/>`;
-  const arrow = `<path d="M24 8l3 3-3 3" class="icon-motion"/>`;
-
-  switch (shapeKey) {
-    case "weighted-pull":
-    case "pull":
-      return `${bar}${denseArticulatedFigure({ head: [16, 12], lShoulder: [12, 14], rShoulder: [20, 14], lElbow: [11, 10], rElbow: [21, 10], lHand: [10, 7], rHand: [22, 7], lHip: [14, 21], rHip: [18, 21], lKnee: [15, 26], rKnee: [18, 25], lFoot: [14, 29], rFoot: [19, 28] })}${load}`;
-    case "chin-up":
-      return `${bar}${denseArticulatedFigure({ head: [16, 11.5], lShoulder: [12, 14], rShoulder: [20, 14], lElbow: [13, 10], rElbow: [19, 10], lHand: [12, 7], rHand: [20, 7], lHip: [14, 21], rHip: [18, 21], lKnee: [15, 26], rKnee: [18, 26], lFoot: [14, 29], rFoot: [19, 29] })}`;
-    case "hang":
-    case "active-hang":
-      return `${bar}${denseArticulatedFigure({ head: [16, 14], lShoulder: [12, 16], rShoulder: [20, 16], lElbow: [11, 11], rElbow: [21, 11], lHand: [10, 7], rHand: [22, 7], lHip: [14, 23], rHip: [18, 23], lKnee: [14, 28], rKnee: [18, 28], lFoot: [13, 30], rFoot: [19, 30] })}${shapeKey === "active-hang" ? '<path d="M11 17c3 2 7 2 10 0" class="icon-motion"/>' : ""}`;
-    case "one-arm-hang":
-      return `${bar}${denseArticulatedFigure({ head: [16, 13], lShoulder: [12, 15], rShoulder: [20, 15], lElbow: [16, 11], lHand: [16, 7], rElbow: [23, 18], rHand: [25, 20], lHip: [14, 23], rHip: [18, 23], lKnee: [13, 28], rKnee: [19, 28], lFoot: [12, 30], rFoot: [20, 30] })}`;
-    case "row":
-      return `${rings}${denseArticulatedFigure({ head: [15, 18], lShoulder: [11, 19], rShoulder: [18, 20], lElbow: [10, 16], rElbow: [21, 16], lHand: [9, 13], rHand: [23, 13], lHip: [22, 22], rHip: [25, 23], lKnee: [27, 24], rKnee: [29, 25], lFoot: [29, 25], rFoot: [30, 26] })}`;
-    case "ring-dip":
-    case "weighted-ring-dip":
-      return `${rings}${denseArticulatedFigure({ head: [16, 12], lShoulder: [12, 14], rShoulder: [20, 14], lElbow: [10, 16], rElbow: [22, 16], lHand: [9, 13], rHand: [23, 13], lHip: [14, 21], rHip: [18, 21], lKnee: [14, 26], rKnee: [18, 26], lFoot: [13, 29], rFoot: [19, 29] })}${load}`;
-    case "parallel-dip":
-    case "weighted-parallel-dip":
-      return `${parallel}${denseArticulatedFigure({ head: [16, 11], lShoulder: [12, 14], rShoulder: [20, 14], lElbow: [10, 16], rElbow: [22, 16], lHand: [9, 13], rHand: [23, 13], lHip: [14, 22], rHip: [18, 22], lKnee: [14, 27], rKnee: [18, 27], lFoot: [13, 29], rFoot: [19, 29] })}${load}`;
-    case "ring-push":
-      return `${rings}${floor}${denseArticulatedFigure({ head: [21, 15], lShoulder: [15, 16], rShoulder: [20, 17], lElbow: [12, 19], rElbow: [23, 20], lHand: [9, 13], rHand: [23, 13], lHip: [10, 22], rHip: [13, 22], lKnee: [7, 24], rKnee: [9, 24], lFoot: [6, 25], rFoot: [8, 25] })}`;
-    case "clap-push":
-    case "deficit-push":
-    case "push":
-      return `${floor}${denseArticulatedFigure({ head: [21, 15], lShoulder: [15, 16], rShoulder: [20, 17], lElbow: [12, 20], rElbow: [23, 20], lHand: [9, 24], rHand: [25, 24], lHip: [10, 22], rHip: [13, 22], lKnee: [7, 24], rKnee: [9, 24], lFoot: [6, 25], rFoot: [8, 25] })}${shapeKey === "clap-push" ? '<path d="M13 9l2 2M20 9l-2 2" class="icon-motion"/>' : ""}`;
-    case "bench":
-      return `${bench}${denseArticulatedFigure({ head: [16, 16], lShoulder: [12, 16], rShoulder: [20, 16], lElbow: [11, 12], rElbow: [21, 12], lHand: [9, 11], rHand: [23, 11], lHip: [13, 20], rHip: [19, 20], lKnee: [12, 25], rKnee: [22, 25], lFoot: [10, 25], rFoot: [24, 25] })}`;
-    case "overhead":
-      return `${barbellShoulder}${denseArticulatedFigure({ head: [16, 14], lShoulder: [12, 16], rShoulder: [20, 16], lElbow: [11, 11], rElbow: [21, 11], lHand: [8, 10], rHand: [24, 10], lHip: [14, 23], rHip: [18, 23], lKnee: [13, 29], rKnee: [19, 29], lFoot: [12, 30], rFoot: [20, 30] })}`;
-    case "db-press":
-      return `${dumbbells}${denseArticulatedFigure({ head: [16, 15], lShoulder: [12, 17], rShoulder: [20, 17], lElbow: [10, 12], rElbow: [22, 12], lHand: [8, 8], rHand: [24, 8], lHip: [14, 24], rHip: [18, 24], lKnee: [12, 29], rKnee: [20, 29], lFoot: [11, 30], rFoot: [21, 30] })}`;
-    case "pike":
-      return `${floor}${denseArticulatedFigure({ head: [20, 21], lShoulder: [15, 22], rShoulder: [20, 22], lElbow: [12, 24], rElbow: [23, 24], lHand: [9, 25], rHand: [25, 25], lHip: [14, 12], rHip: [17, 12], lKnee: [10, 19], rKnee: [20, 19], lFoot: [8, 25], rFoot: [22, 25] })}`;
-    case "hspu":
-    case "full-rom-hspu":
-    case "handstand":
-    case "press-handstand":
-      return `${floor}${denseArticulatedFigure({ head: [16, 23], lShoulder: [12, 21], rShoulder: [20, 21], lElbow: [10, 24], rElbow: [22, 24], lHand: [8, 25], rHand: [24, 25], lHip: [14, 14], rHip: [18, 14], lKnee: [14, 8], rKnee: [18, 8], lFoot: [14, 5], rFoot: [18, 5] })}${shapeKey === "press-handstand" ? arrow : ""}`;
-    case "straddle-handstand":
-      return `${floor}${denseArticulatedFigure({ head: [16, 23], lShoulder: [12, 21], rShoulder: [20, 21], lElbow: [10, 24], rElbow: [22, 24], lHand: [8, 25], rHand: [24, 25], lHip: [14, 14], rHip: [18, 14], lKnee: [9, 9], rKnee: [23, 9], lFoot: [6, 7], rFoot: [26, 7] })}`;
-    case "bridge":
-    case "bridge-hold":
-    case "bridge-walkover":
-      return `${floor}${denseArticulatedFigure({ head: [23, 20], lShoulder: [16, 18], rShoulder: [21, 18], lElbow: [11, 22], rElbow: [25, 23], lHand: [8, 25], rHand: [26, 25], lHip: [13, 15], rHip: [17, 15], lKnee: [9, 20], rKnee: [19, 21], lFoot: [7, 25], rFoot: [20, 25] })}`;
-    case "front-lever":
-    case "front-lever-pull":
-      return `${bar}${denseArticulatedFigure({ head: [13, 16], lShoulder: [10, 16], rShoulder: [15, 16], lElbow: [9, 11], rElbow: [16, 11], lHand: [9, 7], rHand: [17, 7], lHip: [20, 17], rHip: [24, 17], lKnee: [27, 17], rKnee: [29, 17], lFoot: [30, 17], rFoot: [31, 17] })}${shapeKey.endsWith("pull") ? arrow : ""}`;
-    case "back-lever":
-    case "back-lever-pull":
-      return `${bar}${denseArticulatedFigure({ head: [19, 16], lShoulder: [17, 16], rShoulder: [22, 16], lElbow: [16, 11], rElbow: [23, 11], lHand: [15, 7], rHand: [23, 7], lHip: [10, 17], rHip: [7, 17], lKnee: [4, 17], rKnee: [2, 17], lFoot: [1, 17], rFoot: [0, 17] })}${shapeKey.endsWith("pull") ? arrow : ""}`;
-    case "barbell-squat":
-    case "front-squat":
-      return `${barbellShoulder}${denseArticulatedFigure({ head: [16, 13], lShoulder: [12, 15], rShoulder: [20, 15], lElbow: [10, 11], rElbow: [22, 11], lHand: [8, 10], rHand: [24, 10], lHip: [13, 22], rHip: [19, 22], lKnee: [10, 27], rKnee: [22, 27], lFoot: [8, 29], rFoot: [24, 29] })}`;
-    case "tiptoe":
-    case "squat":
-      return `${floor}${denseArticulatedFigure({ head: [16, 10], lShoulder: [12, 13], rShoulder: [20, 13], lElbow: [10, 14], rElbow: [22, 14], lHand: [8, 14], rHand: [24, 14], lHip: [13, 20], rHip: [19, 20], lKnee: [10, 25], rKnee: [22, 25], lFoot: [8, 25], rFoot: [24, 25] })}`;
-    case "pistol":
-      return `${floor}${denseArticulatedFigure({ head: [14, 9], lShoulder: [11, 12], rShoulder: [17, 12], lElbow: [8, 13], rElbow: [20, 13], lHand: [6, 13], rHand: [23, 13], lHip: [12, 20], rHip: [16, 20], lKnee: [10, 25], rKnee: [24, 21], lFoot: [9, 25], rFoot: [27, 21] })}`;
-    case "split-squat":
-    case "cossack":
-      return `${floor}${denseArticulatedFigure({ head: [15, 9], lShoulder: [12, 12], rShoulder: [18, 12], lElbow: [11, 16], rElbow: [19, 16], lHand: [10, 19], rHand: [20, 19], lHip: [13, 20], rHip: [17, 20], lKnee: [9, 25], rKnee: [24, 25], lFoot: [7, 25], rFoot: [27, 25] })}`;
-    case "deadlift":
-      return `${barbellLow}${denseArticulatedFigure({ head: [15, 9], lShoulder: [12, 12], rShoulder: [18, 12], lElbow: [11, 18], rElbow: [20, 18], lHand: [10, 23], rHand: [22, 23], lHip: [13, 20], rHip: [18, 20], lKnee: [12, 25], rKnee: [20, 25], lFoot: [10, 27], rFoot: [22, 27] })}`;
-    case "single-leg-hinge":
-    case "back-extension":
-    case "nordic":
-      return `${floor}${denseArticulatedFigure({ head: [13, 13], lShoulder: [10, 15], rShoulder: [16, 15], lElbow: [9, 19], rElbow: [17, 19], lHand: [8, 22], rHand: [18, 22], lHip: [19, 18], rHip: [23, 19], lKnee: [25, 22], rKnee: [28, 23], lFoot: [27, 25], rFoot: [30, 25] })}`;
-    case "leg-extension":
-    case "leg-curl":
-      return `<path d="M8 12h11v7H8z" class="icon-apparatus"/>${denseArticulatedFigure({ head: [13, 9], lShoulder: [10, 12], rShoulder: [16, 12], lElbow: [9, 16], rElbow: [17, 16], lHand: [8, 18], rHand: [18, 18], lHip: [11, 19], rHip: [17, 19], lKnee: [22, 21], rKnee: [24, 22], lFoot: [27, 22], rFoot: [28, 22] })}`;
-    case "toes":
-    case "toes-kip":
-      return `${bar}${denseArticulatedFigure({ head: [16, 13], lShoulder: [12, 15], rShoulder: [20, 15], lElbow: [11, 11], rElbow: [21, 11], lHand: [10, 7], rHand: [22, 7], lHip: [14, 21], rHip: [18, 21], lKnee: [11, 14], rKnee: [21, 14], lFoot: [9, 8], rFoot: [23, 8] })}`;
-    case "l-sit":
-    case "tuck-l-sit":
-    case "one-leg-l-sit":
-    case "straddle-l-sit":
-    case "v-sit":
-      return `${floor}${denseArticulatedFigure({ head: [13, 11], lShoulder: [10, 14], rShoulder: [16, 14], lElbow: [9, 20], rElbow: [17, 20], lHand: [8, 24], rHand: [18, 24], lHip: [12, 22], rHip: [16, 22], lKnee: shapeKey === "v-sit" ? [22, 14] : shapeKey === "tuck-l-sit" ? [20, 20] : [22, 22], rKnee: shapeKey === "straddle-l-sit" ? [6, 22] : [23, 22], lFoot: shapeKey === "v-sit" ? [26, 9] : [27, 22], rFoot: shapeKey === "straddle-l-sit" ? [4, 22] : [28, 22] })}`;
-    case "hollow":
-      return `${floor}${denseArticulatedFigure({ head: [11, 18], lShoulder: [13, 18], rShoulder: [18, 18], lElbow: [8, 14], rElbow: [21, 15], lHand: [6, 12], rHand: [24, 13], lHip: [19, 20], rHip: [23, 20], lKnee: [25, 18], rKnee: [27, 17], lFoot: [28, 15], rFoot: [30, 14] })}`;
-    case "frog":
-    case "horse":
-    case "side-split":
-    case "pancake":
-    case "pancake-rep":
-      return `${floor}${denseArticulatedFigure({ head: [16, 9], lShoulder: [12, 12], rShoulder: [20, 12], lElbow: [10, 16], rElbow: [22, 16], lHand: [9, 20], rHand: [23, 20], lHip: [13, 19], rHip: [19, 19], lKnee: [8, 24], rKnee: [24, 24], lFoot: [5, 25], rFoot: [27, 25] })}`;
-    case "jefferson":
-    case "seated-good-morning":
-    case "good-morning":
-      return `${floor}${denseArticulatedFigure({ head: [14, 12], lShoulder: [11, 14], rShoulder: [17, 14], lElbow: [10, 19], rElbow: [18, 19], lHand: [9, 23], rHand: [19, 23], lHip: [16, 20], rHip: [21, 20], lKnee: [16, 25], rKnee: [22, 25], lFoot: [15, 26], rFoot: [23, 26] })}`;
-    default:
-      return `${denseArticulatedFigure({ lElbow: [10, 16], rElbow: [22, 16], lHand: [8, 19], rHand: [24, 19], lKnee: [13, 25], rKnee: [19, 25], lFoot: [12, 28], rFoot: [20, 28] })}`;
-  }
-}
-
-function denseExerciseIconSvg(key, exercise = {}) {
-  const shapeKey = denseIconShapeKey(key);
-  const loaded = exercise.nature === "weighted" || exercise.nature === "weighted_calisthenics" || String(exercise.id || "").includes("weighted");
-  const reps = exercise.isometric ? '<path d="M8 24h16" class="icon-faint"/>' : '<path d="M24 8l3 3-3 3" class="icon-accent"/>';
-  const load = loaded ? '<rect x="22" y="20" width="6" height="6" rx="1.5" class="icon-fill"/>' : "";
-  return denseArticulatedIconSvg(shapeKey, key, exercise);
-  switch (shapeKey) {
-    case "weighted-pull":
-    case "pull":
-      return `<path d="M7 7h18"/><path d="M12 8l3 6 2 7"/><path d="M20 8l-3 6"/><circle cx="16" cy="12" r="2.1"/><path d="M14 22h5"/>${load}`;
-    case "chin-up":
-      return `<path d="M7 7h18"/><path d="M13 8l2 6 2 7"/><path d="M19 8l-2 6"/><circle cx="16" cy="12" r="2.1"/><path d="M12 8h8"/><path d="M13 22h6"/>`;
-    case "active-hang":
-    case "hang":
-      return `<path d="M7 7h18"/><circle cx="16" cy="13" r="2"/><path d="M12 8l4 7 4-7"/><path d="M16 15v8"/><path d="M13 24h6" class="icon-faint"/>`;
-    case "one-arm-hang":
-      return `<path d="M7 7h18"/><circle cx="16" cy="13" r="2"/><path d="M16 8v7"/><path d="M16 15l-4 5"/><path d="M16 15l4 5"/><path d="M13 24h6" class="icon-faint"/>`;
-    case "row":
-      return `<circle cx="9" cy="8" r="2.2"/><circle cx="23" cy="8" r="2.2"/><path d="M10 10l5 7 8-7"/><path d="M8 23h16"/><path d="M12 19h10"/>`;
-    case "weighted-ring-dip":
-    case "ring-dip":
-    case "dip":
-      return `<path d="M9 7v17M23 7v17"/><circle cx="16" cy="10" r="2"/><path d="M11 11l5 5 5-5"/><path d="M16 16v7"/>${load}`;
-    case "weighted-parallel-dip":
-    case "parallel-dip":
-      return `<path d="M9 8v16M23 8v16"/><path d="M9 12h14"/><circle cx="16" cy="10" r="2"/><path d="M11 13l5 5 5-5"/><path d="M16 18v6"/>${load}`;
-    case "ring-push":
-      return `<circle cx="9" cy="21" r="2"/><circle cx="23" cy="21" r="2"/><path d="M8 18h17"/><circle cx="18" cy="14" r="2"/><path d="M11 18l7-4 7 4"/>`;
-    case "clap-push":
-      return `<path d="M7 23h18"/><path d="M9 17h15"/><circle cx="17" cy="12" r="2"/><path d="M11 17l6-5 7 5"/><path d="M12 8l2 2M20 8l-2 2" class="icon-accent"/>`;
-    case "deficit-push":
-    case "push":
-      return `<path d="M7 23h18"/><path d="M9 18h15"/><circle cx="18" cy="13" r="2"/><path d="M11 18l7-5 7 5"/>`;
-    case "bench":
-      return `<path d="M7 11h18"/><path d="M9 20h14"/><path d="M11 18h10"/><circle cx="16" cy="15" r="2"/><path d="M11 15h10"/><path d="M8 9v4M24 9v4"/>`;
-    case "db-press":
-      return `<circle cx="16" cy="17" r="2"/><path d="M16 19v6"/><path d="M11 12l5 5 5-5"/><path d="M9 10l4-4M23 10l-4-4"/><path d="M7 8l4 4M25 8l-4 4"/>`;
-    case "overhead":
-      return `<path d="M8 7h16"/><circle cx="16" cy="14" r="2"/><path d="M10 8l6 6 6-6"/><path d="M16 16v9"/>`;
-    case "pike":
-      return `<path d="M7 24h18"/><circle cx="16" cy="17" r="2"/><path d="M9 22l7-5 7 5"/><path d="M16 17l4-9"/><path d="M16 17l-4-9"/>`;
-    case "hspu":
-      return `<path d="M8 25h16"/><circle cx="16" cy="21" r="2"/><path d="M12 20h8"/><path d="M14 19V8M18 19V8"/><path d="M12 8h8"/>`;
-    case "full-rom-hspu":
-      return `<path d="M7 25h6M19 25h6"/><circle cx="16" cy="22" r="2"/><path d="M12 21h8"/><path d="M14 20V7M18 20V7"/><path d="M11 7h10"/>`;
-    case "press-handstand":
-    case "handstand":
-      return `<path d="M8 25h16"/><circle cx="16" cy="21" r="2"/><path d="M12 20h8"/><path d="M16 19V9"/><path d="M12 9l4 5 4-5"/>`;
-    case "straddle-handstand":
-      return `<path d="M8 25h16"/><circle cx="16" cy="21" r="2"/><path d="M12 20h8"/><path d="M16 19V12"/><path d="M16 12L9 7M16 12l7-5"/>`;
-    case "bridge-walkover":
-      return `<path d="M7 24c2-9 16-9 18 0"/><path d="M8 24h4M20 24h5"/><circle cx="17" cy="14" r="2"/><path d="M12 21l5-7 4 7"/><path d="M23 12l3-3" class="icon-accent"/>`;
-    case "bridge-hold":
-    case "bridge":
-      return `<path d="M7 24c2-9 16-9 18 0"/><path d="M8 24h4M20 24h5"/><circle cx="16" cy="14" r="2"/><path d="M12 21l4-7 4 7"/>${reps}`;
-    case "front-lever-pull":
-    case "front-lever":
-      return `<path d="M7 8h18"/><path d="M10 8l5 8h10"/><circle cx="16" cy="16" r="2"/><path d="M15 16h10"/><path d="M13 16l-3 5"/>${key.endsWith("pull") ? reps : ""}`;
-    case "back-lever-pull":
-    case "back-lever":
-      return `<path d="M7 8h18"/><path d="M22 8l-5 8H7"/><circle cx="16" cy="16" r="2"/><path d="M7 16h10"/><path d="M19 16l3 5"/>${key.endsWith("pull") ? reps : ""}`;
-    case "barbell-squat":
-    case "front-squat":
-      return `<path d="M8 9h16"/><circle cx="16" cy="13" r="2"/><path d="M11 13h10"/><path d="M16 15l-4 8h8l-4-8"/><path d="M10 24h12"/>`;
-    case "tiptoe":
-    case "squat":
-      return `<circle cx="16" cy="10" r="2"/><path d="M16 12v5"/><path d="M10 18h12"/><path d="M12 18l-3 6M20 18l3 6"/><path d="M10 24h14"/>`;
-    case "split-squat":
-    case "pistol":
-      return `<circle cx="15" cy="9" r="2"/><path d="M15 11v6"/><path d="M15 17l-6 7"/><path d="M15 17h10"/><path d="M8 24h7"/>`;
-    case "cossack":
-      return `<circle cx="14" cy="10" r="2"/><path d="M14 12v6"/><path d="M14 18l-6 6"/><path d="M14 18h11"/><path d="M8 24h17"/>`;
-    case "sissy":
-    case "natural-leg-extension":
-      return `<circle cx="13" cy="9" r="2"/><path d="M13 11l5 7"/><path d="M18 18l5 5"/><path d="M9 22h14"/><path d="M10 14l3-3"/>`;
-    case "leg-extension":
-    case "leg-curl":
-      return `<path d="M9 9h10v7H9z"/><path d="M19 15l5 4"/><circle cx="25" cy="20" r="2"/><path d="M9 16v8"/>`;
-    case "deadlift":
-      return `<path d="M7 24h18"/><path d="M8 22h16"/><circle cx="16" cy="10" r="2"/><path d="M16 12l-4 8h8l-4-8"/><path d="M11 20h10"/>`;
-    case "nordic":
-    case "single-leg-hinge":
-    case "back-extension":
-      return `<path d="M8 24h17"/><circle cx="13" cy="11" r="2"/><path d="M13 13l7 6"/><path d="M10 20h10"/><path d="M12 14l-3 8"/>`;
-    case "toes-kip":
-    case "toes":
-      return `<path d="M7 7h18"/><circle cx="16" cy="13" r="2"/><path d="M12 8l4 7 4-7"/><path d="M16 15l6 6"/><path d="M16 15l-6 6"/>`;
-    case "v-sit":
-      return `<path d="M9 24h14"/><circle cx="13" cy="14" r="2"/><path d="M13 16v5"/><path d="M13 21l10-8"/><path d="M13 21h-3"/>`;
-    case "one-leg-l-sit":
-      return `<path d="M9 23h14"/><circle cx="14" cy="12" r="2"/><path d="M14 14v7"/><path d="M14 21h10"/><path d="M14 21l-4-4"/>`;
-    case "tuck-l-sit":
-      return `<path d="M9 23h14"/><circle cx="14" cy="12" r="2"/><path d="M14 14v7"/><path d="M14 21l6-3"/><path d="M10 21h4"/>`;
-    case "straddle-l-sit":
-      return `<path d="M9 23h14"/><circle cx="14" cy="12" r="2"/><path d="M14 14v7"/><path d="M14 21l10-3"/><path d="M14 21l-6-3"/>`;
-    case "l-sit":
-      return `<path d="M9 23h14"/><circle cx="14" cy="12" r="2"/><path d="M14 14v7"/><path d="M14 21h10"/><path d="M10 21h4"/>`;
-    case "hollow":
-      return `<path d="M8 20c5-6 11-6 16 0"/><circle cx="13" cy="17" r="1.8"/><path d="M9 15l3 2M20 17l4-3"/>`;
-    case "frog":
-      return `<circle cx="16" cy="10" r="2"/><path d="M16 12v6"/><path d="M16 18L8 23"/><path d="M16 18l8 5"/><path d="M8 23h16"/><path d="M10 18l-3 3M22 18l3 3"/>`;
-    case "horse":
-      return `<circle cx="16" cy="9" r="2"/><path d="M16 11v7"/><path d="M9 18h14"/><path d="M11 18l-2 6M21 18l2 6"/><path d="M8 24h16"/>`;
-    case "side-split":
-      return `<circle cx="16" cy="10" r="2"/><path d="M16 12v6"/><path d="M16 18L7 24"/><path d="M16 18l9 6"/><path d="M7 24h18"/>`;
-    case "pancake-rep":
-    case "pancake":
-      return `<circle cx="16" cy="10" r="2"/><path d="M16 12l-3 7"/><path d="M13 19H7"/><path d="M13 19h12"/><path d="M12 16l8 2"/>`;
-    case "jefferson":
-    case "seated-good-morning":
-    case "good-morning":
-      return `<circle cx="13" cy="10" r="2"/><path d="M13 12l6 6"/><path d="M9 22h14"/><path d="M12 17l-3 5"/><path d="M18 18l5 2"/>`;
-    default:
-      return `<circle cx="16" cy="16" r="8"/><path d="M16 10v12M10 16h12"/>`;
-  }
-}
-
-function denseExerciseIconAccentSvg(key, exercise = {}) {
+function denseExerciseIconTier() {
   return "";
-  const shapeKey = denseIconShapeKey(key);
-  const loaded = exercise.nature === "weighted" || exercise.nature === "weighted_calisthenics" || String(exercise.id || "").includes("weighted");
-  const load = loaded ? '<rect x="22" y="20" width="6" height="6" rx="1.5" class="icon-fill"/>' : "";
-  switch (shapeKey) {
-    case "weighted-pull":
-    case "pull":
-    case "chin-up":
-    case "active-hang":
-    case "hang":
-    case "one-arm-hang":
-    case "toes":
-    case "toes-kip":
-      return `<path d="M6.5 7h19" class="icon-glow"/>${load}`;
-    case "row":
-    case "ring-push":
-      return `<circle cx="9" cy="8" r="2.6" class="icon-glow"/><circle cx="23" cy="8" r="2.6" class="icon-glow"/>`;
-    case "weighted-ring-dip":
-    case "ring-dip":
-    case "dip":
-      return `<path d="M9 7v17M23 7v17" class="icon-glow"/>${load}`;
-    case "weighted-parallel-dip":
-    case "parallel-dip":
-      return `<path d="M9 7v17M23 7v17" class="icon-glow"/>${load}`;
-    case "clap-push":
-    case "deficit-push":
-    case "push":
-    case "pike":
-    case "hspu":
-    case "full-rom-hspu":
-    case "press-handstand":
-    case "handstand":
-    case "straddle-handstand":
-    case "bridge-walkover":
-    case "bridge-hold":
-    case "bridge":
-      return `<path d="M6.5 24.5h19" class="icon-glow"/>`;
-    case "bench":
-      return `<path d="M7 11h18M9 20h14" class="icon-glow"/>`;
-    case "db-press":
-      return `<path d="M9 10l4-4M23 10l-4-4M7 8l4 4M25 8l-4 4" class="icon-glow"/>`;
-    case "overhead":
-      return `<path d="M8 7h16" class="icon-glow"/>`;
-    case "front-lever-pull":
-    case "front-lever":
-    case "back-lever-pull":
-    case "back-lever":
-      return `<path d="M7 8h18" class="icon-glow"/>`;
-    case "barbell-squat":
-    case "front-squat":
-      return `<path d="M8 9h16" class="icon-glow"/>`;
-    case "deadlift":
-      return `<path d="M8 22h16" class="icon-glow"/><circle cx="7" cy="22" r="2" class="icon-glow"/><circle cx="25" cy="22" r="2" class="icon-glow"/>`;
-    case "leg-extension":
-    case "leg-curl":
-      return `<path d="M9 9h10v7H9z" class="icon-glow"/>`;
-    case "squat":
-    case "tiptoe":
-    case "split-squat":
-    case "pistol":
-    case "sissy":
-    case "natural-leg-extension":
-    case "nordic":
-    case "single-leg-hinge":
-    case "back-extension":
-    case "frog":
-    case "horse":
-    case "side-split":
-    case "cossack":
-    case "jefferson":
-    case "seated-good-morning":
-    case "good-morning":
-    case "pancake-rep":
-    case "pancake":
-    case "tuck-l-sit":
-    case "one-leg-l-sit":
-    case "l-sit":
-    case "straddle-l-sit":
-    case "v-sit":
-    case "hollow":
-      return `<path d="M7 24h18" class="icon-glow"/>`;
-    default:
-      return "";
-  }
+}
+
+function denseExerciseIconProgression() {
+  return "";
 }
 
 function denseExerciseIconMarkup(exerciseOrId, { color = "", className = "tiny-icon", state: visualState = "" } = {}) {
   const exercise = typeof exerciseOrId === "string" ? denseExerciseById(exerciseOrId) : exerciseOrId;
-  const slug = denseExerciseIconSlug(exercise || {});
-  const key = denseExerciseIconKey(exercise || {}, slug);
   const tint = color || denseCategoryColor(exercise?.category);
-  const tier = denseExerciseIconTier(exercise || {});
-  const progression = denseExerciseIconProgression(exercise || {});
-  const stateClass = visualState ? ` ex-state-${escapeAttr(visualState)}` : "";
+  const stateClass = visualState ? ` icon-state-${escapeAttr(visualState)}` : "";
+  const icon = exercise?.icon || "dumbbell";
   return `
-    <span class="${className} exercise-glyph ex-${escapeAttr(slug)}${stateClass}" style="--item-color:${tint}" data-tier="${escapeAttr(tier)}" data-progression="${escapeAttr(progression)}" data-icon-key="${escapeAttr(key)}" aria-hidden="true">
-      <svg class="exercise-glyph-svg" viewBox="0 0 32 32" focusable="false">
-        ${denseExerciseIconSvg(key, exercise || {})}
-        ${denseExerciseIconAccentSvg(key, exercise || {})}
-      </svg>
-      <b class="ex-badge"></b>
+    <span class="${className}${stateClass}" style="--item-color:${tint}" aria-hidden="true">
+      <i data-lucide="${escapeAttr(icon)}"></i>
     </span>
   `;
 }
-
 function denseNatureLabel(nature) {
   return denseNatureOptions.find(([value]) => value === nature)?.[1] || nature;
 }
@@ -9203,7 +8600,7 @@ function renderSelectedExerciseLog(exerciseId) {
           entries.length
             ? entries.map((entry) => selectedExerciseLogRow(entry)).join("")
             : `<article class="dense-selected-log-empty">
-                ${denseExerciseIconMarkup(exercise)}
+                <span class="tiny-icon" style="--item-color:${denseCategoryColor(exercise.category)}"><i data-lucide="${exercise.icon || "dumbbell"}"></i></span>
                 <div>
                   <strong>Primer registro pendiente</strong>
                   <span>Cuando guardes ${escapeHtml(exercise.name)}, sus últimas marcas aparecerán aquí.</span>
