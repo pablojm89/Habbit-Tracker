@@ -930,6 +930,31 @@ const denseExerciseCatalog = [
     alpha: 0.11,
     icon: "dumbbell",
   },
+  // ── Ring arm work at ~45º (feet braced, body as the lever) ─────────────
+  {
+    id: "ring_biceps_curl_45",
+    name: "Curl de bíceps en anillas 45º",
+    category: "pull",
+    family: "ring_curl",
+    nature: "bodyweight",
+    allowedNatures: ["bodyweight", "weighted_calisthenics"],
+    bodyweightContributionPct: 55,
+    tonnageFactor: 1,
+    alpha: 0.12,
+    icon: "biceps-flexed",
+  },
+  {
+    id: "ring_triceps_extension_45",
+    name: "Extensión de tríceps en anillas 45º",
+    category: "push",
+    family: "ring_extension",
+    nature: "bodyweight",
+    allowedNatures: ["bodyweight", "weighted_calisthenics"],
+    bodyweightContributionPct: 55,
+    tonnageFactor: 1,
+    alpha: 0.12,
+    icon: "unfold-horizontal",
+  },
   // ── L-Sit progressions (grouped under family "l_sit") ──────────────────
   {
     id: "l_sit_tuck",
@@ -1163,6 +1188,10 @@ const denseTransferFamilyMeta = {
   mobility_strength: { patterns: { range_strength: 1 }, muscles: { glutes_hams: 0.4, quads: 0.3, core_ext: 0.3 }, specificity: 0.3 },
   side_split: { patterns: { range_strength: 1 }, muscles: { glutes_hams: 0.45, quads: 0.2 }, specificity: 0.4 },
   pancake: { patterns: { range_strength: 1, hinge: 0.3 }, muscles: { glutes_hams: 0.6, core_ext: 0.3 }, specificity: 0.4 },
+  // Arm isolation on rings: muscle-driven transfer (biceps/triceps), barely
+  // any movement-pattern overlap with the big pulls/pushes.
+  ring_curl: { patterns: { horizontal_pull: 0.35 }, muscles: { biceps: 0.95, forearms_grip: 0.35 }, specificity: 0.15 },
+  ring_extension: { patterns: { horizontal_push: 0.35 }, muscles: { triceps: 0.95, scap: 0.2 }, specificity: 0.15 },
   accessory: { patterns: { vertical_push: 0.9 }, muscles: { front_delt: 0.85, triceps: 0.6, scap: 0.3 }, specificity: 0.2 },
 };
 
@@ -1254,13 +1283,16 @@ function densePairK(e, f) {
   return clamp(Number(state.transfer?.pairK?.[key]) || 1, 0.3, 2);
 }
 
-// Two mobility exercises are only "clearly related" — and thus allowed to
-// transfer — when they belong to the same family (e.g. two pancake or two
-// side-split progressions). Across families they share only the generic
-// `range_strength` tag, which is not real transfer: a bridge (spinal
-// extension) and a side split (hip abduction) have nothing to carry over.
+// Mobility work only transfers within its own family (pancake progressions
+// between themselves, side-split progressions between themselves...). Any
+// cross-family pair that involves a mobility exercise is zeroed — in BOTH
+// directions: a side split does not build your back squat, a bridge does not
+// feed back-lever pulls, and a deadlift PR should not inflate pancake
+// estimates. The generic `range_strength`/shared-muscle cosines suggested
+// otherwise (409 spurious pairs ≥0.15 audited). A clearly-justified pair can
+// still be whitelisted via densePairOverrides, which bypasses this guard.
 function denseIsSpuriousMobilityPair(e, f) {
-  return e.category === "mobility" && f.category === "mobility" && e.family !== f.family;
+  return (e.category === "mobility" || f.category === "mobility") && e.family !== f.family;
 }
 
 function denseTransferCoefficient(e, f) {
@@ -2154,6 +2186,8 @@ function runDenseSelfTests() {
   test("coef: FL hold recibe menos que FL pull", () => C("pull_up", "front_lever_tuck") < C("pull_up", "front_lever_tuck_pull"));
   test("coef: movilidad cruzada no transfiere (bridge→side split)", () => C("bridge_push_up", "side_split_iso") === 0 && C("side_split_iso", "bridge_push_up") === 0);
   test("coef: movilidad misma familia sí transfiere", () => C("frog_stretch", "side_split_iso") > 0);
+  test("coef: movilidad no toca fuerza ni skills (ambos sentidos)", () => C("jefferson_curl", "deadlift") === 0 && C("deadlift", "straddle_jefferson_curl") === 0 && C("bridge_push_up", "back_lever_tuck_pull") === 0 && C("side_split_squat", "back_squat") === 0);
+  test("coef: curl de anillas transfiere a dominadas por bíceps", () => C("ring_biceps_curl_45", "chin_up") > 0.1 && C("ring_biceps_curl_45", "bench_press") < C("ring_triceps_extension_45", "bench_press"));
 
   test("técnica: no-técnico expresa 1", () => denseTechMasteryInfo(denseExerciseById("air_squat")).t === 1);
   test("técnica: skill sin historial 0.35", () => denseTechMasteryInfo(denseExerciseById("front_lever_full")).t === 0.35);
