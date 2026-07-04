@@ -1168,12 +1168,12 @@ const denseTransferFamilyMeta = {
   ring_push: { patterns: { horizontal_push: 1 }, muscles: { chest: 0.85, triceps: 0.6, front_delt: 0.5, core_ext: 0.25, scap: 0.4 }, specificity: 0.25 },
   pushup: { patterns: { horizontal_push: 1 }, muscles: { chest: 0.8, triceps: 0.6, front_delt: 0.5, core_ext: 0.2, scap: 0.3 }, specificity: 0.15 },
   hspu: { patterns: { vertical_push: 1 }, muscles: { front_delt: 0.9, triceps: 0.7, scap: 0.5, upper_back: 0.2 }, specificity: 0.45 },
-  handstand: { patterns: { vertical_push: 0.5, straight_arm: 0.4 }, muscles: { front_delt: 0.6, triceps: 0.4, scap: 0.8, forearms_grip: 0.4 }, specificity: 0.7 },
+  handstand: { patterns: { vertical_push: 0.5, straight_arm: 0.4 }, muscles: { front_delt: 0.6, triceps: 0.4, scap: 0.8, forearms_grip: 0.15 }, specificity: 0.7 },
   press_to_handstand: { patterns: { vertical_push: 0.6, straight_arm: 0.5, core_compression: 0.5 }, muscles: { front_delt: 0.7, scap: 0.7, core_flex: 0.6 }, specificity: 0.65 },
   front_lever: { patterns: { straight_arm: 0.8, core_anti_ext: 0.7, vertical_pull: 0.4 }, muscles: { lats: 0.8, core_flex: 0.6, scap: 0.7, upper_back: 0.4 }, specificity: 0.6 },
   front_lever_pull: { patterns: { vertical_pull: 0.6, straight_arm: 0.6, core_anti_ext: 0.5 }, muscles: { lats: 0.85, core_flex: 0.5, scap: 0.6, biceps: 0.4 }, specificity: 0.55 },
   back_lever: { patterns: { straight_arm: 0.8, core_ext: 0.5 }, muscles: { chest: 0.5, front_delt: 0.5, scap: 0.7, core_ext: 0.5 }, specificity: 0.6 },
-  back_lever_pull: { patterns: { straight_arm: 0.7, core_ext: 0.4, horizontal_push: 0.2 }, muscles: { chest: 0.55, front_delt: 0.5, scap: 0.65, core_ext: 0.45 }, specificity: 0.55 },
+  back_lever_pull: { patterns: { straight_arm: 0.7, core_ext: 0.4, vertical_pull: 0.3 }, muscles: { lats: 0.55, scap: 0.7, biceps: 0.3, front_delt: 0.2, core_ext: 0.45 }, specificity: 0.55 },
   cuelgue: { patterns: { vertical_pull: 0.3, straight_arm: 0.3 }, muscles: { forearms_grip: 0.9, scap: 0.6, lats: 0.3 }, specificity: 0.3 },
   single_leg_squat: { patterns: { squat: 0.8 }, muscles: { quads: 0.85, glutes_hams: 0.6 }, specificity: 0.35 },
   squat_bodyweight: { patterns: { squat: 1 }, muscles: { quads: 0.85, glutes_hams: 0.55 }, specificity: 0.12 },
@@ -1270,6 +1270,15 @@ const densePairOverrides = {
   "deadlift>front_squat": 0.35,
 };
 
+// Family-level caps for pairs the vectors overstate. Matched by family (so it
+// covers every exercise in the family) after the per-id overrides. A handstand
+// and a hang share scapular + straight-arm loading on paper, but a handstand
+// does not build your hang and vice versa — cap it low instead of ~0.4.
+const denseFamilyPairOverrides = {
+  "handstand>cuelgue": 0.1,
+  "cuelgue>handstand": 0.1,
+};
+
 // Dominant pattern of an exercise (for the learned pair multipliers)
 function densePrimaryPattern(exercise) {
   const patterns = denseMetaFor(exercise)?.patterns || {};
@@ -1298,6 +1307,8 @@ function denseIsSpuriousMobilityPair(e, f) {
 function denseTransferCoefficient(e, f) {
   const override = densePairOverrides[`${e.id}>${f.id}`];
   if (override != null) return clamp(override * densePairK(e, f), 0, 0.9);
+  const famOverride = denseFamilyPairOverrides[`${e.family}>${f.family}`];
+  if (famOverride != null) return clamp(famOverride * densePairK(e, f), 0, 0.9);
   if (denseIsSpuriousMobilityPair(e, f)) return 0;
   const A = denseMetaFor(e);
   const B = denseMetaFor(f);
@@ -2188,6 +2199,8 @@ function runDenseSelfTests() {
   test("coef: movilidad misma familia sí transfiere", () => C("frog_stretch", "side_split_iso") > 0);
   test("coef: movilidad no toca fuerza ni skills (ambos sentidos)", () => C("jefferson_curl", "deadlift") === 0 && C("deadlift", "straddle_jefferson_curl") === 0 && C("bridge_push_up", "back_lever_tuck_pull") === 0 && C("side_split_squat", "back_squat") === 0);
   test("coef: curl de anillas transfiere a dominadas por bíceps", () => C("ring_biceps_curl_45", "chin_up") > 0.1 && C("ring_biceps_curl_45", "bench_press") < C("ring_triceps_extension_45", "bench_press"));
+  test("coef: back lever pull no fuga a empuje pero sí a tirón", () => C("back_lever_tuck_pull", "bench_press") < 0.1 && C("back_lever_tuck_pull", "floor_push_up") < 0.15 && C("back_lever_tuck_pull", "pull_up") > 0.25);
+  test("coef: handstand no construye cuelgue (cap familiar)", () => C("straight_handstand", "cuelgue_passive_bilateral") <= 0.12 && C("straight_handstand", "military_press") > 0.3);
 
   test("técnica: no-técnico expresa 1", () => denseTechMasteryInfo(denseExerciseById("air_squat")).t === 1);
   test("técnica: skill sin historial 0.35", () => denseTechMasteryInfo(denseExerciseById("front_lever_full")).t === 0.35);

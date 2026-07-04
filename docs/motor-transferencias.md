@@ -49,10 +49,18 @@ clamp [0, 0.9]
   409 pares espurios ≥0.15 (side split→back squat 0.27, bridge→deadlift 0.25,
   bridge→back lever pull 0.24, deadlift→pancake 0.41…). Un `densePairOverride`
   explícito sigue pudiendo reactivar un par concreto si la transferencia es clara.
-- `densePairOverrides` (~línea 1068): pares afinados a mano que los vectores no capturan
-  (`pull_up>chin_up: 0.8`, gemelos con/sin lastre 0.85/0.9, `back_squat<>deadlift: 0.45`,
-  `front_squat<>deadlift: 0.35`, bench↔military...). El override sustituye a la fórmula
-  pero sigue multiplicado por `pairK` y clampeado.
+- `densePairOverrides` (~línea 1068): pares afinados a mano por **id** que los vectores no
+  capturan (`pull_up>chin_up: 0.8`, gemelos con/sin lastre 0.85/0.9, `back_squat<>deadlift:
+  0.45`, `front_squat<>deadlift: 0.35`, bench↔military...). El override sustituye a la
+  fórmula pero sigue multiplicado por `pairK` y clampeado.
+- `denseFamilyPairOverrides` (~línea 1273): igual pero por **familia** (cubre todos los
+  ejercicios de la familia). Se consulta tras los overrides de id. Se usa para topar pares
+  que los vectores sobreestiman: `handstand<>cuelgue: 0.1` (un pino no construye tu cuelgue
+  ni viceversa, aunque compartan escápula + straight-arm sobre el papel).
+- Correcciones de metadata tras auditoría (jul 2026): `back_lever_pull` se re-modeló como
+  tirón real (fuera `horizontal_push` y `chest`; dentro `lats`/`biceps`/`vertical_pull`)
+  para que dejara de fugar a press banca/flexiones/dips; `handstand` bajó `forearms_grip`
+  0.4→0.15 (palmas planas, apenas hay agarre).
 - `densePairK(e, f)`: multiplicador **personal aprendido** por par de patrones dominantes
   (`densePrimaryPattern`), guardado en `state.transfer.pairK["patrónA>patrónB"]`,
   clamp `[0.3, 2]`, inicial 1. Ver reconciliación.
