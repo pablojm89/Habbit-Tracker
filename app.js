@@ -256,7 +256,6 @@ const trainingModeTabs = [
   ["workout", "Workout", "calendar-days"],
   ["analytics", "Analytics", "activity"],
   ["dashboard", "Dashboard", "layout-dashboard"],
-  ["icons", "Icons", "badge"],
 ];
 
 const denseExerciseCatalog = [
@@ -294,7 +293,7 @@ const denseExerciseCatalog = [
     bodyweightContributionPct: 95,
     tonnageFactor: 1,
     alpha: 0.14,
-    icon: "circle-dot",
+    icon: "arrow-down-to-line",
   },
   {
     id: "weighted_ring_dip",
@@ -306,7 +305,7 @@ const denseExerciseCatalog = [
     bodyweightContributionPct: 95,
     tonnageFactor: 1,
     alpha: 0.14,
-    icon: "circle-dot",
+    icon: "arrow-down-to-line",
   },
   {
     id: "ring_push_up",
@@ -318,7 +317,7 @@ const denseExerciseCatalog = [
     bodyweightContributionPct: 74,
     tonnageFactor: 1,
     alpha: 0.14,
-    icon: "circle",
+    icon: "arrow-up-from-line",
   },
   {
     id: "ring_row",
@@ -330,7 +329,7 @@ const denseExerciseCatalog = [
     bodyweightContributionPct: 70,
     tonnageFactor: 1,
     alpha: 0.13,
-    icon: "move-horizontal",
+    icon: "arrow-left-to-line",
   },
   {
     id: "floor_push_up",
@@ -342,7 +341,7 @@ const denseExerciseCatalog = [
     bodyweightContributionPct: 64,
     tonnageFactor: 1,
     alpha: 0.12,
-    icon: "move-down",
+    icon: "arrow-up-from-line",
   },
   {
     id: "tiptoe_squat",
@@ -404,7 +403,7 @@ const denseExerciseCatalog = [
     bodyweightContributionPct: 55,
     tonnageFactor: 0.7,
     alpha: 0.11,
-    icon: "activity",
+    icon: "rainbow",
   },
   {
     id: "bridge_isometric",
@@ -416,7 +415,7 @@ const denseExerciseCatalog = [
     bodyweightContributionPct: 55,
     tonnageFactor: 0.7,
     alpha: 0.1,
-    icon: "activity",
+    icon: "rainbow",
   },
   {
     id: "bridge_walkover",
@@ -440,7 +439,7 @@ const denseExerciseCatalog = [
     bodyweightContributionPct: 92,
     tonnageFactor: 1,
     alpha: 0.16,
-    icon: "arrow-up",
+    icon: "arrow-big-up",
   },
   {
     id: "full_rom_hspu",
@@ -452,7 +451,7 @@ const denseExerciseCatalog = [
     bodyweightContributionPct: 95,
     tonnageFactor: 1,
     alpha: 0.17,
-    icon: "arrow-up-from-line",
+    icon: "arrow-big-up",
   },
   {
     id: "straight_handstand",
@@ -502,7 +501,7 @@ const denseExerciseCatalog = [
     bodyweightContributionPct: 60,
     tonnageFactor: 0.9,
     alpha: 0.13,
-    icon: "footprints",
+    icon: "unfold-horizontal",
   },
   {
     id: "air_squat",
@@ -562,7 +561,7 @@ const denseExerciseCatalog = [
     bodyweightContributionPct: 64,
     tonnageFactor: 1,
     alpha: 0.13,
-    icon: "move-down",
+    icon: "arrow-up-from-line",
   },
   {
     id: "deficit_push_up",
@@ -574,7 +573,7 @@ const denseExerciseCatalog = [
     bodyweightContributionPct: 68,
     tonnageFactor: 1,
     alpha: 0.13,
-    icon: "move-down",
+    icon: "arrow-up-from-line",
   },
   {
     id: "parallel_bar_dip",
@@ -586,7 +585,7 @@ const denseExerciseCatalog = [
     bodyweightContributionPct: 90,
     tonnageFactor: 1,
     alpha: 0.14,
-    icon: "circle-dot",
+    icon: "arrow-down-to-line",
   },
   {
     id: "weighted_parallel_bar_dip",
@@ -598,7 +597,7 @@ const denseExerciseCatalog = [
     bodyweightContributionPct: 90,
     tonnageFactor: 1,
     alpha: 0.15,
-    icon: "circle-dot",
+    icon: "arrow-down-to-line",
   },
   {
     id: "bench_press",
@@ -622,7 +621,7 @@ const denseExerciseCatalog = [
     bodyweightContributionPct: 0,
     tonnageFactor: 1,
     alpha: 0.13,
-    icon: "footprints",
+    icon: "unfold-horizontal",
   },
   {
     id: "machine_leg_curl",
@@ -781,7 +780,7 @@ const denseExerciseCatalog = [
     bodyweightContributionPct: 0,
     tonnageFactor: 1,
     alpha: 0.12,
-    icon: "arrow-up",
+    icon: "arrow-big-up",
     video: "https://www.youtube.com/watch?v=P16eQ_IK_y8",
   },
   {
@@ -1000,7 +999,7 @@ const denseExerciseCatalog = [
     bodyweightContributionPct: 100,
     tonnageFactor: 0.5,
     alpha: 0.1,
-    icon: "move-horizontal",
+    icon: "chevrons-left-right",
     video: "https://youtu.be/ePrJitAbIZU",
   },
   {
@@ -1014,7 +1013,7 @@ const denseExerciseCatalog = [
     bodyweightContributionPct: 90,
     tonnageFactor: 0.6,
     alpha: 0.11,
-    icon: "move-horizontal",
+    icon: "chevrons-left-right",
     video: "https://youtu.be/Syk-uSSAgwA",
   },
   {
@@ -1027,7 +1026,7 @@ const denseExerciseCatalog = [
     bodyweightContributionPct: 80,
     tonnageFactor: 0.8,
     alpha: 0.12,
-    icon: "move-horizontal",
+    icon: "chevrons-left-right",
     video: "https://youtu.be/KF5Xn0a5RiA",
   },
   {
@@ -1041,7 +1040,7 @@ const denseExerciseCatalog = [
     bodyweightContributionPct: 100,
     tonnageFactor: 0.5,
     alpha: 0.14,
-    icon: "move-horizontal",
+    icon: "chevrons-left-right",
     video: "https://youtu.be/FNAblqH_tYc",
   },
   // ── Pancake progressions (family "pancake") ────────────────────────────
@@ -1786,7 +1785,6 @@ const nodes = {
   trainingAnalyticsPanel: document.querySelector("#trainingAnalyticsPanel"),
   densePrPanel: document.querySelector("#densePrPanel"),
   logbookPanel: document.querySelector("#logbookPanel"),
-  exerciseIconGalleryPanel: document.querySelector("#exerciseIconGalleryPanel"),
   reviewPanel: document.querySelector("#reviewPanel"),
   dataPanel: document.querySelector("#dataPanel"),
   modal: document.querySelector("#appModal"),
@@ -2263,7 +2261,6 @@ function render() {
   renderTrainingAnalytics();
   renderDensePrs();
   renderLogbook();
-  renderExerciseIconGallery();
   renderReview();
   renderData();
   refreshIcons();
@@ -2621,7 +2618,9 @@ function renderHabitAnalytics() {
 }
 
 function renderTrainingMode() {
-  const activeMode = state.settings.trainingMode || "workout";
+  // Guard against a stale saved section (e.g. the removed "icons" tab).
+  const savedMode = state.settings.trainingMode || "workout";
+  const activeMode = trainingModeTabs.some(([mode]) => mode === savedMode) ? savedMode : "workout";
   document.querySelectorAll("[data-training-section]").forEach((section) => {
     section.classList.toggle("is-hidden", section.dataset.trainingSection !== activeMode);
   });
@@ -3803,93 +3802,6 @@ function renderLogbook() {
           : `<article class="log-entry"><strong>Sin marcas todavía</strong><span>El historial empieza cuando guardas una marca Dense.</span></article>`
       }
     </div>
-  `;
-}
-
-function renderExerciseIconGallery() {
-  if (!nodes.exerciseIconGalleryPanel) return;
-  const favorites = denseExerciseFavorites();
-  const rows = denseExerciseCatalog.map((exercise) => {
-    const stats = denseExerciseStats(exercise.id);
-    const slug = denseExerciseIconSlug(exercise);
-    return { exercise, stats, slug, favorite: favorites.includes(exercise.id) };
-  });
-  const genericRows = rows.filter((row) => row.slug === "generic");
-  const categoryGroups = denseExerciseCategories
-    .map(([category, label]) => ({
-      category,
-      label,
-      color: denseCategoryColor(category),
-      rows: rows.filter((row) => row.exercise.category === category),
-    }))
-    .filter((group) => group.rows.length);
-
-  nodes.exerciseIconGalleryPanel.innerHTML = `
-    <div class="section-head icon-gallery-head">
-      <div>
-        <p class="eyebrow">Icon system</p>
-        <h2>Galería de ejercicios</h2>
-        <span class="section-meta">Revisión visual del catálogo completo: familia, estado, progresiones y cobertura.</span>
-      </div>
-      <div class="icon-audit-pills">
-        <span class="mini-tag is-green">${rows.length - genericRows.length}/${rows.length} específicos</span>
-        <span class="mini-tag ${genericRows.length ? "is-amber" : "is-green"}">${genericRows.length} genéricos</span>
-      </div>
-    </div>
-    <div class="icon-state-strip" aria-label="Estados visuales">
-      ${iconStateSample("planned", "Programado")}
-      ${iconStateSample("done", "Completado")}
-      ${iconStateSample("pr", "PR")}
-      ${iconStateSample("failed", "Fallo")}
-      ${iconStateSample("favorite", "Favorito")}
-    </div>
-    <div class="icon-gallery-grid">
-      ${categoryGroups.map(iconGalleryGroup).join("")}
-    </div>
-    ${
-      genericRows.length
-        ? `<article class="icon-audit-warning"><strong>Iconos genéricos pendientes</strong><span>${genericRows.map((row) => escapeHtml(row.exercise.name)).join(", ")}</span></article>`
-        : `<article class="icon-audit-warning is-clear"><strong>Cobertura completa</strong><span>Todos los ejercicios del catálogo tienen icono específico o de familia.</span></article>`
-    }
-  `;
-}
-
-function iconStateSample(stateName, label) {
-  return `
-    <span class="icon-state-chip">
-      ${denseExerciseIconMarkup("pull_up", { className: "tiny-icon icon-state-glyph", state: stateName })}
-      <span>${escapeHtml(label)}</span>
-    </span>
-  `;
-}
-
-function iconGalleryGroup(group) {
-  return `
-    <section class="icon-gallery-group" style="--item-color:${group.color}">
-      <div class="icon-gallery-group-head">
-        <strong>${escapeHtml(group.label)}</strong>
-        <span>${group.rows.length} ejercicios</span>
-      </div>
-      <div class="icon-card-grid">
-        ${group.rows.map(iconGalleryCard).join("")}
-      </div>
-    </section>
-  `;
-}
-
-function iconGalleryCard({ exercise, stats, slug, favorite }) {
-  const tier = denseExerciseIconTier(exercise);
-  const schemes = denseAllowedSchemes(exercise).slice(0, 4).join(" · ");
-  const state = favorite ? "favorite" : stats.count ? "done" : "planned";
-  return `
-    <button class="icon-gallery-card" type="button" data-action="open-dense-exercise-detail" data-exercise="${escapeAttr(exercise.id)}" style="--item-color:${denseCategoryColor(exercise.category)}">
-      ${denseExerciseIconMarkup(exercise, { className: "icon-gallery-glyph", state })}
-      <span>
-        <strong>${escapeHtml(exercise.name)}</strong>
-        <small>${escapeHtml(slug)}${tier ? ` · Lv ${escapeHtml(tier)}` : ""}</small>
-        <em>${escapeHtml(denseNatureLabel(exercise.nature).split("·")[0].trim())} · ${escapeHtml(schemes || "sin esquema")}</em>
-      </span>
-    </button>
   `;
 }
 
@@ -5831,7 +5743,6 @@ function denseExercisePickCard(exercise, selectedId, action = "pick-dense-exerci
   const last = stats.lastEntry ? `${stats.daysSince === 0 ? "hoy" : `hace ${stats.daysSince}d`}` : "sin marcas";
   const actionIcon = action === "add-planned-exercise" ? "plus" : "check";
   const hasVideo = Boolean(denseVideoEmbedUrl(exercise.video));
-  const iconState = favorite ? "favorite" : action === "add-planned-exercise" ? "planned" : selected ? "done" : "";
   return `
     <article
       class="exercise-pick-card ${selected ? "is-selected" : ""}"
@@ -5840,7 +5751,7 @@ function denseExercisePickCard(exercise, selectedId, action = "pick-dense-exerci
       data-exercise="${escapeAttr(exercise.id)}"
     >
       <button class="exercise-pick-main" type="button" data-action="${escapeAttr(action)}" data-exercise="${escapeAttr(exercise.id)}">
-        ${denseExerciseIconMarkup(exercise, { state: iconState })}
+        ${denseExerciseIconMarkup(exercise)}
         <span>
           <strong>${escapeHtml(exercise.name)}${hasVideo ? ' <i class="exercise-video-dot" data-lucide="play"></i>' : ""}</strong>
           <small>${escapeHtml(denseCategoryLabel(exercise.category))} · ${stats.count} marcas · ${last}</small>
@@ -6697,12 +6608,11 @@ function denseProtocolHint(scheme, isometric) {
 function todayWorkoutCard(entry) {
   const exercise = denseExerciseById(entry.exercise_id);
   const isPr = denseEntryIsPr(entry);
-  const iconState = entry.failed || entry.effort === "fallo" ? "failed" : isPr ? "pr" : "done";
   const effortColor = denseEffortColor(entry.effort || "N");
   const volume = entry.tonnage_kg ? `${roundTo(entry.tonnage_kg / 1000, 1)}t` : entry.total_reps ? `${entry.total_reps} reps` : entry.total_hold_seconds ? `${entry.total_hold_seconds}s` : "-";
   const card = `
     <article class="today-workout-card workout-set-card is-complete ${isPr ? "is-pr" : ""}" style="--item-color:${denseCategoryColor(exercise.category)}" data-action="open-dense-exercise-detail" data-exercise="${escapeAttr(entry.exercise_id)}">
-      ${denseExerciseIconMarkup(exercise, { className: "tiny-icon workout-exercise-icon", state: iconState })}
+      ${denseExerciseIconMarkup(exercise, { className: "tiny-icon workout-exercise-icon" })}
       <div class="workout-set-main">
         <div class="workout-set-tags">
           ${isPr ? `<span class="mini-tag is-amber"><i data-lucide="trophy"></i>NEW PR</span>` : ""}
@@ -6782,7 +6692,7 @@ function plannedWorkoutCard(exercise) {
   const target = densePlannedTargetValue(exercise, scheme);
   const card = `
     <article class="today-workout-card workout-set-card is-planned" style="--item-color:${denseCategoryColor(exercise.category)}" data-action="open-dense-exercise-detail" data-exercise="${escapeAttr(exercise.id)}">
-      ${denseExerciseIconMarkup(exercise, { className: "tiny-icon workout-exercise-icon", state: "planned" })}
+      ${denseExerciseIconMarkup(exercise, { className: "tiny-icon workout-exercise-icon" })}
       <div class="workout-set-main">
         <div class="workout-set-tags">
           <span class="mini-tag is-blue">${escapeHtml(denseNatureLabel(exercise.nature).split("·")[0].trim())} · Dense</span>
@@ -6979,29 +6889,17 @@ function denseCategoryColor(category) {
   return "var(--teal)";
 }
 
-function denseExerciseIconSlug(exercise = {}) {
-  return slugify(exercise?.icon || exercise?.category || "exercise");
-}
-
-function denseExerciseIconTier() {
-  return "";
-}
-
-function denseExerciseIconProgression() {
-  return "";
-}
-
-function denseExerciseIconMarkup(exerciseOrId, { color = "", className = "tiny-icon", state: visualState = "" } = {}) {
+function denseExerciseIconMarkup(exerciseOrId, { color = "", className = "tiny-icon" } = {}) {
   const exercise = typeof exerciseOrId === "string" ? denseExerciseById(exerciseOrId) : exerciseOrId;
   const tint = color || denseCategoryColor(exercise?.category);
-  const stateClass = visualState ? ` icon-state-${escapeAttr(visualState)}` : "";
   const icon = exercise?.icon || "dumbbell";
   return `
-    <span class="${className}${stateClass}" style="--item-color:${tint}" aria-hidden="true">
+    <span class="${className}" style="--item-color:${tint}" aria-hidden="true">
       <i data-lucide="${escapeAttr(icon)}"></i>
     </span>
   `;
 }
+
 function denseNatureLabel(nature) {
   return denseNatureOptions.find(([value]) => value === nature)?.[1] || nature;
 }
@@ -8550,7 +8448,6 @@ function densePrRows() {
 
 function denseEntryCard(entry) {
   const isPr = denseEntryIsPr(entry);
-  const iconState = entry.failed || entry.effort === "fallo" ? "failed" : isPr ? "pr" : "done";
   const metrics = [];
   if (entry.total_hold_seconds) metrics.push(`${entry.total_hold_seconds}s TUT`);
   if (entry.hold_seconds_per_round) metrics.push(`${entry.hold_seconds_per_round}s/ronda`);
@@ -8562,7 +8459,7 @@ function denseEntryCard(entry) {
   return `
     <article class="dense-entry-card">
       <div class="dense-entry-main">
-        ${denseExerciseIconMarkup(entry.exercise_id, { color: denseNatureColor(entry.nature), state: iconState })}
+        ${denseExerciseIconMarkup(entry.exercise_id, { color: denseNatureColor(entry.nature) })}
         <div>
           <strong>${escapeHtml(entry.exercise_name)}</strong>
           <span>${escapeHtml(entry.date)} · ${escapeHtml(entry.scheme)} · ${escapeHtml(entry.effort)}</span>
