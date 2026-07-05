@@ -69,6 +69,7 @@ const qualityCatalog = [
 const denseNatureOptions = [
   ["weighted", "Weighted · carga externa"],
   ["weighted_calisthenics", "Weighted calisthenics · BW + lastre"],
+  ["assisted", "Assisted · BW − contrapeso"],
   ["bodyweight", "Bodyweight · reps/min"],
   ["banded", "Banded · asistencia/resistencia"],
   ["conditioning", "Conditioning · motor"],
@@ -955,6 +956,63 @@ const denseExerciseCatalog = [
     alpha: 0.12,
     icon: "unfold-horizontal",
   },
+  // ── One Arm Chin-up progressions (family "one_arm_chin") ───────────────
+  {
+    id: "archer_chin_up",
+    name: "Archer chin-up",
+    category: "pull",
+    family: "one_arm_chin",
+    nature: "bodyweight",
+    allowedNatures: ["bodyweight", "weighted_calisthenics"],
+    bodyweightContributionPct: 95,
+    tonnageFactor: 1,
+    repsPerSide: true,
+    alpha: 0.13,
+    icon: "move-up-right",
+    video: "https://www.youtube.com/watch?v=qq-oeyCqemk",
+  },
+  {
+    id: "oac_negative",
+    name: "Negativa de OAC",
+    category: "pull",
+    family: "one_arm_chin",
+    nature: "bodyweight",
+    allowedNatures: ["bodyweight", "weighted_calisthenics"],
+    bodyweightContributionPct: 100,
+    tonnageFactor: 1,
+    repsPerSide: true,
+    alpha: 0.14,
+    icon: "arrow-down-to-line",
+    video: "https://www.youtube.com/watch?v=NoDx88aYK_Q",
+  },
+  {
+    id: "oac_assisted",
+    name: "OAC asistida (contrapeso)",
+    category: "pull",
+    family: "one_arm_chin",
+    nature: "assisted",
+    allowedNatures: ["assisted"],
+    bodyweightContributionPct: 100,
+    tonnageFactor: 1,
+    repsPerSide: true,
+    alpha: 0.15,
+    icon: "chevrons-up",
+    video: "https://www.youtube.com/watch?v=UBI_h9cpPgg",
+  },
+  {
+    id: "one_arm_chin_up",
+    name: "One Arm Chin-up (OAC)",
+    category: "pull",
+    family: "one_arm_chin",
+    nature: "bodyweight",
+    allowedNatures: ["bodyweight", "weighted_calisthenics"],
+    bodyweightContributionPct: 100,
+    tonnageFactor: 1,
+    repsPerSide: true,
+    alpha: 0.16,
+    icon: "arrow-up-to-line",
+    video: "https://www.youtube.com/watch?v=_9G4cSG9smk",
+  },
   // ── L-Sit progressions (grouped under family "l_sit") ──────────────────
   {
     id: "l_sit_tuck",
@@ -1163,6 +1221,7 @@ function leverSkillExercises(prefix, label, bodyweightContributionPct) {
 // core_ext, forearms_grip, scap.
 const denseTransferFamilyMeta = {
   strict_pull: { patterns: { vertical_pull: 1 }, muscles: { lats: 0.9, upper_back: 0.5, biceps: 0.6, forearms_grip: 0.5, core_flex: 0.15 }, specificity: 0.25 },
+  one_arm_chin: { patterns: { vertical_pull: 1 }, muscles: { lats: 0.9, biceps: 0.85, forearms_grip: 0.7, upper_back: 0.5, core_flex: 0.35 }, specificity: 0.5 },
   horizontal_pull: { patterns: { horizontal_pull: 1 }, muscles: { upper_back: 0.9, lats: 0.5, biceps: 0.5, scap: 0.45 }, specificity: 0.2 },
   strict_dip: { patterns: { vertical_push: 0.8, horizontal_push: 0.4 }, muscles: { chest: 0.7, triceps: 0.8, front_delt: 0.6, scap: 0.3 }, specificity: 0.25 },
   ring_push: { patterns: { horizontal_push: 1 }, muscles: { chest: 0.85, triceps: 0.6, front_delt: 0.5, core_ext: 0.25, scap: 0.4 }, specificity: 0.25 },
@@ -2209,6 +2268,14 @@ function runDenseSelfTests() {
   test("ROM: PR = acercarse al suelo", () => denseEntryIsPr(getDenseEntries().find((e) => e.id === "rom2")) && !denseEntryIsPr(getDenseEntries().find((e) => e.id === "rom1")));
   test("ROM: sugerencia se acerca desde la última (normal → -0.5)", () => { const s = denseRomSuggestion(denseExerciseById("pancake_hold")); return s && s.target === 13.5 && s.best === 14; });
   test("ROM: no alimenta el motor (score/transfer intactos)", () => denseEntryScore(getDenseEntries().find((e) => e.id === "rom2")) === 30 && denseParseRom("") === null && denseParseRom("12.5") === 12.5);
+
+  // OAC asistida: el contrapeso se resta del peso corporal
+  const oacAssist6 = computeDenseEntry({ id: "oac6", exercise_id: "oac_assisted", nature: "assisted", scheme: "5D1", total_reps: 5, bodyweight_kg: 80, bodyweight_contribution_pct: 100, assist_load_kg: 6 });
+  const oacAssist2 = computeDenseEntry({ id: "oac2", exercise_id: "oac_assisted", nature: "assisted", scheme: "5D1", total_reps: 5, bodyweight_kg: 80, bodyweight_contribution_pct: 100, assist_load_kg: 2 });
+  test("OAC asistida: carga = bw − contrapeso (80−6 → 74)", () => Math.abs(oacAssist6.total_system_load_kg - 74) < 0.01);
+  test("OAC asistida: menos contrapeso = e1RM más alto", () => oacAssist2.e1rm_kg > oacAssist6.e1rm_kg && oacAssist6.e1rm_kg > 0);
+  add({ ...oacAssist6, date: "2026-06-15", created_at: "2026-06-15T10:00:00Z", effort: "E" });
+  test("OAC asistida: progresión baja el contrapeso", () => { const s = denseProgressionSuggestion(denseExerciseById("oac_assisted"), "normal", "5D1"); return s && s.type === "assist" && Number(s.assistLoadKg) < 6; });
 
   test("técnica: no-técnico expresa 1", () => denseTechMasteryInfo(denseExerciseById("air_squat")).t === 1);
   test("técnica: skill sin historial 0.35", () => denseTechMasteryInfo(denseExerciseById("front_lever_full")).t === 0.35);
@@ -5106,6 +5173,7 @@ function saveDenseTrainingForm(form) {
     weight_per_dumbbell_kg: weightPerDumbbellKg,
     dumbbell_count: exercise.loadPattern === "dumbbell_pair" && weightPerDumbbellKg ? 2 : null,
     rom_cm: denseUsesRom(exercise) ? denseParseRom(data.romCm) : null,
+    assist_load_kg: activeNature === "assisted" ? positiveNumber(data.assistLoadKg) : 0,
     bodyweight_kg: bodyweightKg,
     bodyweight_source: state.bodyweightLogs?.[dateKey(selectedDate)] ? "daily_snapshot" : bodyweightKg ? "manual" : "default",
     effort: data.effort || "N",
@@ -5893,18 +5961,19 @@ function applyDenseFormTargets(form, { resetStaleLoad = false } = {}) {
     const suggested = denseFormTargetHoldPerRound(exercise, scheme, suggestion);
     if (suggested) holdInput.value = suggested;
   }
-  if (suggestion?.type === "load" && suggestion.scheme === scheme) {
+  if ((suggestion?.type === "load" || suggestion?.type === "assist") && suggestion.scheme === scheme) {
     const loadTargets = {
       externalLoadKg: suggestion.externalLoadKg,
       addedLoadKg: suggestion.addedLoadKg,
       weightPerDumbbellKg: suggestion.weightPerDumbbellKg,
+      assistLoadKg: suggestion.assistLoadKg,
     };
     Object.entries(loadTargets).forEach(([name, value]) => {
       const input = form.querySelector(`[name='${name}']`);
       if (input && value !== undefined && value !== null && value !== "") input.value = value;
     });
   } else if (resetStaleLoad && denseIsLoadExercise(exercise)) {
-    ["externalLoadKg", "addedLoadKg", "weightPerDumbbellKg"].forEach((name) => {
+    ["externalLoadKg", "addedLoadKg", "weightPerDumbbellKg", "assistLoadKg"].forEach((name) => {
       const input = form.querySelector(`[name='${name}']`);
       if (input) input.value = "";
     });
@@ -6095,6 +6164,7 @@ function denseNatureShort(nature) {
     {
       weighted: "Con peso",
       weighted_calisthenics: "Peso corporal + lastre",
+      assisted: "Asistido (contrapeso)",
       bodyweight: "Peso corporal",
       banded: "Con goma",
       conditioning: "Motor",
@@ -6139,6 +6209,9 @@ function denseLoadFields(exercise, defaults = {}) {
   if (exercise.nature === "weighted") {
     return field("Carga usada kg", "externalLoadKg", defaults.externalLoadKg || "", "number");
   }
+  if (exercise.nature === "assisted") {
+    return field("Asistencia kg (contrapeso)", "assistLoadKg", defaults.assistLoadKg || "", "number");
+  }
   return "";
 }
 
@@ -6146,6 +6219,7 @@ function denseExerciseHint(exercise) {
   if (exercise.loadPattern === "dumbbell_pair") return "Guarda el peso por mancuerna; BitTracker calcula el total externo.";
   if (exercise.nature === "weighted_calisthenics") return "Guarda el lastre; BitTracker suma tu peso corporal para la carga total del sistema.";
   if (exercise.nature === "weighted") return "Guarda la carga externa usada en el esquema elegido.";
+  if (exercise.nature === "assisted") return "Guarda el contrapeso; se resta de tu peso corporal (aprox., la fricción de la cuerda come un poco). Baja el contrapeso para progresar hacia la OAC completa.";
   if (exercise.family === "front_lever" || exercise.family === "back_lever") return "Isométrico straight-arm: registra hold/ronda y rondas para calcular tiempo bajo tensión.";
   if (exercise.family === "front_lever_pull" || exercise.family === "back_lever_pull") return "Versión Pull: registra reps por minuto o reps totales como trabajo dinámico.";
   if (denseSupportsHold(exercise)) return "Guarda reps o activa Hold/ronda para isométricos; BitTracker calcula tiempo bajo tensión.";
@@ -7668,6 +7742,25 @@ function denseProgressionSuggestion(exercise, readiness = "normal", schemeFilter
     };
   }
 
+  if (exercise.nature === "assisted") {
+    // Progress = LESS counterweight (harder), until 0 = full OAC. Failure adds
+    // a little assistance back; hold when it was hard.
+    const currentAssist = Number(entry.assist_load_kg || 0);
+    let nextAssist;
+    if (failed || effort === "fallo") nextAssist = denseRoundLoad(currentAssist + 1) || currentAssist;
+    else if (step <= 0) nextAssist = currentAssist;
+    else nextAssist = Math.max(0, denseRoundLoad(currentAssist - step));
+    return {
+      ...base,
+      type: "assist",
+      repsPerSet: entry.target_reps_per_min || entry.reps_per_set || denseSchemePrescriptionAverage(scheme) || "",
+      totalReps: entry.target_total_reps || entry.total_reps || "",
+      assistLoadKg: nextAssist,
+      title: nextAssist > 0 ? `${scheme} · −${formatKg(nextAssist)} asist` : `${scheme} · OAC completa`,
+      reason: nextAssist <= 0 ? "Sin contrapeso: intenta la OAC completa." : denseProgressionReason(entry, direction, readiness),
+    };
+  }
+
   if (exercise.nature === "weighted" || exercise.nature === "weighted_calisthenics") {
     const loadKey = exercise.loadPattern === "dumbbell_pair" ? "weight_per_dumbbell_kg" : exercise.nature === "weighted_calisthenics" ? "added_load_kg" : "external_load_kg";
     const currentLoad = Number(entry[loadKey] || entry.external_load_kg || entry.added_load_kg || entry.weight_per_dumbbell_kg || 0);
@@ -7748,7 +7841,7 @@ function denseIsIsometric(exercise) {
 }
 
 function denseIsLoadExercise(exercise) {
-  return exercise?.nature === "weighted" || exercise?.nature === "weighted_calisthenics";
+  return exercise?.nature === "weighted" || exercise?.nature === "weighted_calisthenics" || exercise?.nature === "assisted";
 }
 
 function denseSupportsHold(exercise) {
@@ -8460,6 +8553,7 @@ function denseFormDefaults() {
       externalLoadKg: draftEntry.external_load_kg || "",
       addedLoadKg: draftEntry.added_load_kg || "",
       weightPerDumbbellKg: draftEntry.weight_per_dumbbell_kg || "",
+      assistLoadKg: draftEntry.assist_load_kg || "",
       romCm: draftEntry.rom_cm ?? "",
       readiness: draftEntry.readiness || "normal",
       notes: draftEntry.notes || "",
@@ -8498,6 +8592,7 @@ function denseFormDefaults() {
     externalLoadKg: suggestion?.externalLoadKg || "",
     addedLoadKg: suggestion?.addedLoadKg || "",
     weightPerDumbbellKg: suggestion?.weightPerDumbbellKg || "",
+    assistLoadKg: suggestion?.assistLoadKg ?? "",
     romCm: denseRomSuggestion(activeExercise)?.target ?? "",
     readiness: "normal",
     notes: "",
@@ -8531,9 +8626,18 @@ function computeDenseEntry(raw) {
   const bw = raw.bodyweight_kg || 0;
   const load = raw.external_load_kg || 0;
   const added = raw.added_load_kg || 0;
+  const assist = raw.assist_load_kg || 0;
+  const contribution = raw.bodyweight_contribution_pct || 0;
   const multiplier = bodyweightMultipliers[base] || 0;
 
   let totalSystemLoad = raw.nature === "weighted_calisthenics" ? bw + added : load;
+  // Assisted (counterweight over the bar): the assistance is negative load, so
+  // the working arm handles bodyweight MINUS the counterweight. Approximate —
+  // rope friction over the bar eats a little of the assist — but close enough
+  // to track OAC progress as the counterweight drops toward 0 (full OAC).
+  if (raw.nature === "assisted") {
+    totalSystemLoad = Math.max(0, (bw * contribution) / 100 - assist);
+  }
   if (raw.nature === "bodyweight" || raw.nature === "banded" || raw.nature === "plyometrics" || raw.nature === "conditioning") {
     totalSystemLoad = 0;
   }
@@ -8556,7 +8660,7 @@ function computeDenseEntry(raw) {
   const capacity = repsPerMin && multiplier ? repsPerMin / multiplier : 0;
   const isometricCapacity = holdSecondsPerMin && multiplier ? holdSecondsPerMin / multiplier : 0;
   const effectiveLoad =
-    raw.nature === "weighted_calisthenics"
+    raw.nature === "weighted_calisthenics" || raw.nature === "assisted"
       ? totalSystemLoad
       : load + (bw * (raw.bodyweight_contribution_pct || 0)) / 100;
   const tonnage = totalReps && effectiveLoad ? effectiveLoad * totalReps * (raw.tonnage_factor || 1) : 0;
@@ -8914,6 +9018,10 @@ function denseEntryValue(entry) {
     const db = entry.weight_per_dumbbell_kg ? `${formatKg(entry.weight_per_dumbbell_kg)} x2 · ` : "";
     return `${entry.total_reps || 0} reps · ${db}${formatKg(entry.external_load_kg)} · e1RM ${formatKg(entry.e1rm_kg)}`;
   }
+  if (entry.nature === "assisted") {
+    const assist = Number(entry.assist_load_kg) || 0;
+    return `${entry.total_reps || 0} reps · ${assist ? `−${formatKg(assist)} asist` : "sin asist"} · e1RM ${formatKg(entry.e1rm_kg)}`;
+  }
   if (entry.reps_per_min) {
     const targetRpm = Number(entry.target_reps_per_min || entry.reps_per_set || 0);
     const targetTotal = Number(entry.target_total_reps || 0);
@@ -8939,6 +9047,7 @@ function denseSchemeMinutes(scheme) {
 
 function denseNatureColor(nature) {
   if (nature === "weighted" || nature === "weighted_calisthenics") return "var(--green)";
+  if (nature === "assisted") return "var(--amber)";
   if (nature === "bodyweight") return "var(--cyan)";
   if (nature === "skill") return "var(--purple)";
   if (nature === "conditioning") return "var(--amber)";
