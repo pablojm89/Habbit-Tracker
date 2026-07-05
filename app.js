@@ -235,6 +235,7 @@ const denseExerciseSortOptions = [
   ["az", "A-Z"],
 ];
 
+const DENSE_RECOVERY_MIN_WELLNESS = 3;
 const trainingAnalyticsTabs = [
   ["progress", "Progreso", "trending-up"],
   ["volume", "Volumen", "bar-chart-3"],
@@ -3185,9 +3186,19 @@ function denseSetModalSummary(exercise, defaults) {
   `;
 }
 
+// Recovery only makes sense with wellness input (readiness / session fatigue).
+// With fewer than DENSE_RECOVERY_MIN_WELLNESS such marks the score is noise, so
+// hide the tab entirely.
+function denseAnalyticsTabs() {
+  const showRecovery = denseWellnessCount() >= DENSE_RECOVERY_MIN_WELLNESS;
+  return trainingAnalyticsTabs.filter(([value]) => value !== "recovery" || showRecovery);
+}
+
 function renderTrainingAnalytics() {
   if (!nodes.trainingAnalyticsPanel) return;
-  const activeTab = state.settings.trainingAnalyticsTab || "progress";
+  const tabs = denseAnalyticsTabs();
+  let activeTab = state.settings.trainingAnalyticsTab || "progress";
+  if (!tabs.some(([value]) => value === activeTab)) activeTab = "progress";
   const activeWindow = state.settings.trainingAnalyticsWindow || "70";
   const entries = trainingAnalyticsEntries(activeWindow);
   const totalSets = entries.reduce((sum, entry) => sum + denseEquivalentSets(entry), 0);
@@ -3200,7 +3211,7 @@ function renderTrainingAnalytics() {
       <span class="info-meta">${entries.length ? `${entries.length} marcas · ${roundTo(totalSets, 1)} sets eq · ${uniqueDays} días` : "Empieza a logear para activar tendencias."}</span>
     </header>
     <nav class="analytics-tab-strip" role="tablist" aria-label="Training analytics">
-      ${trainingAnalyticsTabs
+      ${tabs
         .map(
           ([value, label]) => `
             <button class="analytics-tab ${activeTab === value ? "is-active" : ""}" type="button" role="tab" aria-selected="${activeTab === value}" data-action="set-training-analytics-tab" data-tab="${value}">${escapeHtml(label)}</button>
@@ -3459,10 +3470,13 @@ function renderStrengthAnalytics(entries) {
     const maxScore = Math.max(...history.map((entry) => denseEntryScore(entry) || 0), 1);
     const points = history.map((entry) => ({ short: String(entry.date || "").slice(5), value: Math.round(((denseEntryScore(entry) || 0) / maxScore) * 100) }));
     const latest = history[history.length - 1];
+    // The line is normalized 0–100 to draw; anchor it to real units so the
+    // scale is legible — peak (best) mark in its own unit (e1RM/reps/s/cm).
+    const bestEntry = history.reduce((best, entry) => ((denseEntryScore(entry) || 0) > (denseEntryScore(best) || 0) ? entry : best), history[0]);
     progressionChart = `
       <div class="dc-cns-head">
         <div><strong>${escapeHtml(denseEntryValue(latest))}</strong><span>última marca</span></div>
-        <div class="dc-cns-avg"><span>marcas</span><strong>${history.length}</strong></div>
+        <div class="dc-cns-avg"><span>pico</span><strong>${escapeHtml(denseEntryValue(bestEntry))}</strong></div>
       </div>
       ${dcLineChart(points, { legend: false })}
     `;
@@ -3737,7 +3751,12 @@ function renderConsistencyAnalytics(entries) {
       return `<div class="dc-blob ${pctVal >= 50 ? "is-on" : ""}"><i style="opacity:${Math.max(0.12, pctVal / 100)}"></i><span>${label}</span><small>${pctVal}%</small></div>`;
     })
     .join("");
-  const skipped = denseExerciseLibrary({ sort: "abandoned" }).slice(0, 5);
+  // Genuinely abandoned = trained before but not lately. Never-used exercises
+  // aren't "skipped", they're just not in your rotation — showing them is noise
+  // while the base is still filling up.
+  const skipped = denseExerciseLibrary({ sort: "abandoned" })
+    .filter((exercise) => denseExerciseStats(exercise.id).count > 0)
+    .slice(0, 5);
   return `
     <div class="dc-section-head"><strong>Engagement</strong><span>últimos 28 días</span></div>
     <div class="analytics-stat-grid">
@@ -3761,12 +3780,16 @@ function renderConsistencyAnalytics(entries) {
     <div class="dc-section-head"><strong>Completion by day</strong></div>
     <article class="analytics-card"><div class="dc-blob-row">${blobs}</div></article>
 
-    <div class="dc-section-head"><strong>Most-skipped exercises</strong></div>
+    ${
+      skipped.length
+        ? `<div class="dc-section-head"><strong>Ejercicios abandonados</strong><span>entrenados antes, no últimamente</span></div>
     <article class="analytics-card">
       <div class="analytics-detail-list is-in-card">
-        ${skipped.map((exercise) => analyticsDetailRow(exercise.name, denseCategoryLabel(exercise.category), denseExerciseStats(exercise.id).count ? "retomar pronto" : "sin marcas", "corner-down-right")).join("")}
+        ${skipped.map((exercise) => analyticsDetailRow(exercise.name, denseCategoryLabel(exercise.category), `${denseExerciseStats(exercise.id).count} marcas · retomar`, "corner-down-right")).join("")}
       </div>
-    </article>
+    </article>`
+        : ""
+    }
   `;
 }
 
@@ -3839,6 +3862,7 @@ function renderDensePrs() {
     ${renderCalibrationCard()}
     <div class="dense-pr-layout">
       <div class="dense-pr-table">
+        <div class="section-subhead"><strong>PRs reales</strong><span>marcas registradas y testeadas</span></div>
         <div class="table-head dense-pr-row">
           <span>Ejercicio</span>
           <span>Esquema</span>
@@ -3867,8 +3891,8 @@ function renderDensePrs() {
       </div>
       <div class="dense-estimate-panel">
         <div class="section-subhead">
-          <strong>${latest ? escapeHtml(latest.exercise_name) : "Estimador"}</strong>
-          <span>${latest ? `${escapeHtml(latest.scheme)} · ${escapeHtml(latest.nature)}` : "sin entrada base"}</span>
+          <strong>Estimado · no testeado</strong>
+          <span>${latest ? `${escapeHtml(latest.exercise_name)} · rangos con confianza` : "sin entrada base"}</span>
         </div>
         <div class="dense-estimate-grid">
           ${estimateCards || `<article class="dense-estimate-card"><strong>Esperando señal</strong><span>Las equivalencias aparecerán al guardar la primera marca.</span></article>`}
@@ -6853,7 +6877,7 @@ function todayWorkoutCard(entry) {
       ${denseExerciseIconMarkup(exercise, { className: "tiny-icon workout-exercise-icon" })}
       <div class="workout-set-main">
         <div class="workout-set-tags">
-          ${isPr ? `<span class="mini-tag is-amber"><i data-lucide="trophy"></i>NEW PR</span>` : ""}
+          ${isPr ? `<span class="mini-tag is-amber"><i data-lucide="trophy"></i>${["VE", "E"].includes(entry.effort) ? "PR + margen" : "NEW PR"}</span>` : ""}
           <span class="mini-tag is-blue">${escapeHtml(denseNatureLabel(entry.nature).split("·")[0].trim())} · Dense</span>
           <span class="mini-tag effort-tag" style="--effort-color:${effortColor}">${escapeHtml(denseEffortTagLabel(entry.effort))}</span>
         </div>
