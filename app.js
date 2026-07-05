@@ -3089,27 +3089,10 @@ function renderSession() {
   `;
 }
 
+// The old inline "register" panel is gone — all logging happens through the
+// set modal now. Kept as a guarded no-op so its (harmless) callers don't break.
 function renderDenseTraining() {
-  nodes.denseTrainingPanel.innerHTML = "";
-  return;
-  const defaults = denseFormDefaults();
-  const exercise = denseExerciseById(defaults.exerciseId);
-  const isEditingDenseEntry = Boolean(state.settings.denseDraftEntryId);
-
-  nodes.denseTrainingPanel.innerHTML = `
-    <div class="section-head">
-      <div>
-        <p class="eyebrow">${isEditingDenseEntry ? "Editar marca" : "Registrar marca"}</p>
-        <h2>${escapeHtml(exercise.name)}</h2>
-        <span class="section-meta">${isEditingDenseEntry ? "Marca cargada con objetivo y resultado real separados." : "Elige esquema Dense y guarda sólo lo necesario para este ejercicio."}</span>
-      </div>
-      <span class="mini-tag is-green"><i data-lucide="${isEditingDenseEntry ? "edit-3" : "cloud"}"></i>${isEditingDenseEntry ? "editando" : cloudConfig.enabled ? "cloud ready" : "local"}</span>
-    </div>
-    ${denseTrainingFormMarkup(defaults, { includePicker: true, submitLabel: isEditingDenseEntry ? "Actualizar marca Dense" : "Guardar marca Dense" })}
-    ${renderDenseProgressionSuggestion(exercise, denseProgressionSuggestion(exercise))}
-    ${renderSelectedExerciseLog(exercise.id)}
-  `;
-  updateDenseHoldEstimate(nodes.denseTrainingPanel.querySelector("#denseTrainingForm"));
+  if (nodes.denseTrainingPanel) nodes.denseTrainingPanel.innerHTML = "";
 }
 
 function denseReadinessField(selected = "normal") {
