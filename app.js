@@ -2202,6 +2202,14 @@ function runDenseSelfTests() {
   test("coef: back lever pull no fuga a empuje pero sí a tirón", () => C("back_lever_tuck_pull", "bench_press") < 0.1 && C("back_lever_tuck_pull", "floor_push_up") < 0.15 && C("back_lever_tuck_pull", "pull_up") > 0.25);
   test("coef: handstand no construye cuelgue (cap familiar)", () => C("straight_handstand", "cuelgue_passive_bilateral") <= 0.12 && C("straight_handstand", "military_press") > 0.3);
 
+  // ROM de movilidad (decoulado del motor de fuerza)
+  add({ id: "rom1", exercise_id: "pancake_hold", exercise_name: "Pancake", scheme: "10D", date: "2026-06-01", created_at: "2026-06-01T10:00:00Z", nature: "bodyweight", rom_cm: 20, total_hold_seconds: 30, effort: "E" });
+  add({ id: "rom2", exercise_id: "pancake_hold", exercise_name: "Pancake", scheme: "10D", date: "2026-06-10", created_at: "2026-06-10T10:00:00Z", nature: "bodyweight", rom_cm: 14, total_hold_seconds: 30, effort: "N" });
+  test("ROM: mejor = el menor cm", () => denseBestRom("pancake_hold") === 14);
+  test("ROM: PR = acercarse al suelo", () => denseEntryIsPr(getDenseEntries().find((e) => e.id === "rom2")) && !denseEntryIsPr(getDenseEntries().find((e) => e.id === "rom1")));
+  test("ROM: sugerencia se acerca desde la última (normal → -0.5)", () => { const s = denseRomSuggestion(denseExerciseById("pancake_hold")); return s && s.target === 13.5 && s.best === 14; });
+  test("ROM: no alimenta el motor (score/transfer intactos)", () => denseEntryScore(getDenseEntries().find((e) => e.id === "rom2")) === 30 && denseParseRom("") === null && denseParseRom("12.5") === 12.5);
+
   test("técnica: no-técnico expresa 1", () => denseTechMasteryInfo(denseExerciseById("air_squat")).t === 1);
   test("técnica: skill sin historial 0.35", () => denseTechMasteryInfo(denseExerciseById("front_lever_full")).t === 0.35);
 
@@ -3086,6 +3094,7 @@ function denseTrainingFormMarkup(defaults, { includePicker = false, modal = fals
             ${allowedSchemes.map((scheme) => denseSchemeOption(scheme, defaults.scheme)).join("")}
           </div>
         </fieldset>
+        ${denseRomField(activeExercise, defaults)}
         ${denseRepPerSetFields(activeExercise, defaults)}
         ${denseIsIsometric(activeExercise) ? "" : field("Reps totales", "totalReps", defaults.totalReps, "number")}
         ${denseHoldFields(activeExercise, defaults)}
@@ -4667,6 +4676,7 @@ function updateDenseNatureSelection(input) {
   const preserve = {
     bodyweightKg: form.querySelector("[name='bodyweightKg']")?.value,
     notes: form.querySelector("[name='notes']")?.value,
+    romCm: form.querySelector("[name='romCm']")?.value,
     effort: form.querySelector("input[name='effort']:checked")?.value,
     readiness: form.querySelector("input[name='readiness']:checked")?.value,
   };
@@ -4678,6 +4688,8 @@ function updateDenseNatureSelection(input) {
     if (bw && preserve.bodyweightKg) bw.value = preserve.bodyweightKg;
     const notes = next.querySelector("[name='notes']");
     if (notes && preserve.notes) notes.value = preserve.notes;
+    const rom = next.querySelector("[name='romCm']");
+    if (rom && preserve.romCm) rom.value = preserve.romCm;
     ["effort", "readiness"].forEach((name) => {
       if (!preserve[name]) return;
       const radio = next.querySelector(`input[name='${name}'][value='${preserve[name]}']`);
@@ -4954,6 +4966,7 @@ function openDenseExerciseDetailModal(exerciseId) {
           : ""
       }
       ${renderDenseProgressionSuggestion(exercise, suggestion)}
+      ${renderRomProgressCard(exercise)}
       ${
         predictionCards
           ? `<section class="exercise-detail-section">
@@ -5092,6 +5105,7 @@ function saveDenseTrainingForm(form) {
     added_load_kg: positiveNumber(data.addedLoadKg),
     weight_per_dumbbell_kg: weightPerDumbbellKg,
     dumbbell_count: exercise.loadPattern === "dumbbell_pair" && weightPerDumbbellKg ? 2 : null,
+    rom_cm: denseUsesRom(exercise) ? denseParseRom(data.romCm) : null,
     bodyweight_kg: bodyweightKg,
     bodyweight_source: state.bodyweightLogs?.[dateKey(selectedDate)] ? "daily_snapshot" : bodyweightKg ? "manual" : "default",
     effort: data.effort || "N",
@@ -5933,6 +5947,125 @@ function updateDenseTotalFromRepsPerSet(input) {
   if (totalInput) totalInput.value = denseTotalFromRepsPerSet(input.value, scheme) || "";
 }
 
+// ── Mobility ROM (range of motion) ───────────────────────────────────────
+// For mobility work the meaningful progress is DEPTH, not reps: how close you
+// get to the floor / full position, in cm (lower is better, goal ~0). Stored
+// as `rom_cm` and kept fully decoupled from the strength engine — it never
+// feeds e1RM, capacity or the transfer coefficients.
+const denseRomLabels = {
+  seated_bent_leg_good_morning: "dedos → suelo",
+  jefferson_curl: "dedos → suelo",
+  straddle_jefferson_curl: "pecho → suelo",
+  straddle_good_morning: "pecho → suelo",
+  pancake_hold: "pecho → suelo",
+  pancake_good_morning: "pecho → suelo",
+  frog_stretch: "cadera → suelo",
+  side_split_iso: "cadera → suelo",
+  side_split_squat: "cadera → suelo",
+  horse_stance_hold: "profundidad cadera",
+  bridge_push_up: "manos → talones",
+  bridge_isometric: "manos → talones",
+};
+function denseUsesRom(exercise) {
+  return exercise?.category === "mobility";
+}
+function denseRomLabel(exercise) {
+  return denseRomLabels[exercise?.id] || "cm al objetivo";
+}
+function denseEntryRom(entry) {
+  const v = entry?.rom_cm;
+  if (v === null || v === undefined || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+function denseParseRom(value) {
+  if (value === undefined || value === null || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? roundTo(n, 1) : null;
+}
+function denseBestRom(exerciseId) {
+  const vals = getDenseEntries()
+    .filter((entry) => entry.exercise_id === exerciseId && !entry.deleted_at)
+    .map(denseEntryRom)
+    .filter((v) => v !== null);
+  return vals.length ? Math.min(...vals) : null;
+}
+function denseLastRomEntry(exerciseId) {
+  return (
+    [...getDenseEntries()]
+      .filter((entry) => entry.exercise_id === exerciseId && !entry.deleted_at && denseEntryRom(entry) !== null)
+      .sort((a, b) => (b.created_at || b.date || "").localeCompare(a.created_at || a.date || ""))[0] || null
+  );
+}
+function denseRomText(entry) {
+  const v = denseEntryRom(entry);
+  return v === null ? "" : `${roundTo(v, 1)} cm`;
+}
+// Next ROM target: creep 0.5–1cm closer when the last one felt easy / you feel
+// strong, hold when it was hard or you feel stiff. Gains here are slow on
+// purpose — flexibility does not jump.
+function denseRomSuggestion(exercise, readiness = "normal") {
+  if (!denseUsesRom(exercise)) return null;
+  const last = denseLastRomEntry(exercise.id);
+  if (!last) return null;
+  const current = denseEntryRom(last);
+  const effort = last.effort || "N";
+  const failed = Boolean(last.failed) || effort === "fallo";
+  let step = 0;
+  if (!failed && (effort === "VE" || effort === "E" || readiness === "high")) step = 1;
+  else if (!failed && effort === "N" && readiness !== "low") step = 0.5;
+  const target = Math.max(0, roundTo(current - step, 1));
+  return { current, target, best: denseBestRom(exercise.id), closer: target < current };
+}
+function denseRomField(exercise, defaults) {
+  if (!denseUsesRom(exercise)) return "";
+  return `
+    <label class="field dense-rom-field is-full">
+      <span>Rango · ${escapeHtml(denseRomLabel(exercise))} (cm · menos es mejor)</span>
+      <input type="number" name="romCm" value="${escapeAttr(String(defaults.romCm ?? ""))}" step="0.5" min="0" inputmode="decimal" placeholder="cm hasta el objetivo" />
+    </label>
+  `;
+}
+
+// ROM progress card for the exercise detail: best (closest) + a sparkline of
+// recent marks (inverted, so lower cm sits higher) + net change since start.
+function renderRomProgressCard(exercise) {
+  if (!denseUsesRom(exercise)) return "";
+  const marks = [...getDenseEntries()]
+    .filter((entry) => entry.exercise_id === exercise.id && !entry.deleted_at && denseEntryRom(entry) !== null)
+    .sort((a, b) => String(a.created_at || a.date || "").localeCompare(String(b.created_at || b.date || "")));
+  if (!marks.length) return "";
+  const vals = marks.map(denseEntryRom);
+  const best = Math.min(...vals);
+  const delta = roundTo(vals[0] - vals[vals.length - 1], 1);
+  const recent = vals.slice(-8);
+  const min = Math.min(...recent);
+  const max = Math.max(...recent);
+  const span = max - min || 1;
+  const W = 220;
+  const H = 40;
+  const P = 5;
+  const pts = recent
+    .map((v, i) => {
+      const x = P + (recent.length === 1 ? 0.5 : i / (recent.length - 1)) * (W - 2 * P);
+      const y = P + ((v - min) / span) * (H - 2 * P);
+      return `${roundTo(x, 1)},${roundTo(y, 1)}`;
+    })
+    .join(" ");
+  const deltaTxt = delta > 0 ? `−${delta} cm` : delta < 0 ? `+${Math.abs(delta)} cm` : "0 cm";
+  const deltaColor = delta > 0 ? "var(--green)" : delta < 0 ? "var(--red)" : "var(--muted)";
+  return `
+    <section class="exercise-detail-section">
+      <div class="section-subhead"><strong>Rango de movimiento</strong><span>${escapeHtml(denseRomLabel(exercise))} · menos es mejor</span></div>
+      <div style="display:flex;align-items:center;gap:14px;padding:11px 13px;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--panel-2)">
+        <div style="display:flex;flex-direction:column;min-width:52px"><span style="font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Mejor</span><strong style="font-size:1.15rem">${roundTo(best, 1)}<small style="font-size:0.7rem;font-weight:600"> cm</small></strong></div>
+        <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="flex:1;height:38px" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="var(--cyan)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg>
+        <div style="display:flex;flex-direction:column;text-align:right;min-width:64px"><span style="font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Desde inicio</span><strong style="font-size:0.92rem;color:${deltaColor}">${deltaTxt}</strong></div>
+      </div>
+    </section>
+  `;
+}
+
 function denseRepPerSetFields(exercise, defaults) {
   if (!denseUsesRepsPerSet(exercise)) return "";
   if (denseIsLoadExercise(exercise)) {
@@ -6656,7 +6789,8 @@ function todayWorkoutCard(entry) {
   const exercise = denseExerciseById(entry.exercise_id);
   const isPr = denseEntryIsPr(entry);
   const effortColor = denseEffortColor(entry.effort || "N");
-  const volume = entry.tonnage_kg ? `${roundTo(entry.tonnage_kg / 1000, 1)}t` : entry.total_reps ? `${entry.total_reps} reps` : entry.total_hold_seconds ? `${entry.total_hold_seconds}s` : "-";
+  const romTxt = denseRomText(entry);
+  const volume = romTxt || (entry.tonnage_kg ? `${roundTo(entry.tonnage_kg / 1000, 1)}t` : entry.total_reps ? `${entry.total_reps} reps` : entry.total_hold_seconds ? `${entry.total_hold_seconds}s` : "-");
   const card = `
     <article class="today-workout-card workout-set-card is-complete ${isPr ? "is-pr" : ""}" style="--item-color:${denseCategoryColor(exercise.category)}" data-action="open-dense-exercise-detail" data-exercise="${escapeAttr(entry.exercise_id)}">
       ${denseExerciseIconMarkup(exercise, { className: "tiny-icon workout-exercise-icon" })}
@@ -6671,7 +6805,7 @@ function todayWorkoutCard(entry) {
         <span class="workout-set-summary">${denseEntrySummaryLine(entry)} <span class="effort-letter" style="--effort-color:${effortColor}">${escapeHtml(denseEffortLetter(entry.effort))}</span></span>
       </div>
       <div class="workout-set-volume">
-        <span>Volume</span>
+        <span>${romTxt ? "Rango" : "Volume"}</span>
         <strong>${escapeHtml(volume)}</strong>
       </div>
       <div class="workout-set-actions">
@@ -6686,6 +6820,17 @@ function todayWorkoutCard(entry) {
 }
 
 function denseEntryIsPr(entry) {
+  // Mobility ROM PR: closest to the floor/target wins, across schemes (a
+  // deeper pancake is a PR regardless of reps). Only when this mark logged a
+  // ROM; otherwise fall through to the normal per-scheme strength PR.
+  const rom = denseEntryRom(entry);
+  if (rom !== null && denseUsesRom(denseExerciseById(entry.exercise_id))) {
+    return !getDenseEntries().some((item) => {
+      if (item.id === entry.id || item.exercise_id !== entry.exercise_id) return false;
+      const other = denseEntryRom(item);
+      return other !== null && other < rom;
+    });
+  }
   const score = denseEntryScore(entry);
   if (!score) return false;
   return !getDenseEntries().some((item) => item.id !== entry.id && item.exercise_id === entry.exercise_id && item.scheme === entry.scheme && denseEntryScore(item) > score);
@@ -6708,6 +6853,12 @@ function densePlannedScheme(exercise) {
 }
 
 function densePlannedTargetValue(exercise, scheme) {
+  if (denseUsesRom(exercise)) {
+    const rom = denseRomSuggestion(exercise);
+    if (rom) return `${roundTo(rom.target, 1)} cm`;
+    const best = denseBestRom(exercise.id);
+    if (best !== null) return `${roundTo(best, 1)} cm`;
+  }
   if (denseIsIsometric(exercise)) {
     const seconds = denseDefaultHoldPerRound(exercise, scheme);
     return seconds ? `${seconds}s/ronda` : "-";
@@ -8309,6 +8460,7 @@ function denseFormDefaults() {
       externalLoadKg: draftEntry.external_load_kg || "",
       addedLoadKg: draftEntry.added_load_kg || "",
       weightPerDumbbellKg: draftEntry.weight_per_dumbbell_kg || "",
+      romCm: draftEntry.rom_cm ?? "",
       readiness: draftEntry.readiness || "normal",
       notes: draftEntry.notes || "",
     };
@@ -8346,6 +8498,7 @@ function denseFormDefaults() {
     externalLoadKg: suggestion?.externalLoadKg || "",
     addedLoadKg: suggestion?.addedLoadKg || "",
     weightPerDumbbellKg: suggestion?.weightPerDumbbellKg || "",
+    romCm: denseRomSuggestion(activeExercise)?.target ?? "",
     readiness: "normal",
     notes: "",
   };
@@ -8496,6 +8649,8 @@ function densePrRows() {
 function denseEntryCard(entry) {
   const isPr = denseEntryIsPr(entry);
   const metrics = [];
+  const romTxt = denseRomText(entry);
+  if (romTxt) metrics.push(`${romTxt} rango`);
   if (entry.total_hold_seconds) metrics.push(`${entry.total_hold_seconds}s TUT`);
   if (entry.hold_seconds_per_round) metrics.push(`${entry.hold_seconds_per_round}s/ronda`);
   if (entry.reps_per_min) metrics.push(`${entry.reps_per_min} rpm`);
@@ -8580,6 +8735,13 @@ function renderDenseProgressionSuggestion(exercise, suggestion = denseProgressio
         </div>
         <span>${escapeHtml(suggestion.reason)}</span>
         <small>Base: ${escapeHtml(suggestion.entry.scheme)} · ${escapeHtml(denseEntryValue(suggestion.entry))} · esfuerzo ${escapeHtml(suggestion.entry.effort || "N")}</small>
+        ${(() => {
+          if (!denseUsesRom(exercise)) return "";
+          const rom = denseRomSuggestion(exercise);
+          if (!rom) return "";
+          const goal = rom.closer ? `acércate a ${roundTo(rom.target, 1)} cm` : `mantén ${roundTo(rom.current, 1)} cm`;
+          return `<small class="dense-rom-goal"><i data-lucide="ruler"></i>Rango · ${escapeHtml(denseRomLabel(exercise))}: ${goal}${rom.best !== null ? ` · mejor ${roundTo(rom.best, 1)} cm` : ""}</small>`;
+        })()}
       </div>
     </article>
   `;
@@ -8732,6 +8894,16 @@ function denseEntryScore(entry) {
 }
 
 function denseEntryValue(entry) {
+  const romTxt = denseRomText(entry);
+  if (romTxt) {
+    // Mobility leads with depth; reps/hold (if any) come after as context.
+    const extra = entry.total_hold_seconds
+      ? ` · ${entry.total_hold_seconds}s`
+      : entry.total_reps
+        ? ` · ${entry.total_reps} reps`
+        : "";
+    return `${romTxt}${extra}`;
+  }
   if (entry.total_hold_seconds) {
     return `${entry.total_hold_seconds}s TUT · ${entry.hold_seconds_per_round || 0}s/ronda`;
   }

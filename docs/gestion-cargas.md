@@ -179,3 +179,26 @@ back-off. Si `reduction ≥ 0.05`, `denseSoftTarget` genera el objetivo suave co
 - UI: `renderCalibrationCard` → `denseCalibrationRows(kit, staleDays)`. La sugerencia
   semanal de re-test (`denseTestSuggestion`) propone verificar ejercicios con boost ≥ 3%
   sin test directo en ≥ 14 días.
+
+## 8. Rango de movimiento (ROM) para movilidad (~buscar `denseUsesRom`)
+
+Los ejercicios de `category: "mobility"` progresan por **profundidad**, no por reps: cm al
+suelo/objetivo, **menos es mejor** (meta ~0). Es un eje **totalmente desacoplado del motor
+de fuerza** — el `rom_cm` nunca alimenta e1RM, capacidad ni las transferencias.
+
+- `denseUsesRom(ex)` = `ex.category === "mobility"`. `denseRomLabel(ex)` da la etiqueta
+  concreta (`denseRomLabels`: "dedos → suelo", "pecho → suelo", "cadera → suelo",
+  "manos → talones"…).
+- Campo `rom_cm` en la marca (parseado con `denseParseRom`, permite 0 y decimales).
+  `denseRomField` lo pinta como campo destacado solo en movilidad.
+- PR (`denseEntryIsPr`): en movilidad el PR es el **menor cm** del ejercicio, **entre todos
+  los esquemas** (un pancake más profundo es PR sin importar reps). Si la marca no registró
+  ROM, cae al PR de fuerza normal por esquema.
+- Sugerencia (`denseRomSuggestion`): parte del último ROM y se acerca 0.5–1 cm si fue fácil
+  / te ves fuerte, mantiene si fue duro o vienes rígido. Ganancias lentas a propósito.
+  Prefill del formulario y línea en la tarjeta de recomendación (`.dense-rom-goal`).
+- Display: cabecera "Rango · N cm" en la tarjeta del día y en `denseEntryValue`; target en
+  la tarjeta planificada (`densePlannedTargetValue`); tarjeta de progreso con mejor +
+  sparkline + delta desde el inicio en el detalle del ejercicio (`renderRomProgressCard`).
+- Self-tests: mejor = menor cm, PR al acercarse, sugerencia -0.5 en normal, y que el ROM no
+  toca `denseEntryScore`/transferencias.
