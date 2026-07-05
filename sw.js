@@ -1,9 +1,9 @@
-const CACHE_NAME = "bittracker-mobile-20260705-oac-assisted-07";
+const CACHE_NAME = "bittracker-mobile-20260705-card-source-08";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=20260705-oac-assisted-07",
-  "./app.js?v=20260705-oac-assisted-07",
+  "./styles.css?v=20260705-card-source-08",
+  "./app.js?v=20260705-card-source-08",
   "./manifest.webmanifest?v=20260627-mobile-01",
   "./icon.svg"
 ];

@@ -6926,6 +6926,26 @@ function densePlannedScheme(exercise) {
   return denseDefaultScheme(exercise);
 }
 
+// Where the recommended target comes from + how much to trust it. Answers the
+// audit's "directo / estimado / transferencia" question inline on the card.
+function denseTargetSource(exercise, scheme) {
+  const base = denseSchemeBase(scheme);
+  const entries = getDenseEntries().filter((entry) => entry.exercise_id === exercise.id && !entry.deleted_at);
+  const byRecent = (a, b) => String(b.created_at || b.date || "").localeCompare(String(a.created_at || a.date || ""));
+  const directExact = [...entries].filter((entry) => entry.scheme === scheme).sort(byRecent)[0];
+  if (directExact) return { kind: "direct", label: "Directo", cls: "is-green", icon: "check", confidence: denseConfidenceLabel(denseEstimateSigma(directExact.date)) };
+  const sameBase = [...entries].filter((entry) => denseSchemeBase(entry.scheme) === base).sort(byRecent)[0];
+  if (sameBase) return { kind: "block", label: `Desde ${sameBase.scheme}`, cls: "is-blue", icon: "history", confidence: denseConfidenceLabel(denseEstimateSigma(sameBase.date)) };
+  if (denseTransferBoost(exercise.id) > 0) return { kind: "transfer", label: "Transferencia", cls: "is-amber", icon: "git-merge", confidence: "baja" };
+  if (entries.length) return { kind: "estimated", label: "Estimado", cls: "is-amber", icon: "sigma", confidence: denseConfidenceLabel(denseEstimateSigma([...entries].sort(byRecent)[0].date, { cross: true, baseGap: 2 })) };
+  return { kind: "none", label: "Primer test", cls: "", icon: "flask-conical", confidence: "" };
+}
+
+function denseTargetSourceBadge(exercise, scheme) {
+  const src = denseTargetSource(exercise, scheme);
+  return `<span class="mini-tag ${src.cls}"><i data-lucide="${src.icon}"></i>${escapeHtml(src.label)}${src.confidence ? ` · conf ${escapeHtml(src.confidence)}` : ""}</span>`;
+}
+
 function densePlannedTargetValue(exercise, scheme) {
   if (denseUsesRom(exercise)) {
     const rom = denseRomSuggestion(exercise);
@@ -6936,6 +6956,14 @@ function densePlannedTargetValue(exercise, scheme) {
   if (denseIsIsometric(exercise)) {
     const seconds = denseDefaultHoldPerRound(exercise, scheme);
     return seconds ? `${seconds}s/ronda` : "-";
+  }
+  // Load / assisted exercises: the headline objective is the weight, not rpm.
+  if (denseIsLoadExercise(exercise)) {
+    const suggestion = denseProgressionSuggestion(exercise, "normal", scheme);
+    if (suggestion?.type === "assist") return Number(suggestion.assistLoadKg) > 0 ? `−${formatKg(suggestion.assistLoadKg)}` : "OAC";
+    const load = suggestion && (suggestion.externalLoadKg || suggestion.addedLoadKg || suggestion.weightPerDumbbellKg);
+    if (load) return `${suggestion.addedLoadKg ? "+" : ""}${formatKg(load)}`;
+    return "-";
   }
   if (denseUsesRepsPerSet(exercise)) {
     const reps = denseDefaultRepsPerSet(exercise, scheme);
@@ -6967,7 +6995,8 @@ function plannedWorkoutCard(exercise) {
       ${denseExerciseIconMarkup(exercise, { className: "tiny-icon workout-exercise-icon" })}
       <div class="workout-set-main">
         <div class="workout-set-tags">
-          <span class="mini-tag is-blue">${escapeHtml(denseNatureLabel(exercise.nature).split("·")[0].trim())} · Dense</span>
+          ${denseTargetSourceBadge(exercise, scheme)}
+          <span class="mini-tag">${escapeHtml(denseNatureLabel(exercise.nature).split("·")[0].trim())}</span>
         </div>
         <strong>${escapeHtml(exercise.name)} <small>${escapeHtml(scheme)}</small></strong>
         <em class="set-protocol">${escapeHtml(denseProtocolHint(scheme, denseIsIsometric(exercise)))}</em>
@@ -8839,6 +8868,10 @@ function renderDenseProgressionSuggestion(exercise, suggestion = denseProgressio
         </div>
         <span>${escapeHtml(suggestion.reason)}</span>
         <small>Base: ${escapeHtml(suggestion.entry.scheme)} · ${escapeHtml(denseEntryValue(suggestion.entry))} · esfuerzo ${escapeHtml(suggestion.entry.effort || "N")}</small>
+        ${(() => {
+          const src = denseTargetSource(exercise, suggestion.scheme);
+          return `<small class="dense-source-line"><i data-lucide="${src.icon}"></i>Fuente: ${escapeHtml(src.label)}${src.confidence ? ` · confianza ${escapeHtml(src.confidence)}` : ""}</small>`;
+        })()}
         ${(() => {
           if (!denseUsesRom(exercise)) return "";
           const rom = denseRomSuggestion(exercise);

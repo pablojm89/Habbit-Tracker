@@ -2608,6 +2608,24 @@ button:active:not(:disabled),
   font-size: 0.68rem;
 }
 
+.dense-progression-card .dense-source-line,
+.dense-progression-card .dense-rom-goal {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  overflow: visible;
+  white-space: normal;
+}
+
+.dense-progression-card .dense-source-line i,
+.dense-progression-card .dense-source-line svg,
+.dense-progression-card .dense-rom-goal i,
+.dense-progression-card .dense-rom-goal svg {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+}
+
 .dense-progression-title {
   display: flex;
   gap: 8px;
