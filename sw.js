@@ -1,9 +1,9 @@
-const CACHE_NAME = "bittracker-mobile-20260704-transfer-fixes-04";
+const CACHE_NAME = "bittracker-mobile-20260704-pr-card-radius-05";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=20260704-transfer-fixes-04",
-  "./app.js?v=20260704-transfer-fixes-04",
+  "./styles.css?v=20260704-pr-card-radius-05",
+  "./app.js?v=20260704-pr-card-radius-05",
   "./manifest.webmanifest?v=20260627-mobile-01",
   "./icon.svg"
 ];

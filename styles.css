@@ -6594,6 +6594,12 @@ button:focus-visible {
     align-items: center;
   }
 
+  /* The swipe-wrap clips with overflow:hidden, so its radius must match the
+     compact card's 13px — otherwise its 18px arc shaves the card corners. */
+  body[data-density="compact"] .swipe-wrap {
+    border-radius: 13px;
+  }
+
   body[data-density="compact"] .workout-set-main {
     gap: 3px;
   }
