@@ -4001,6 +4001,7 @@ function renderData() {
       </article>
       <article class="backup-box is-wide">
         <strong>Cloud / Google Sheets</strong>
+        <p class="tiny-copy" data-last-backup><i data-lucide="shield-check"></i> ${escapeHtml(denseLastBackupText())}</p>
         <p class="tiny-copy">Pega aqui la URL del Web App de Apps Script. La app enviara cada cambio como snapshot y puede restaurar el ultimo RawState.</p>
         <form id="cloudSyncForm" class="cloud-sync-form">
           <label class="field">
@@ -4044,6 +4045,7 @@ function openCloudToolsModal() {
       </article>
       <article class="backup-box is-wide">
         <strong>Google Sheets</strong>
+        <p class="tiny-copy" data-last-backup><i data-lucide="shield-check"></i> ${escapeHtml(denseLastBackupText())}</p>
         <p class="tiny-copy">Restaura el ultimo snapshot guardado en RawState. Util para la app instalada cuando arranca sin datos locales.</p>
         <div class="inline-actions" style="justify-content:flex-start; margin-top:10px">
           <button class="text-button is-hot" type="button" data-action="restore-cloud"><i data-lucide="cloud-download"></i>Restaurar Cloud</button>
@@ -5148,6 +5150,7 @@ function saveDenseTrainingForm(form) {
   const raw = {
     id: existingEntry?.id || `dense-${Date.now()}`,
     version: 1,
+    schema_version: 3,
     date: data.date || dateKey(selectedDate),
     created_at: existingEntry?.created_at || now,
     updated_at: now,
@@ -5568,9 +5571,28 @@ function saveAndRender(message) {
   if (message) toast(message);
 }
 
+let denseSaveErrorNotified = false;
 function saveState() {
   state.settings.selectedDate = dateKey(selectedDate);
-  localStorage.setItem(STORE_KEY, JSON.stringify(state));
+  state.settings.lastSavedAt = new Date().toISOString();
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify(state));
+    denseSaveErrorNotified = false;
+  } catch (error) {
+    // iOS evicts / caps localStorage aggressively (QuotaExceededError, or
+    // SecurityError in private mode). Never lose the session silently: warn
+    // once and force an immediate cloud push so the data leaves the device.
+    console.warn("saveState failed", error);
+    if (!denseSaveErrorNotified) {
+      denseSaveErrorNotified = true;
+      toast("No se pudo guardar en el móvil — enviando a la nube");
+    }
+    if (cloudConfig.enabled && cloudConfig.endpointUrl) {
+      clearTimeout(cloudSyncTimer);
+      syncCloudState("save-error");
+    }
+    return;
+  }
   scheduleCloudSync("auto");
 }
 
@@ -5758,6 +5780,7 @@ async function syncCloudState(reason = "manual") {
       result = { ok: response.ok, raw: text };
     }
     if (!response.ok || result.ok === false) throw new Error(result.error || `HTTP ${response.status}`);
+    state.settings.lastCloudSyncAt = payload.syncedAt;
     cloudSyncStatus = { state: "ok", text: `Cloud sync OK · ${formatLogDate(payload.syncedAt)}` };
     updateCloudSyncStatus();
     if (reason === "manual") toast("Cloud sync OK");
@@ -5777,6 +5800,7 @@ async function syncCloudState(reason = "manual") {
         headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify(payload),
       });
+      state.settings.lastCloudSyncAt = payload.syncedAt;
       cloudSyncStatus = { state: "ok", text: `Cloud sync enviado · verifica Sheets · ${formatLogDate(payload.syncedAt)}` };
       updateCloudSyncStatus();
       if (reason === "manual") toast("Cloud sync enviado");
@@ -9337,6 +9361,27 @@ function formatLogDate(value) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+// "hace X" corto para el indicador de copia de seguridad
+function denseRelativeTime(iso) {
+  const ms = Date.now() - new Date(iso).getTime();
+  if (!Number.isFinite(ms) || ms < 0) return "";
+  const min = Math.floor(ms / 60000);
+  if (min < 1) return "hace segundos";
+  if (min < 60) return `hace ${min} min`;
+  const hours = Math.floor(min / 60);
+  if (hours < 24) return `hace ${hours} h`;
+  const days = Math.floor(hours / 24);
+  return `hace ${days} día${days === 1 ? "" : "s"}`;
+}
+
+// Estado de la última copia en la nube (la que sobrevive a perder el móvil).
+function denseLastBackupText() {
+  const at = state.settings?.lastCloudSyncAt;
+  if (!cloudConfig.enabled || !cloudConfig.endpointUrl) return "Nube desactivada · solo copia local. Actívala para no depender del móvil.";
+  if (!at) return "Sin copia en la nube todavía.";
+  return `Última copia en la nube: ${denseRelativeTime(at)} · ${formatLogDate(at)}`;
 }
 
 function formatTimerSeconds(value) {
