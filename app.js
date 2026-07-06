@@ -3002,7 +3002,7 @@ function renderMesocycle() {
         <div class="workout-day-head">
           <h2 class="workout-day-title">${capitalize(formatWeekday(selectedDate))} <span>${formatMonthDay(selectedDate)}</span></h2>
           <div class="workout-day-badges">
-            <span class="workout-score"><strong>${scoreForDate(selectedDate)}</strong><small>EXR</small></span>
+            <span class="workout-score"><strong>${entries.length}</strong><small>sets</small></span>
             <button class="icon-button" type="button" data-action="go-today" title="Hoy" aria-label="Hoy"><i data-lucide="calendar-clock"></i></button>
             <button class="icon-button" type="button" data-action="open-quick-timer" title="Tools" aria-label="Tools"><i data-lucide="timer"></i></button>
           </div>
