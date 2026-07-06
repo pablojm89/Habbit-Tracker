@@ -8,11 +8,11 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 > App: PWA de entrenamiento (Dense training). Vanilla JS sin build: `app.js` (~9000
 > líneas), `styles.css`, `index.html`, `sw.js`. Sincroniza a Google Sheets vía Apps Script.
 > Modo training-only (`TRAINING_ONLY = true`). Cache busting: string `?v=…` en `index.html`
-> **y** `sw.js` a la vez. **Última versión: `20260705-analytics-pr-11`.**
+> **y** `sw.js` a la vez. **Última versión: `20260706-fase2-15`.**
 
 ## Cómo trabajar aquí (imprescindible)
 
-- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **34 asserts**.
+- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **38 asserts**.
   Correr siempre tras tocar el motor.
 - **TDZ**: cualquier `const` de nivel superior que use el render debe declararse en el
   bloque de constantes de arriba (cerca de `trainingAnalyticsTabs` / `bodyweightSchemes`).
@@ -84,9 +84,7 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 
 ### Del audit (no priorizados aún)
 - **#3 tonelaje**: hacerlo secundario en el resumen del día y añadir volumen por patrón
-  (empuje/tirón/pierna). El tonelaje global mezcla fuerza/BW/iso/movilidad y engaña.
-- **#4 rangos**: mostrar "92kg (87–97)" en objetivos estimados en la tarjeta (parcial:
-  las estimate cards del modal ya muestran rango + confianza).
+  (empuje/tirón/pierna). (#4 rangos ya hecho en Fase 2.)
 
 ### Backlog / higiene
 - **Push**: subir todos los commits de la sesión (el usuario hace el push).
@@ -96,6 +94,17 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 - Otras ideas: red de seguridad de datos (try/catch en `saveState`, snapshots con fecha),
   onboarding de calibración, cronómetro de descanso auto.
 
+### Fase 1 + 2 del plan maestro (jul 2026) — hechas
+- `b19e786`/`aeba24f` Fase 1: saveState con try/catch + push forzado a nube en fallo de
+  cuota; `lastCloudSyncAt` + indicador "última copia hace X" en Backup; `schema_version:3`;
+  badge EXR (hábitos) → sets de hoy. Snapshots con historial ya existían en el .gs.
+- `66e18f6` Fase 2: `denseDayPlans` v2 (objetos, normalizador perezoso `densePlanItem`);
+  modo test end-to-end (`is_test`: auto por fuente, toggle en form, fatiga a la mitad,
+  badge en tarjeta); rangos en tarjeta (`densePlannedTargetRange`, sigma expuesta en
+  `denseTargetSource`); deload tras 4 duras sin PR (`denseStagnationInfo`+`denseMaybeDeload`).
+- Convención nueva: los self-tests de una fase van AL FINAL de la suite (contaminaban
+  tests posteriores con marcas sintéticas).
+
 ## Estado actual conocido
-- 34/34 self-tests en verde.
-- **A investigar**: el usuario reporta que en el móvil "no carga bien" (auditoría en curso).
+- 38/38 self-tests en verde.
+- Móvil "no carga bien" resuelto: era deploy de GitHub Pages + de paso lucide fijado y SW cache-first.
