@@ -7155,6 +7155,19 @@ button:focus-visible {
   margin-top: 1px;
 }
 
+.transfer-note.dense-test-toggle {
+  cursor: pointer;
+  border-color: rgba(255, 205, 70, 0.4);
+  background: rgba(255, 196, 60, 0.07);
+  color: color-mix(in srgb, #ffd166, var(--text) 28%);
+}
+
+.transfer-note.dense-test-toggle input[type="checkbox"] {
+  margin-top: 1px;
+  accent-color: #ffd166;
+  flex: 0 0 auto;
+}
+
 .transfer-note.is-warn {
   border-color: rgba(233, 184, 78, 0.35);
   background: rgba(233, 184, 78, 0.06);

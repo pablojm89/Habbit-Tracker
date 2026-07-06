@@ -236,6 +236,7 @@ const denseExerciseSortOptions = [
 ];
 
 const DENSE_RECOVERY_MIN_WELLNESS = 3;
+const DENSE_DELOAD_STREAK = 4;
 const trainingAnalyticsTabs = [
   ["progress", "Progreso", "trending-up"],
   ["volume", "Volumen", "bar-chart-3"],
@@ -2278,6 +2279,7 @@ function runDenseSelfTests() {
   add({ ...oacAssist6, date: "2026-06-15", created_at: "2026-06-15T10:00:00Z", effort: "E" });
   test("OAC asistida: progresión baja el contrapeso", () => { const s = denseProgressionSuggestion(denseExerciseById("oac_assisted"), "normal", "5D1"); return s && s.type === "assist" && Number(s.assistLoadKg) < 6; });
 
+
   test("técnica: no-técnico expresa 1", () => denseTechMasteryInfo(denseExerciseById("air_squat")).t === 1);
   test("técnica: skill sin historial 0.35", () => denseTechMasteryInfo(denseExerciseById("front_lever_full")).t === 0.35);
 
@@ -2316,6 +2318,34 @@ function runDenseSelfTests() {
   test("fallo lastrado: siguiente carga ≤ lo que tu e1RM real sostiene", () => {
     const s = denseProgressionSuggestion(denseExerciseById("bench_press"), "normal", "5D5");
     return s && s.type === "load" && Number(s.externalLoadKg) <= denseRoundLoad(failBench.e1rm_kg * 0.688);
+  });
+  // Fase 2: plan v2, modo test, deload y rangos
+  test("plan v2: normaliza strings y objetos", () => {
+    const a = densePlanItem("pull_up");
+    const b = densePlanItem({ exercise_id: "bench_press", is_test: true, scheme: "5D5" });
+    return a.exercise_id === "pull_up" && a.source === "manual" && b.is_test === true && b.scheme === "5D5" && densePlanItem(null) === null;
+  });
+  add({ id: "ft1", exercise_id: "bench_press", exercise_name: "Press banca", nature: "weighted", scheme: "5D5", date: dateKey(today), created_at: new Date().toISOString(), external_load_kg: 90, total_reps: 25, effort: "H", is_test: true, bodyweight_kg: 80 });
+  test("test suaviza fatiga: back-off a la mitad", () => {
+    const warning = denseGroupFatigueWarning(denseExerciseById("ring_dip"), dateKey(today));
+    return warning && Math.abs(warning.reduction - 0.05) < 0.001;
+  });
+  ["d1", "d2", "d3", "d4"].forEach((id, i) => {
+    add({ id, exercise_id: "front_squat", exercise_name: "Front Squat", nature: "weighted", scheme: "5D5", date: "2026-06-0" + (i + 1), created_at: "2026-06-0" + (i + 1) + "T10:00:00Z", external_load_kg: 90, e1rm_kg: 130.8, total_reps: 25, effort: "H", bodyweight_kg: 80 });
+  });
+  add({ id: "d0", exercise_id: "front_squat", exercise_name: "Front Squat", nature: "weighted", scheme: "5D5", date: "2026-05-01", created_at: "2026-05-01T10:00:00Z", external_load_kg: 100, e1rm_kg: 145.3, total_reps: 25, effort: "N", bodyweight_kg: 80 });
+  test("deload: 4 duras sin PR fuerzan bajada", () => {
+    const s = denseProgressionSuggestion(denseExerciseById("front_squat"), "normal", "5D5");
+    return s && s.deload === true && s.direction === "down" && Number(s.externalLoadKg) < 90;
+  });
+  test("rango estimado en tarjeta: 5D5 desde 5D10", () => {
+    const bench = denseExerciseById("bench_press");
+    const saved2 = state.denseTrainingEntries;
+    state.denseTrainingEntries = [computeDenseEntry({ id: "r10", exercise_id: "bench_press", nature: "weighted", scheme: "5D10", date: "2026-06-20", created_at: "2026-06-20T10:00:00Z", external_load_kg: 60, total_reps: 50, bodyweight_kg: 80 })];
+    const src2 = denseTargetSource(bench, "5D5");
+    const range = densePlannedTargetRange(bench, "5D5", src2);
+    state.denseTrainingEntries = saved2;
+    return src2.kind === "block" && src2.sigma > 0 && /kg/.test(range) && range.includes("–");
   });
 
   state.denseTrainingEntries = savedEntries;
@@ -2835,7 +2865,7 @@ function denseTestSuggestionRow(suggestion, { lead = false } = {}) {
         <strong>${escapeHtml(title)}</strong>
         <span>Estimación +${roundTo(suggestion.pct * 100, 1)}%${suggestion.from ? ` por transferencia de ${escapeHtml(suggestion.from)}` : ""} sin verificar · objetivo ${escapeHtml(suggestion.target)} · ${daysLabel}</span>
       </div>
-      <button class="dc-badge calibration-add" type="button" data-action="add-planned-exercise" data-exercise="${escapeAttr(suggestion.exercise.id)}">+ hoy</button>
+      <button class="dc-badge calibration-add" type="button" data-action="add-planned-exercise" data-exercise="${escapeAttr(suggestion.exercise.id)}" data-test="1" data-scheme="${escapeAttr(suggestion.scheme)}">+ hoy</button>
     </div>
   `;
 }
@@ -3134,6 +3164,11 @@ function denseTrainingFormMarkup(defaults, { includePicker = false, modal = fals
       ${denseReadinessField(readiness)}
       ${denseNatureSelectorMarkup(exercise, nature)}
       ${denseFailureSetMode ? `<p class="transfer-note"><i data-lucide="flame"></i>Set al fallo de la semana: elige los minutos según tu tiempo; las reps de abajo son tu objetivo estimado al fallo. Haz el set, apunta las reps reales y marca cómo fue.</p>` : ""}
+      ${
+        defaults.isTest && !denseFailureSetMode
+          ? `<label class="transfer-note dense-test-toggle"><input type="checkbox" name="isTest" checked /><i data-lucide="flask-conical"></i><span>Sesión test: el objetivo es estimado. Explóralo — si no sale, recalibra sin penalizar tu semana.</span></label>`
+          : ""
+      }
       ${suggestion ? `<div class="dense-recommendation-wrap" data-recommendation>${renderDenseProgressionSuggestion(activeExercise, suggestion)}</div>` : ""}
       <div class="dense-form-grid">
         ${field("Peso corporal kg", "bodyweightKg", defaults.bodyweightKg, "number")}
@@ -3816,8 +3851,8 @@ function denseCalibrationRowHtml({ test, exercise, days, status }) {
         status === "fresh"
           ? `<span class="dc-badge is-good">anclado · ${days}d</span>`
           : status === "stale"
-            ? `<button class="dc-badge is-warn calibration-add" type="button" data-action="add-planned-exercise" data-exercise="${escapeAttr(test.id)}">re-test (${days}d)</button>`
-            : `<button class="dc-badge calibration-add" type="button" data-action="add-planned-exercise" data-exercise="${escapeAttr(test.id)}">+ programar</button>`
+            ? `<button class="dc-badge is-warn calibration-add" type="button" data-action="add-planned-exercise" data-exercise="${escapeAttr(test.id)}" data-test="1" data-scheme="${escapeAttr(test.scheme)}">re-test (${days}d)</button>`
+            : `<button class="dc-badge calibration-add" type="button" data-action="add-planned-exercise" data-exercise="${escapeAttr(test.id)}" data-test="1" data-scheme="${escapeAttr(test.scheme)}">+ programar</button>`
       }
     </div>`;
 }
@@ -4127,7 +4162,7 @@ function handleClick(event) {
   if (action === "open-dense-entry-modal") openDenseTrainingModal({ entryId: target.dataset.entry });
   if (action === "open-dense-exercise-modal") openDenseTrainingModal({ exerciseId: target.dataset.exercise });
   if (action === "open-workout-exercise-picker") openWorkoutExercisePickerModal();
-  if (action === "add-planned-exercise") addPlannedExerciseToSelectedDate(target.dataset.exercise);
+  if (action === "add-planned-exercise") addPlannedExerciseToSelectedDate(target.dataset.exercise, { isTest: target.dataset.test === "1", scheme: target.dataset.scheme || "" });
   if (action === "open-failure-set-picker") openFailureSetPicker(target.dataset.group);
   if (action === "pick-failure-exercise") openDenseTrainingModal({ exerciseId: target.dataset.exercise, failure: true });
   if (action === "toggle-exercise-group") toggleExerciseGroup(target.dataset.group);
@@ -4922,7 +4957,20 @@ function toggleExerciseGroup(family) {
   refreshDenseExercisePickerSurface();
 }
 
-function addPlannedExerciseToSelectedDate(exerciseId) {
+// denseDayPlans v2: each planned item is an object { exercise_id, source,
+// scheme?, is_test? }. Old plans stored bare exercise-id strings — this
+// normalizer lets every reader handle both without a data migration.
+function densePlanItem(raw) {
+  if (!raw) return null;
+  if (typeof raw === "string") return { exercise_id: raw, source: "manual" };
+  return raw.exercise_id ? raw : null;
+}
+
+function densePlanItemsForDate(day) {
+  return (state.denseDayPlans?.[dateKey(day)] || []).map(densePlanItem).filter(Boolean);
+}
+
+function addPlannedExerciseToSelectedDate(exerciseId, { isTest = false, scheme = "" } = {}) {
   const exercise = findDenseExerciseById(exerciseId);
   if (!exercise) {
     toast("Ejercicio no válido");
@@ -4931,10 +4979,13 @@ function addPlannedExerciseToSelectedDate(exerciseId) {
   const key = dateKey(selectedDate);
   state.denseDayPlans ||= {};
   const plan = state.denseDayPlans[key] || [];
-  state.denseDayPlans[key] = [...plan, exercise.id];
+  const item = { exercise_id: exercise.id, source: isTest ? "suggestion" : "manual" };
+  if (isTest) item.is_test = true;
+  if (scheme) item.scheme = scheme;
+  state.denseDayPlans[key] = [...plan, item];
   state.settings.denseSelectedExerciseId = exercise.id;
   closeModal();
-  saveAndRender(`${exercise.name} añadido`);
+  saveAndRender(isTest ? `${exercise.name} añadido como test` : `${exercise.name} añadido`);
 }
 
 function openDenseDeleteConfirm(entryId) {
@@ -4967,7 +5018,7 @@ function openDenseDeleteConfirm(entryId) {
 function openPlannedExerciseDeleteConfirm(planIndex) {
   closeAllSwipes();
   const key = dateKey(selectedDate);
-  const exercise = findDenseExerciseById(state.denseDayPlans?.[key]?.[planIndex]);
+  const exercise = findDenseExerciseById(densePlanItem(state.denseDayPlans?.[key]?.[planIndex])?.exercise_id);
   if (!exercise) return;
   nodes.modalCard.dataset.modalKind = "confirm-delete";
   nodes.modalEyebrow.textContent = "Quitar";
@@ -5151,6 +5202,7 @@ function saveDenseTrainingForm(form) {
     id: existingEntry?.id || `dense-${Date.now()}`,
     version: 1,
     schema_version: 3,
+    is_test: data.isTest === "on",
     date: data.date || dateKey(selectedDate),
     created_at: existingEntry?.created_at || now,
     updated_at: now,
@@ -6964,12 +7016,48 @@ function denseTargetSource(exercise, scheme) {
   const entries = getDenseEntries().filter((entry) => entry.exercise_id === exercise.id && !entry.deleted_at);
   const byRecent = (a, b) => String(b.created_at || b.date || "").localeCompare(String(a.created_at || a.date || ""));
   const directExact = [...entries].filter((entry) => entry.scheme === scheme).sort(byRecent)[0];
-  if (directExact) return { kind: "direct", label: "Directo", cls: "is-green", icon: "check", confidence: denseConfidenceLabel(denseEstimateSigma(directExact.date)) };
+  if (directExact) {
+    const sigma = denseEstimateSigma(directExact.date);
+    return { kind: "direct", label: "Directo", cls: "is-green", icon: "check", sigma, confidence: denseConfidenceLabel(sigma) };
+  }
   const sameBase = [...entries].filter((entry) => denseSchemeBase(entry.scheme) === base).sort(byRecent)[0];
-  if (sameBase) return { kind: "block", label: `Desde ${sameBase.scheme}`, cls: "is-blue", icon: "history", confidence: denseConfidenceLabel(denseEstimateSigma(sameBase.date)) };
-  if (denseTransferBoost(exercise.id) > 0) return { kind: "transfer", label: "Transferencia", cls: "is-amber", icon: "git-merge", confidence: "baja" };
-  if (entries.length) return { kind: "estimated", label: "Estimado", cls: "is-amber", icon: "sigma", confidence: denseConfidenceLabel(denseEstimateSigma([...entries].sort(byRecent)[0].date, { cross: true, baseGap: 2 })) };
-  return { kind: "none", label: "Primer test", cls: "", icon: "flask-conical", confidence: "" };
+  if (sameBase) {
+    const sigma = denseEstimateSigma(sameBase.date);
+    return { kind: "block", label: `Desde ${sameBase.scheme}`, cls: "is-blue", icon: "history", sigma, confidence: denseConfidenceLabel(sigma) };
+  }
+  if (denseTransferBoost(exercise.id) > 0) return { kind: "transfer", label: "Transferencia", cls: "is-amber", icon: "git-merge", sigma: 0.2, confidence: "baja" };
+  if (entries.length) {
+    const sigma = denseEstimateSigma([...entries].sort(byRecent)[0].date, { cross: true, baseGap: 2 });
+    return { kind: "estimated", label: "Estimado", cls: "is-amber", icon: "sigma", sigma, confidence: denseConfidenceLabel(sigma) };
+  }
+  return { kind: "none", label: "Primer test", cls: "", icon: "flask-conical", sigma: 0, confidence: "" };
+}
+
+// Range text for an estimated target: "87-97kg" / "6-8 rpm". Only for
+// non-direct sources; a directly-tested scheme shows the single number.
+function densePlannedTargetRange(exercise, scheme, src = denseTargetSource(exercise, scheme)) {
+  if (!src.sigma || src.kind === "direct" || src.kind === "none") return "";
+  if (denseUsesRom(exercise)) return "";
+  if (denseIsLoadExercise(exercise)) {
+    const suggestion = denseProgressionSuggestion(exercise, "normal", scheme);
+    const load = suggestion && Number(suggestion.assistLoadKg || suggestion.externalLoadKg || suggestion.addedLoadKg || suggestion.weightPerDumbbellKg || 0);
+    if (!load) return "";
+    const low = denseRoundLoad(load * (1 - src.sigma));
+    const high = denseRoundLoad(load * (1 + src.sigma));
+    return low !== "" && high !== "" && high > low ? `${low}–${high}kg` : "";
+  }
+  if (denseIsIsometric(exercise)) {
+    const seconds = Number(denseDefaultHoldPerRound(exercise, scheme)) || 0;
+    if (!seconds) return "";
+    const low = Math.max(1, Math.floor(seconds * (1 - src.sigma)));
+    const high = Math.max(low + 1, Math.ceil(seconds * (1 + src.sigma)));
+    return `${low}–${high}s`;
+  }
+  const reps = Number(denseDefaultRepsPerSet(exercise, scheme)) || 0;
+  if (!reps) return "";
+  const low = Math.max(1, Math.floor(reps * (1 - src.sigma)));
+  const high = Math.max(low + 1, Math.ceil(reps * (1 + src.sigma)));
+  return `${low}–${high} rpm`;
 }
 
 function denseTargetSourceBadge(exercise, scheme) {
@@ -7019,13 +7107,16 @@ function denseLastSessionSummary(exercise, scheme) {
 
 function plannedWorkoutCard(exercise) {
   const canDelete = exercise.plannedSource === "custom";
-  const scheme = densePlannedScheme(exercise);
+  const scheme = exercise.plannedScheme && denseAllowedSchemes(exercise).includes(exercise.plannedScheme) ? exercise.plannedScheme : densePlannedScheme(exercise);
   const target = densePlannedTargetValue(exercise, scheme);
+  const src = denseTargetSource(exercise, scheme);
+  const range = densePlannedTargetRange(exercise, scheme, src);
   const card = `
     <article class="today-workout-card workout-set-card is-planned" style="--item-color:${denseCategoryColor(exercise.category)}" data-action="open-dense-exercise-detail" data-exercise="${escapeAttr(exercise.id)}">
       ${denseExerciseIconMarkup(exercise, { className: "tiny-icon workout-exercise-icon" })}
       <div class="workout-set-main">
         <div class="workout-set-tags">
+          ${exercise.plannedIsTest ? `<span class="mini-tag is-amber"><i data-lucide="flask-conical"></i>Test</span>` : ""}
           ${denseTargetSourceBadge(exercise, scheme)}
           <span class="mini-tag">${escapeHtml(denseNatureLabel(exercise.nature).split("·")[0].trim())}</span>
         </div>
@@ -7036,7 +7127,7 @@ function plannedWorkoutCard(exercise) {
       <div class="workout-set-volume">
         <span>Target</span>
         <strong>${escapeHtml(target)}</strong>
-        <small>${escapeHtml(scheme)}</small>
+        <small>${escapeHtml(range || scheme)}</small>
       </div>
       <div class="workout-set-actions">
         <button class="set-state is-empty" type="button" data-action="open-dense-exercise-modal" data-exercise="${escapeAttr(exercise.id)}" title="Completar" aria-label="Completar ${escapeAttr(exercise.name)}">
@@ -7120,12 +7211,13 @@ function workoutDayButton(day) {
 }
 
 function plannedExercisesForDate(day) {
-  const key = dateKey(day);
   // Mesocycle auto-programming is hidden for now: only manual day plans are shown.
-  return (state.denseDayPlans?.[key] || [])
-    .map((id, index) => {
-      const exercise = findDenseExerciseById(id);
-      return exercise ? { ...exercise, plannedSource: "custom", planIndex: index } : null;
+  return densePlanItemsForDate(day)
+    .map((item, index) => {
+      const exercise = findDenseExerciseById(item.exercise_id);
+      return exercise
+        ? { ...exercise, plannedSource: "custom", planIndex: index, plannedScheme: item.scheme || "", plannedIsTest: Boolean(item.is_test) }
+        : null;
     })
     .filter(Boolean);
 }
@@ -7497,7 +7589,8 @@ function denseGroupFatigueWarning(exercise, dayKey = dateKey(selectedDate)) {
   // Recency-weighted severity: a failure today limits more than one two days ago.
   const scored = offenders.map((o) => ({
     ...o,
-    reduction: (denseEffortReduction[denseEntryEffortCode(o.entry)] || 0) * (denseFatigueRecency[o.daysAgo] || 0),
+    // Failing a TEST is exploration, not planned overreach: half the back-off.
+    reduction: (denseEffortReduction[denseEntryEffortCode(o.entry)] || 0) * (denseFatigueRecency[o.daysAgo] || 0) * (o.entry.is_test ? 0.5 : 1),
   }));
   const worst = scored.slice().sort((a, b) => b.reduction - a.reduction)[0];
   const reduction = Math.round(worst.reduction * 100) / 100;
@@ -7743,6 +7836,58 @@ function denseEstimatedBodySuggestion(exercise, scheme, readiness = "normal") {
   };
 }
 
+// Stagnation: the last DENSE_DELOAD_STREAK real (non-test) marks of the
+// exercise were all hard/failure and none set a PR — grinding without
+// progress. Time to back off.
+function denseStagnationInfo(exercise) {
+  const marks = [...getDenseEntries()]
+    .filter((entry) => entry.exercise_id === exercise.id && !entry.deleted_at && !entry.is_test)
+    .sort((a, b) => String(b.created_at || b.date || "").localeCompare(String(a.created_at || a.date || "")))
+    .slice(0, DENSE_DELOAD_STREAK);
+  if (marks.length < DENSE_DELOAD_STREAK) return null;
+  const hard = new Set(["H", "VH", "fallo"]);
+  if (!marks.every((entry) => entry.failed || hard.has(entry.effort || ""))) return null;
+  if (marks.some((entry) => denseEntryIsPr(entry))) return null;
+  return { sessions: marks.length };
+}
+
+// Post-processor for the progression suggestion: when the exercise is
+// stagnating, replace the normal step with an explicit deload (~-10%) so the
+// user rebuilds with margin instead of grinding another hard session. If the
+// suggestion already steps down (e.g. after a failure), keep its numbers and
+// only surface the deload message.
+function denseMaybeDeload(suggestion, exercise) {
+  if (!suggestion || !denseStagnationInfo(exercise)) return suggestion;
+  const reason = `${DENSE_DELOAD_STREAK} sesiones duras sin PR: deload y reconstruye con margen.`;
+  const out = { ...suggestion, deload: true, direction: "down", tone: "amber", reason };
+  if (suggestion.direction === "down") return out;
+  const scheme = suggestion.scheme;
+  if (suggestion.type === "load" && suggestion.loadKey) {
+    const current = Number(suggestion.externalLoadKg || suggestion.addedLoadKg || suggestion.weightPerDumbbellKg || 0);
+    const next = denseRoundLoad(current * 0.9);
+    if (next !== "") {
+      const key = suggestion.loadKey === "external_load_kg" ? "externalLoadKg" : suggestion.loadKey === "added_load_kg" ? "addedLoadKg" : "weightPerDumbbellKg";
+      out[key] = next;
+      out.title = `${scheme} · ${key === "addedLoadKg" ? "+" : ""}${formatKg(next)}`;
+    }
+  } else if (suggestion.type === "assist") {
+    const next = denseRoundLoad(Number(suggestion.assistLoadKg || 0) + 2) || 2;
+    out.assistLoadKg = next;
+    out.title = `${scheme} · −${formatKg(next)} asist`;
+  } else if (suggestion.type === "hold") {
+    const next = Math.max(1, Math.round(Number(suggestion.holdSecondsPerRound || 1) * 0.85));
+    out.holdSecondsPerRound = next;
+    out.totalHoldSeconds = next * (suggestion.rounds || 1);
+    out.title = `${scheme} · ${next}s hold/ronda`;
+  } else if (suggestion.type === "reps") {
+    const next = Math.max(1, Math.floor(Number(suggestion.repsPerSet || 1) * 0.9));
+    out.repsPerSet = next;
+    out.totalReps = denseTotalFromRepsPerSet(next, scheme);
+    out.title = `${scheme}${next} · ${out.totalReps} reps`;
+  }
+  return out;
+}
+
 function denseProgressionSuggestion(exercise, readiness = "normal", schemeFilter = "") {
   // Scheme-aware memory:
   // - load exercises progress from the exact scheme (10D5 does not borrow 10D10)
@@ -7792,14 +7937,17 @@ function denseProgressionSuggestion(exercise, readiness = "normal", schemeFilter
     const secondsPerStep = 3;
     const delta = failed || effort === "fallo" ? -3 : step * secondsPerStep;
     const holdSecondsPerRound = Math.max(1, Math.round(currentHold + delta));
-    return {
-      ...base,
-      type: "hold",
-      holdSecondsPerRound,
-      totalHoldSeconds: holdSecondsPerRound * (base.rounds || minutes || 1),
-      title: `${scheme} · ${holdSecondsPerRound}s hold/ronda`,
-      reason: denseProgressionReason(entry, direction, readiness),
-    };
+    return denseMaybeDeload(
+      {
+        ...base,
+        type: "hold",
+        holdSecondsPerRound,
+        totalHoldSeconds: holdSecondsPerRound * (base.rounds || minutes || 1),
+        title: `${scheme} · ${holdSecondsPerRound}s hold/ronda`,
+        reason: denseProgressionReason(entry, direction, readiness),
+      },
+      exercise,
+    );
   }
 
   if (exercise.nature === "assisted") {
@@ -7810,15 +7958,18 @@ function denseProgressionSuggestion(exercise, readiness = "normal", schemeFilter
     if (failed || effort === "fallo") nextAssist = denseRoundLoad(currentAssist + 1) || currentAssist;
     else if (step <= 0) nextAssist = currentAssist;
     else nextAssist = Math.max(0, denseRoundLoad(currentAssist - step));
-    return {
-      ...base,
-      type: "assist",
-      repsPerSet: entry.target_reps_per_min || entry.reps_per_set || denseSchemePrescriptionAverage(scheme) || "",
-      totalReps: entry.target_total_reps || entry.total_reps || "",
-      assistLoadKg: nextAssist,
-      title: nextAssist > 0 ? `${scheme} · −${formatKg(nextAssist)} asist` : `${scheme} · OAC completa`,
-      reason: nextAssist <= 0 ? "Sin contrapeso: intenta la OAC completa." : denseProgressionReason(entry, direction, readiness),
-    };
+    return denseMaybeDeload(
+      {
+        ...base,
+        type: "assist",
+        repsPerSet: entry.target_reps_per_min || entry.reps_per_set || denseSchemePrescriptionAverage(scheme) || "",
+        totalReps: entry.target_total_reps || entry.total_reps || "",
+        assistLoadKg: nextAssist,
+        title: nextAssist > 0 ? `${scheme} · −${formatKg(nextAssist)} asist` : `${scheme} · OAC completa`,
+        reason: nextAssist <= 0 ? "Sin contrapeso: intenta la OAC completa." : denseProgressionReason(entry, direction, readiness),
+      },
+      exercise,
+    );
   }
 
   if (exercise.nature === "weighted" || exercise.nature === "weighted_calisthenics") {
@@ -7839,31 +7990,38 @@ function denseProgressionSuggestion(exercise, readiness = "normal", schemeFilter
       );
       if (honest !== "" && honest < nextLoad) nextLoad = honest;
     }
-    return {
-      ...base,
-      type: "load",
-      repsPerSet: entry.target_reps_per_min || entry.reps_per_set || denseSchemePrescriptionAverage(scheme) || "",
-      totalReps: entry.target_total_reps || entry.total_reps || "",
-      externalLoadKg: loadKey === "external_load_kg" ? nextLoad : entry.external_load_kg || "",
-      addedLoadKg: loadKey === "added_load_kg" ? nextLoad : entry.added_load_kg || "",
-      weightPerDumbbellKg: loadKey === "weight_per_dumbbell_kg" ? nextLoad : entry.weight_per_dumbbell_kg || "",
-      title: `${scheme} · ${loadKey === "added_load_kg" ? "+" : ""}${formatKg(nextLoad)}`,
-      reason: denseProgressionReason(entry, direction, readiness),
-    };
+    return denseMaybeDeload(
+      {
+        ...base,
+        type: "load",
+        loadKey,
+        repsPerSet: entry.target_reps_per_min || entry.reps_per_set || denseSchemePrescriptionAverage(scheme) || "",
+        totalReps: entry.target_total_reps || entry.total_reps || "",
+        externalLoadKg: loadKey === "external_load_kg" ? nextLoad : entry.external_load_kg || "",
+        addedLoadKg: loadKey === "added_load_kg" ? nextLoad : entry.added_load_kg || "",
+        weightPerDumbbellKg: loadKey === "weight_per_dumbbell_kg" ? nextLoad : entry.weight_per_dumbbell_kg || "",
+        title: `${scheme} · ${loadKey === "added_load_kg" ? "+" : ""}${formatKg(nextLoad)}`,
+        reason: denseProgressionReason(entry, direction, readiness),
+      },
+      exercise,
+    );
   }
 
   const currentTarget = Number(entry.target_reps_per_min || entry.reps_per_set || (minutes ? entry.total_reps / minutes : 0)) || denseDefaultRepsPerSet(exercise, scheme) || 1;
   const actualRpm = Number(entry.reps_per_min || (minutes ? entry.total_reps / minutes : 0)) || currentTarget;
   const delta = failed || effort === "fallo" ? Math.min(-1, Math.floor(actualRpm) - currentTarget) : step;
   const repsPerSet = Math.max(1, Math.round(denseCapRpm(exercise, currentTarget + delta)));
-  return {
-    ...base,
-    type: "reps",
-    repsPerSet,
-    totalReps: denseTotalFromRepsPerSet(repsPerSet, scheme),
-    title: `${scheme}${repsPerSet} · ${denseTotalFromRepsPerSet(repsPerSet, scheme)} reps`,
-    reason: denseProgressionReason(entry, direction, readiness),
-  };
+  return denseMaybeDeload(
+    {
+      ...base,
+      type: "reps",
+      repsPerSet,
+      totalReps: denseTotalFromRepsPerSet(repsPerSet, scheme),
+      title: `${scheme}${repsPerSet} · ${denseTotalFromRepsPerSet(repsPerSet, scheme)} reps`,
+      reason: denseProgressionReason(entry, direction, readiness),
+    },
+    exercise,
+  );
 }
 
 function denseRoundLoad(value) {
@@ -8615,6 +8773,7 @@ function denseFormDefaults() {
       weightPerDumbbellKg: draftEntry.weight_per_dumbbell_kg || "",
       assistLoadKg: draftEntry.assist_load_kg || "",
       romCm: draftEntry.rom_cm ?? "",
+      isTest: Boolean(draftEntry.is_test),
       readiness: draftEntry.readiness || "normal",
       notes: draftEntry.notes || "",
     };
@@ -8634,10 +8793,21 @@ function denseFormDefaults() {
   // Same default resolver the planned card uses, so the "Target" preview and
   // the scheme the form opens with agree. An explicit modality switch drops
   // the old scheme and picks the mid-range default for the new modality.
-  const preferredScheme = overrideNature ? (denseIsLoadExercise(activeExercise) ? "10D5" : "10D") : denseDefaultScheme(activeExercise);
+  // A planned item for today may pin a scheme (e.g. a suggested test) — it wins
+  // over the last-session default unless the user switched modality in-form.
+  const planItem = densePlanItemsForDate(selectedDate).find((item) => item.exercise_id === exercise.id) || null;
+  const preferredScheme = overrideNature
+    ? denseIsLoadExercise(activeExercise)
+      ? "10D5"
+      : "10D"
+    : (planItem?.scheme && allowedSchemes.includes(planItem.scheme) ? planItem.scheme : denseDefaultScheme(activeExercise));
   const scheme = allowedSchemes.includes(preferredScheme) ? preferredScheme : allowedSchemes[0];
   const suggestion = denseProgressionSuggestion(activeExercise, "normal", scheme);
   const repsPerSet = suggestion?.repsPerSet || denseDefaultRepsPerSet(activeExercise, scheme);
+  // Test session: planned as test, or the target comes from transfer/estimation
+  // with no direct evidence — exploring a number, not executing a known one.
+  const sourceKind = denseTargetSource(activeExercise, scheme).kind;
+  const isTest = Boolean(planItem?.is_test) || ["transfer", "estimated", "none"].includes(sourceKind);
   return {
     date: dateKey(selectedDate),
     bodyweightKg: latestKnownBodyweight(dateKey(selectedDate)) || 80,
@@ -8654,6 +8824,7 @@ function denseFormDefaults() {
     weightPerDumbbellKg: suggestion?.weightPerDumbbellKg || "",
     assistLoadKg: suggestion?.assistLoadKg ?? "",
     romCm: denseRomSuggestion(activeExercise)?.target ?? "",
+    isTest,
     readiness: "normal",
     notes: "",
   };
