@@ -8,7 +8,7 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 > App: PWA de entrenamiento (Dense training). Vanilla JS sin build: `app.js` (~9000
 > líneas), `styles.css`, `index.html`, `sw.js`. Sincroniza a Google Sheets vía Apps Script.
 > Modo training-only (`TRAINING_ONLY = true`). Cache busting: string `?v=…` en `index.html`
-> **y** `sw.js` a la vez. **Última versión: `20260706-fase2-15`.**
+> **y** `sw.js` a la vez. **Última versión: `20260706-fase3-16`.**
 
 ## Cómo trabajar aquí (imprescindible)
 
@@ -82,10 +82,6 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 
 ## Pendiente
 
-### Del audit (no priorizados aún)
-- **#3 tonelaje**: hacerlo secundario en el resumen del día y añadir volumen por patrón
-  (empuje/tirón/pierna). (#4 rangos ya hecho en Fase 2.)
-
 ### Backlog / higiene
 - **Push**: subir todos los commits de la sesión (el usuario hace el push).
 - **Token de Sheets** hardcodeado en `app.js` (líneas ~4-5): ocultar / rotar; el repo debe
@@ -94,7 +90,7 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 - Otras ideas: red de seguridad de datos (try/catch en `saveState`, snapshots con fecha),
   onboarding de calibración, cronómetro de descanso auto.
 
-### Fase 1 + 2 del plan maestro (jul 2026) — hechas
+### Fases 1–3 del plan maestro (jul 2026) — hechas
 - `b19e786`/`aeba24f` Fase 1: saveState con try/catch + push forzado a nube en fallo de
   cuota; `lastCloudSyncAt` + indicador "última copia hace X" en Backup; `schema_version:3`;
   badge EXR (hábitos) → sets de hoy. Snapshots con historial ya existían en el .gs.
@@ -104,6 +100,10 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
   `denseTargetSource`); deload tras 4 duras sin PR (`denseStagnationInfo`+`denseMaybeDeload`).
 - Convención nueva: los self-tests de una fase van AL FINAL de la suite (contaminaban
   tests posteriores con marcas sintéticas).
+- `c890c2b` Fase 3: Analytics 7→5 pestañas (Consistency→Progreso con racha+heatmap;
+  Conditioning disuelta — su CNS estaba triplicada; minutos/TUT→Volumen); resumen del
+  día con **split por patrón semanal** (`densePatternSplitHtml`, audit #3 cerrado) y
+  tonelaje degradado a texto secundario; **PR timeline** (12 semanas) en PR lab.
 
 ## Estado actual conocido
 - 38/38 self-tests en verde.
