@@ -242,6 +242,11 @@ const DENSE_DELOAD_STREAK = 4;
 // capacity_target = capacity_source × (lever_source / lever_target)^EXP.
 const denseLeverProgressionLevel = { tuck: 0.35, one_quarter: 0.45, adv_tuck: 0.5, one_leg: 0.6, straddle: 0.7, half: 0.75, three_quarter: 0.85, full: 1 };
 const DENSE_LEVER_ENDURANCE_EXP = 2.2;
+// Fase 4 — aprendizaje: mínimo de observaciones para usar sigma empírica y
+// clamp del bias de pendiente de la curva personal por ejercicio.
+const DENSE_CALIBRATION_MIN_OBS = 4;
+const DENSE_CURVE_BIAS_CLAMP = 0.15;
+let denseCalibrationCache = null;
 const trainingAnalyticsTabs = [
   ["progress", "Progreso", "trending-up"],
   ["volume", "Volumen", "bar-chart-3"],
@@ -2374,6 +2379,37 @@ function runDenseSelfTests() {
     return reps("front_lever_adv_tuck_pull") > 0 && reps("front_lever_adv_tuck_pull") < reps("front_lever_tuck_pull");
   });
 
+  // Fase 4: la app aprende su propio error (calibración + curva personal)
+  [["floor_push_up", 9], ["ring_row", 9], ["air_squat", 8], ["parallel_bar_dip", 7]].forEach(([ex, rpm], i) => {
+    add({ id: `cal${i}a`, exercise_id: ex, exercise_name: ex, scheme: "5D", date: `2026-05-1${i}`, created_at: `2026-05-1${i}T10:00:00Z`, total_reps: 30, reps_per_min: 6 });
+    add({ id: `cal${i}b`, exercise_id: ex, exercise_name: ex, scheme: "2D", date: `2026-05-2${i}`, created_at: `2026-05-2${i}T10:00:00Z`, target_reps_per_min: 10, reps_per_min: rpm, total_reps: rpm * 2 });
+  });
+  denseCalibrationCache = null;
+  test("calibración: primeras marcas en esquema generan observaciones cross", () => {
+    const obs = denseCalibrationObservations().filter((o) => o.kind === "cross");
+    return obs.length === 4 && obs.some((o) => Math.abs(o.error - 0.3) < 0.001);
+  });
+  test("sigma empírica: percentil 80 de TUS errores (0.3, n=4)", () => {
+    const emp = denseEmpiricalSigma("estimated");
+    return emp && emp.n === 4 && Math.abs(emp.sigma - 0.3) < 0.001;
+  });
+  test("fuente estimada usa sigma empírica en la tarjeta", () => {
+    const src4 = denseTargetSource(denseExerciseById("floor_push_up"), "20D");
+    return src4.kind === "estimated" && src4.empirical && src4.empirical.n === 4 && Math.abs(src4.sigma - 0.3) < 0.001;
+  });
+  add({ ...computeDenseEntry({ id: "cb10", exercise_id: "bench_press", exercise_name: "Press banca", nature: "weighted", scheme: "5D10", external_load_kg: 60, total_reps: 50, bodyweight_kg: 80 }), date: "2026-06-25", created_at: "2026-06-25T10:00:00Z", effort: "N" });
+  denseCalibrationCache = null;
+  test("curva personal: pendiente positiva aprendida del caso 5D10 vs 5D5", () => {
+    const slope = denseCurveSlopeBias("bench_press");
+    return slope > 0.08 && slope <= DENSE_CURVE_BIAS_CLAMP;
+  });
+  test("curva personal: la estimación a pocas reps baja respecto a la ingenua", () => {
+    const s = denseEstimatedLoadSuggestion(denseExerciseById("bench_press"), "2D5");
+    if (!s) return false;
+    const naive = denseBestWeightedE1rmSource("bench_press").e1rm * denseWorkingPct["2D5"];
+    return Number(s.externalLoadKg) < roundTo(naive, 1) - 1 && /curva personal/.test(s.reason);
+  });
+
   state.denseTrainingEntries = savedEntries;
   denseNeighborCache = null;
   rebuildTransferState();
@@ -3203,6 +3239,10 @@ function denseReadinessField(selected = "normal") {
   `;
 }
 
+function denseTestToggleHtml() {
+  return `<label class="transfer-note dense-test-toggle"><input type="checkbox" name="isTest" checked /><i data-lucide="flask-conical"></i><span>Sesión test: el objetivo es estimado. Explóralo — si no sale, recalibra sin penalizar tu semana.</span></label>`;
+}
+
 function denseTrainingFormMarkup(defaults, { includePicker = false, modal = false, submitLabel = "Guardar marca Dense" } = {}) {
   const exercise = denseExerciseById(defaults.exerciseId);
   // The chosen modality drives which fields (reps / hold / load) and schemes
@@ -3222,11 +3262,7 @@ function denseTrainingFormMarkup(defaults, { includePicker = false, modal = fals
       ${denseReadinessField(readiness)}
       ${denseNatureSelectorMarkup(exercise, nature)}
       ${denseFailureSetMode ? `<p class="transfer-note"><i data-lucide="flame"></i>Set al fallo de la semana: elige los minutos según tu tiempo; las reps de abajo son tu objetivo estimado al fallo. Haz el set, apunta las reps reales y marca cómo fue.</p>` : ""}
-      ${
-        defaults.isTest && !denseFailureSetMode
-          ? `<label class="transfer-note dense-test-toggle"><input type="checkbox" name="isTest" checked /><i data-lucide="flask-conical"></i><span>Sesión test: el objetivo es estimado. Explóralo — si no sale, recalibra sin penalizar tu semana.</span></label>`
-          : ""
-      }
+      ${defaults.isTest && !denseFailureSetMode ? denseTestToggleHtml() : ""}
       ${suggestion ? `<div class="dense-recommendation-wrap" data-recommendation>${renderDenseProgressionSuggestion(activeExercise, suggestion)}</div>` : ""}
       <div class="dense-form-grid">
         ${field("Peso corporal kg", "bodyweightKg", defaults.bodyweightKg, "number")}
@@ -5667,6 +5703,7 @@ function saveAndRender(message) {
 
 let denseSaveErrorNotified = false;
 function saveState() {
+  denseCalibrationCache = null;
   state.settings.selectedDate = dateKey(selectedDate);
   state.settings.lastSavedAt = new Date().toISOString();
   try {
@@ -6102,6 +6139,13 @@ function applyDenseFormTargets(form, { resetStaleLoad = false } = {}) {
       const input = form.querySelector(`[name='${name}']`);
       if (input) input.value = "";
     });
+  }
+  // Switching to a scheme whose target is an estimate turns the set into a
+  // test; add the opt-out toggle if it is not there yet (never remove one the
+  // user already saw — they may have unchecked it deliberately).
+  if (!denseFailureSetMode && !form.querySelector(".dense-test-toggle") && ["family", "transfer", "estimated", "none"].includes(denseTargetSource(exercise, scheme).kind)) {
+    const recWrap = form.querySelector("[data-recommendation]");
+    if (recWrap) recWrap.insertAdjacentHTML("beforebegin", denseTestToggleHtml());
   }
   const rec = form.querySelector("[data-recommendation]");
   if (rec) {
@@ -7053,6 +7097,102 @@ function densePlannedScheme(exercise) {
 
 // Where the recommended target comes from + how much to trust it. Answers the
 // audit's "directo / estimado / transferencia" question inline on the card.
+// ── Fase 4: la app aprende su propio error ───────────────────────────────
+// Every FIRST mark in a scheme was executed against an engine ESTIMATE (block
+// scaling, lever sibling, cross-scheme...). Comparing that implicit target with
+// what actually happened gives a real, personal error sample — fully derivable
+// from history (no stored state, same philosophy as rebuildTransferState).
+// (The cache variable lives in the top constants block — TDZ convention.)
+
+// Prediction error of one mark on its natural axis, [0..1] or null.
+function denseCalibrationError(entry) {
+  // Load axis: e1RM implied by completing the scheme vs the effective e1RM.
+  const load = Number(entry.total_system_load_kg) || 0;
+  const pct = Number(entry.working_pct) || 0;
+  const effective = Number(entry.e1rm_kg) || 0;
+  if (load && pct && effective) {
+    const nominal = load / pct;
+    if (nominal > 0) return clamp(Math.abs(nominal - effective) / nominal, 0, 1);
+  }
+  const targetRpm = Number(entry.target_reps_per_min) || 0;
+  const rpm = Number(entry.reps_per_min) || 0;
+  if (targetRpm && rpm) return clamp(Math.abs(targetRpm - rpm) / targetRpm, 0, 1);
+  const targetHold = Number(entry.target_total_hold_seconds) || 0;
+  const hold = Number(entry.total_hold_seconds) || 0;
+  if (targetHold && hold) return clamp(Math.abs(targetHold - hold) / targetHold, 0, 1);
+  return null;
+}
+
+function denseCalibrationObservations() {
+  if (denseCalibrationCache) return denseCalibrationCache;
+  const sorted = [...getDenseEntries()]
+    .filter((entry) => !entry.deleted_at)
+    .sort((a, b) => String(a.created_at || a.date || "").localeCompare(String(b.created_at || b.date || "")));
+  const seenScheme = new Set();
+  const seenBase = new Set();
+  const seenExercise = new Set();
+  const leverFamilySeen = new Set();
+  const observations = [];
+  sorted.forEach((entry) => {
+    const exercise = denseExerciseById(entry.exercise_id);
+    const schemeKey = `${entry.exercise_id}:${entry.scheme}`;
+    const baseKey = `${entry.exercise_id}:${denseSchemeBase(entry.scheme)}`;
+    if (!seenScheme.has(schemeKey)) {
+      let kind = null;
+      if (seenBase.has(baseKey)) kind = "block";
+      else if (exercise?.leverLevel && leverFamilySeen.has(exercise.family)) kind = "family";
+      else if (seenExercise.has(entry.exercise_id)) kind = "cross";
+      if (kind) {
+        const error = denseCalibrationError(entry);
+        if (error !== null) observations.push({ kind, error, date: entry.date, exercise_id: entry.exercise_id });
+      }
+    }
+    seenScheme.add(schemeKey);
+    seenBase.add(baseKey);
+    seenExercise.add(entry.exercise_id);
+    if (exercise?.leverLevel && exercise.family) leverFamilySeen.add(exercise.family);
+  });
+  denseCalibrationCache = observations;
+  return observations;
+}
+
+// Empirical sigma for a target-source kind: the 80th percentile of YOUR real
+// prediction errors. Replaces the formula sigma once there is enough evidence.
+function denseEmpiricalSigma(kind) {
+  const mapped = kind === "estimated" || kind === "transfer" ? "cross" : kind;
+  const errors = denseCalibrationObservations()
+    .filter((obs) => obs.kind === mapped)
+    .map((obs) => obs.error)
+    .sort((a, b) => a - b);
+  if (errors.length < DENSE_CALIBRATION_MIN_OBS) return null;
+  const p80 = errors[Math.min(errors.length - 1, Math.max(0, Math.ceil(errors.length * 0.8) - 1))];
+  return { sigma: clamp(p80, 0.04, 0.3), n: errors.length };
+}
+
+// Personal rep-max curve bias: if your effective e1RM drifts with rep speed
+// (log-log slope across your loaded marks), the generic curve does not fit you.
+// Positive slope = more endurance than the curve assumes (a 5D10 overpredicts
+// your 5D5). Needs meaningfully different rep ranges; clamped hard.
+function denseCurveSlopeBias(exerciseId) {
+  const points = getDenseEntries()
+    .filter((entry) => entry.exercise_id === exerciseId && !entry.deleted_at && Number(entry.e1rm_kg) > 0 && Number(entry.reps_per_min) > 0 && Number(entry.total_system_load_kg) > 0)
+    .map((entry) => ({ x: Math.log(Number(entry.reps_per_min)), y: Math.log(Number(entry.e1rm_kg)) }));
+  if (points.length < 2) return 0;
+  const xs = points.map((p) => p.x);
+  if (Math.max(...xs) - Math.min(...xs) < Math.log(1.8)) return 0;
+  const n = points.length;
+  const mx = xs.reduce((s, v) => s + v, 0) / n;
+  const my = points.reduce((s, p) => s + p.y, 0) / n;
+  let num = 0;
+  let den = 0;
+  points.forEach((p) => {
+    num += (p.x - mx) * (p.y - my);
+    den += (p.x - mx) * (p.x - mx);
+  });
+  if (!den) return 0;
+  return clamp(num / den, -DENSE_CURVE_BIAS_CLAMP, DENSE_CURVE_BIAS_CLAMP);
+}
+
 function denseTargetSource(exercise, scheme) {
   const base = denseSchemeBase(scheme);
   const entries = getDenseEntries().filter((entry) => entry.exercise_id === exercise.id && !entry.deleted_at);
@@ -7064,18 +7204,26 @@ function denseTargetSource(exercise, scheme) {
   }
   const sameBase = [...entries].filter((entry) => denseSchemeBase(entry.scheme) === base).sort(byRecent)[0];
   if (sameBase) {
-    const sigma = denseEstimateSigma(sameBase.date);
-    return { kind: "block", label: `Desde ${sameBase.scheme}`, cls: "is-blue", icon: "history", sigma, confidence: denseConfidenceLabel(sigma) };
+    const emp = denseEmpiricalSigma("block");
+    const sigma = emp ? emp.sigma : denseEstimateSigma(sameBase.date);
+    return { kind: "block", label: `Desde ${sameBase.scheme}`, cls: "is-blue", icon: "history", sigma, empirical: emp, confidence: denseConfidenceLabel(sigma) };
   }
   const leverSibling = denseLeverSiblingEstimate(exercise, denseIsIsometric(exercise) ? "isometric_capacity" : "bodyweight_capacity");
   if (leverSibling) {
     const shortName = leverSibling.from.name.split(" ").slice(-2).join(" ");
-    return { kind: "family", label: `Desde ${shortName}`, cls: "is-amber", icon: "git-branch", sigma: 0.18, confidence: "media" };
+    const emp = denseEmpiricalSigma("family");
+    const sigma = emp ? emp.sigma : 0.18;
+    return { kind: "family", label: `Desde ${shortName}`, cls: "is-amber", icon: "git-branch", sigma, empirical: emp, confidence: denseConfidenceLabel(sigma) };
   }
-  if (denseTransferBoost(exercise.id) > 0) return { kind: "transfer", label: "Transferencia", cls: "is-amber", icon: "git-merge", sigma: 0.2, confidence: "baja" };
+  if (denseTransferBoost(exercise.id) > 0) {
+    const emp = denseEmpiricalSigma("transfer");
+    const sigma = emp ? emp.sigma : 0.2;
+    return { kind: "transfer", label: "Transferencia", cls: "is-amber", icon: "git-merge", sigma, empirical: emp, confidence: denseConfidenceLabel(sigma) };
+  }
   if (entries.length) {
-    const sigma = denseEstimateSigma([...entries].sort(byRecent)[0].date, { cross: true, baseGap: 2 });
-    return { kind: "estimated", label: "Estimado", cls: "is-amber", icon: "sigma", sigma, confidence: denseConfidenceLabel(sigma) };
+    const emp = denseEmpiricalSigma("estimated");
+    const sigma = emp ? emp.sigma : denseEstimateSigma([...entries].sort(byRecent)[0].date, { cross: true, baseGap: 2 });
+    return { kind: "estimated", label: "Estimado", cls: "is-amber", icon: "sigma", sigma, empirical: emp, confidence: denseConfidenceLabel(sigma) };
   }
   return { kind: "none", label: "Primer test", cls: "", icon: "flask-conical", sigma: 0, confidence: "" };
 }
@@ -7840,7 +7988,13 @@ function denseEstimatedLoadSuggestion(exercise, scheme, readiness = "normal") {
   if (!source) return null;
   const sourceEntry = source.entry || latestDenseEntryForExercise(exercise.id);
   const bw = latestKnownBodyweight(dateKey(selectedDate)) || sourceEntry?.bodyweight_kg || 0;
-  const totalLoad = source.e1rm * denseWorkingPct[scheme];
+  // Personal curve: correct the reference e1RM for the rep-speed gap between
+  // where it was measured and where we are estimating (the bench 5D10→5D5 case).
+  const slope = denseCurveSlopeBias(exercise.id);
+  const refRpm = Number(sourceEntry?.reps_per_min) || Number(denseSchemePrescriptionAverage(sourceEntry?.scheme)) || 0;
+  const targetRpm = Number(denseSchemePrescriptionAverage(scheme)) || 0;
+  const curveAdjusted = slope && refRpm && targetRpm && refRpm !== targetRpm ? source.e1rm * Math.pow(targetRpm / refRpm, slope) : source.e1rm;
+  const totalLoad = curveAdjusted * denseWorkingPct[scheme];
   const fieldLoad =
     exercise.loadPattern === "dumbbell_pair"
       ? totalLoad / 2
@@ -7871,7 +8025,7 @@ function denseEstimatedLoadSuggestion(exercise, scheme, readiness = "normal") {
     weightPerDumbbellKg: exercise.loadPattern === "dumbbell_pair" ? load : "",
     estimated: true,
     title: `${scheme} · ${exercise.nature === "weighted_calisthenics" ? "+" : ""}${formatKg(load)}`,
-    reason: `Estimado desde e1RM ${formatKg(source.e1rm)}; falta test directo en ${scheme}.`,
+    reason: `Estimado desde e1RM ${formatKg(curveAdjusted)}${Math.abs(curveAdjusted - source.e1rm) > 0.5 ? " (curva personal)" : ""}; falta test directo en ${scheme}.`,
   };
 }
 
@@ -9041,6 +9195,7 @@ function updateDenseEstimate(entry) {
 }
 
 function rebuildDenseEstimates() {
+  denseCalibrationCache = null;
   state.denseEstimates = {};
   [...getDenseEntries()]
     .sort((a, b) => String(a.created_at || a.date || "").localeCompare(String(b.created_at || b.date || "")))
@@ -9159,7 +9314,8 @@ function renderDenseProgressionSuggestion(exercise, suggestion = denseProgressio
         <small>Base: ${escapeHtml(suggestion.entry.scheme)} · ${escapeHtml(denseEntryValue(suggestion.entry))} · esfuerzo ${escapeHtml(suggestion.entry.effort || "N")}</small>
         ${(() => {
           const src = denseTargetSource(exercise, suggestion.scheme);
-          return `<small class="dense-source-line"><i data-lucide="${src.icon}"></i>Fuente: ${escapeHtml(src.label)}${src.confidence ? ` · confianza ${escapeHtml(src.confidence)}` : ""}</small>`;
+          const empTxt = src.empirical ? ` · error real ±${Math.round(src.empirical.sigma * 100)}% (${src.empirical.n} tests)` : "";
+          return `<small class="dense-source-line"><i data-lucide="${src.icon}"></i>Fuente: ${escapeHtml(src.label)}${src.confidence ? ` · confianza ${escapeHtml(src.confidence)}` : ""}${escapeHtml(empTxt)}</small>`;
         })()}
         ${(() => {
           if (!denseUsesRom(exercise)) return "";
