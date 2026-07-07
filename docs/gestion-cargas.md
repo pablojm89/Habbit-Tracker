@@ -180,6 +180,22 @@ back-off. Si `reduction ≥ 0.05`, `denseSoftTarget` genera el objetivo suave co
   semanal de re-test (`denseTestSuggestion`) propone verificar ejercicios con boost ≥ 3%
   sin test directo en ≥ 14 días.
 
+## 7.5 Aprendizaje del error propio (fase 4)
+
+- **Sigma empírica**: cada primera marca en un esquema se ejecutó contra una estimación
+  del motor; su error real (`denseCalibrationError`: e1RM nominal vs efectivo en cargas,
+  target vs rpm real, target vs TUT real) se deriva del historial en
+  `denseCalibrationObservations()` (fold cacheado en `denseCalibrationCache`, invalidado
+  en `saveState`/`rebuildDenseEstimates`), clasificado por fuente (block / family / cross).
+  Con ≥`DENSE_CALIBRATION_MIN_OBS` (4) observaciones, `denseEmpiricalSigma(kind)` (percentil
+  80, clamp [0.04, 0.30]) sustituye a la fórmula en `denseTargetSource`: los rangos de las
+  tarjetas y la línea "error real ±X% (N tests)" reflejan TU error medido.
+- **Curva personal por ejercicio**: `denseCurveSlopeBias(id)` = pendiente log-log de
+  (rpm, e1RM efectivo) sobre las marcas con carga (exige spread ≥1.8× en rpm, clamp ±0.15).
+  `denseEstimatedLoadSuggestion` corrige el e1RM de referencia con
+  `(rpm_objetivo/rpm_ref)^pendiente` — si tu 5D10 sobrepredecía tu 5D5, deja de hacerlo con
+  tus propios datos; la razón lo marca con "(curva personal)".
+
 ## 8. Rango de movimiento (ROM) para movilidad (~buscar `denseUsesRom`)
 
 Los ejercicios de `category: "mobility"` progresan por **profundidad**, no por reps: cm al

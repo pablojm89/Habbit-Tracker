@@ -8,11 +8,11 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 > App: PWA de entrenamiento (Dense training). Vanilla JS sin build: `app.js` (~9000
 > líneas), `styles.css`, `index.html`, `sw.js`. Sincroniza a Google Sheets vía Apps Script.
 > Modo training-only (`TRAINING_ONLY = true`). Cache busting: string `?v=…` en `index.html`
-> **y** `sw.js` a la vez. **Última versión: `20260706-lever-chain-17`.**
+> **y** `sw.js` a la vez. **Última versión: `20260707-fase4-18`.**
 
 ## Cómo trabajar aquí (imprescindible)
 
-- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **42 asserts**.
+- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **47 asserts**.
   Correr siempre tras tocar el motor.
 - **TDZ**: cualquier `const` de nivel superior que use el render debe declararse en el
   bloque de constantes de arriba (cerca de `trainingAnalyticsTabs` / `bodyweightSchemes`).
@@ -90,7 +90,7 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 - Otras ideas: red de seguridad de datos (try/catch en `saveState`, snapshots con fecha),
   onboarding de calibración, cronómetro de descanso auto.
 
-### Fases 1–3 del plan maestro (jul 2026) — hechas
+### Fases 1–4 del plan maestro (jul 2026) — hechas
 - `b19e786`/`aeba24f` Fase 1: saveState con try/catch + push forzado a nube en fallo de
   cuota; `lastCloudSyncAt` + indicador "última copia hace X" en Backup; `schema_version:3`;
   badge EXR (hábitos) → sets de hoy. Snapshots con historial ya existían en el .gs.
@@ -107,7 +107,13 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 - `fd2c3c9` **Levers por palanca**: `leverLevel` en cada progresión; `denseLeverSiblingEstimate`
   escala capacidad entre niveles (curva ^2.2). Tuck 30s → estima cada nivel hasta full.
   Fuente "family" en tarjeta, auto-test, tarjeta y formulario alineados (mismo resolvedor).
+- `deb5a84` Fase 4: **sigma empírica** (`denseCalibrationObservations` deriva del historial
+  el error real de cada primera-marca-en-esquema; con ≥4 obs, `denseEmpiricalSigma`
+  sustituye la fórmula en `denseTargetSource` — "error real ±X% (N tests)" en el form) y
+  **curva personal** (`denseCurveSlopeBias`: pendiente log-log rpm↔e1RM efectivo por
+  ejercicio, clamp ±0.15, corrige `denseEstimatedLoadSuggestion` — caso bench 5D10→5D5).
+  Toggle de test dinámico al cambiar de esquema en el form.
 
 ## Estado actual conocido
-- 42/42 self-tests en verde.
+- 47/47 self-tests en verde.
 - Móvil "no carga bien" resuelto: era deploy de GitHub Pages + de paso lucide fijado y SW cache-first.
