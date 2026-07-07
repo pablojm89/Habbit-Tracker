@@ -237,6 +237,11 @@ const denseExerciseSortOptions = [
 
 const DENSE_RECOVERY_MIN_WELLNESS = 3;
 const DENSE_DELOAD_STREAK = 4;
+// Leverage factor of lever progressions (torque relative to the full lay) and
+// the isometric-endurance exponent used to cross-estimate between levels:
+// capacity_target = capacity_source × (lever_source / lever_target)^EXP.
+const denseLeverProgressionLevel = { tuck: 0.35, one_quarter: 0.45, adv_tuck: 0.5, one_leg: 0.6, straddle: 0.7, half: 0.75, three_quarter: 0.85, full: 1 };
+const DENSE_LEVER_ENDURANCE_EXP = 2.2;
 const trainingAnalyticsTabs = [
   ["progress", "Progreso", "trending-up"],
   ["volume", "Volumen", "bar-chart-3"],
@@ -1188,6 +1193,7 @@ function leverSkillExercises(prefix, label, bodyweightContributionPct) {
       family: prefix,
       bodyweightContributionPct,
       tonnageFactor: 1,
+      leverLevel: denseLeverProgressionLevel[id] || 0,
       alpha,
       icon: prefix === "front_lever" ? "move-horizontal" : "rotate-ccw",
     };
@@ -1264,8 +1270,6 @@ const denseTransferIdMeta = {
   clap_push_up: { patterns: { horizontal_push: 0.9 }, muscles: { chest: 0.8, triceps: 0.6, front_delt: 0.5 }, specificity: 0.35 },
 };
 
-// Leverage factor of lever progressions (torque relative to the full lay)
-const denseLeverProgressionLevel = { tuck: 0.35, one_quarter: 0.45, adv_tuck: 0.5, one_leg: 0.6, straddle: 0.7, half: 0.75, three_quarter: 0.85, full: 1 };
 
 const denseCategoryFallbackMeta = {
   push: { patterns: { horizontal_push: 0.7, vertical_push: 0.4 }, muscles: { chest: 0.6, triceps: 0.5, front_delt: 0.5 }, specificity: 0.3 },
@@ -2344,6 +2348,30 @@ function runDenseSelfTests() {
     const range = densePlannedTargetRange(bench, "5D5", src2);
     state.denseTrainingEntries = saved2;
     return src2.kind === "block" && src2.sigma > 0 && /kg/.test(range) && range.includes("–");
+  });
+
+  // Levers: la palanca escala capacidad entre progresiones de la misma skill
+  add({ id: "lv1", exercise_id: "front_lever_tuck", exercise_name: "FL Tuck", nature: "skill", scheme: "10D", date: "2026-06-20", created_at: "2026-06-20T10:00:00Z", total_hold_seconds: 300, hold_seconds_per_round: 30, isometric_capacity: 90.9, effort: "N" });
+  test("levers: tuck 30s estima adv tuck menos y monótono hasta full", () => {
+    const hold = (id) => Number(denseFormTargetHoldPerRound(denseExerciseById(id), "10D", null)) || 0;
+    const tuck = hold("front_lever_tuck");
+    const adv = hold("front_lever_adv_tuck");
+    const straddle = hold("front_lever_straddle");
+    const full = hold("front_lever_full");
+    return adv > 0 && adv < tuck && straddle < adv && full <= straddle && full >= 2;
+  });
+  test("levers: fuente de la tarjeta = familia (Desde ... palanca)", () => {
+    const src3 = denseTargetSource(denseExerciseById("front_lever_straddle"), "10D");
+    return src3.kind === "family" && src3.sigma > 0 && /Desde/.test(src3.label);
+  });
+  test("levers: sugerencia estimada explica la palanca y es test", () => {
+    const s = denseEstimatedBodySuggestion(denseExerciseById("front_lever_straddle"), "10D");
+    return s && /palanca/.test(s.reason) && s.estimated === true;
+  });
+  add({ id: "lv2", exercise_id: "front_lever_tuck_pull", exercise_name: "FL Tuck Pull", nature: "bodyweight", scheme: "10D", date: "2026-06-21", created_at: "2026-06-21T10:00:00Z", total_reps: 80, reps_per_min: 8, bodyweight_capacity: 24.2, effort: "N" });
+  test("levers: pull dinámico también escala (adv tuck pull < tuck pull)", () => {
+    const reps = (id) => Number(denseFormTargetRepsPerSet(denseExerciseById(id), "10D", null)) || 0;
+    return reps("front_lever_adv_tuck_pull") > 0 && reps("front_lever_adv_tuck_pull") < reps("front_lever_tuck_pull");
   });
 
   state.denseTrainingEntries = savedEntries;
@@ -7039,6 +7067,11 @@ function denseTargetSource(exercise, scheme) {
     const sigma = denseEstimateSigma(sameBase.date);
     return { kind: "block", label: `Desde ${sameBase.scheme}`, cls: "is-blue", icon: "history", sigma, confidence: denseConfidenceLabel(sigma) };
   }
+  const leverSibling = denseLeverSiblingEstimate(exercise, denseIsIsometric(exercise) ? "isometric_capacity" : "bodyweight_capacity");
+  if (leverSibling) {
+    const shortName = leverSibling.from.name.split(" ").slice(-2).join(" ");
+    return { kind: "family", label: `Desde ${shortName}`, cls: "is-amber", icon: "git-branch", sigma: 0.18, confidence: "media" };
+  }
   if (denseTransferBoost(exercise.id) > 0) return { kind: "transfer", label: "Transferencia", cls: "is-amber", icon: "git-merge", sigma: 0.2, confidence: "baja" };
   if (entries.length) {
     const sigma = denseEstimateSigma([...entries].sort(byRecent)[0].date, { cross: true, baseGap: 2 });
@@ -7061,13 +7094,13 @@ function densePlannedTargetRange(exercise, scheme, src = denseTargetSource(exerc
     return low !== "" && high !== "" && high > low ? `${low}–${high}kg` : "";
   }
   if (denseIsIsometric(exercise)) {
-    const seconds = Number(denseDefaultHoldPerRound(exercise, scheme)) || 0;
+    const seconds = Number(denseFormTargetHoldPerRound(exercise, scheme, null)) || 0;
     if (!seconds) return "";
     const low = Math.max(1, Math.floor(seconds * (1 - src.sigma)));
     const high = Math.max(low + 1, Math.ceil(seconds * (1 + src.sigma)));
     return `${low}–${high}s`;
   }
-  const reps = Number(denseDefaultRepsPerSet(exercise, scheme)) || 0;
+  const reps = Number(denseFormTargetRepsPerSet(exercise, scheme, null)) || 0;
   if (!reps) return "";
   const low = Math.max(1, Math.floor(reps * (1 - src.sigma)));
   const high = Math.max(low + 1, Math.ceil(reps * (1 + src.sigma)));
@@ -7087,7 +7120,9 @@ function densePlannedTargetValue(exercise, scheme) {
     if (best !== null) return `${roundTo(best, 1)} cm`;
   }
   if (denseIsIsometric(exercise)) {
-    const seconds = denseDefaultHoldPerRound(exercise, scheme);
+    // Same resolver as the form prefill (own capacity → lever sibling → default)
+    // so the card target and the form never disagree.
+    const seconds = denseFormTargetHoldPerRound(exercise, scheme, null);
     return seconds ? `${seconds}s/ronda` : "-";
   }
   // Load / assisted exercises: the headline objective is the weight, not rpm.
@@ -7099,7 +7134,7 @@ function densePlannedTargetValue(exercise, scheme) {
     return "-";
   }
   if (denseUsesRepsPerSet(exercise)) {
-    const reps = denseDefaultRepsPerSet(exercise, scheme);
+    const reps = denseFormTargetRepsPerSet(exercise, scheme, null);
     return reps ? `${reps} rpm` : "-";
   }
   return scheme;
@@ -7522,6 +7557,26 @@ function denseBestCapacity(exerciseId, key) {
   return denseBoosted(exerciseId, Math.max(estimate, ...fromEntries, 0));
 }
 
+// Cross-estimate within a lever progression family: your capacity at one
+// leverage level implies a capacity at every other level via the isometric
+// endurance curve (harder lever → disproportionally shorter holds / fewer
+// reps). Returns the best-supported scaled estimate among siblings, or null.
+function denseLeverSiblingEstimate(exercise, key) {
+  const level = Number(exercise?.leverLevel) || 0;
+  if (!level || !exercise.family) return null;
+  let best = null;
+  denseExerciseCatalog.forEach((sibling) => {
+    if (sibling.family !== exercise.family || sibling.id === exercise.id) return;
+    const siblingLevel = Number(sibling.leverLevel) || 0;
+    if (!siblingLevel) return;
+    const capacity = denseBestCapacity(sibling.id, key);
+    if (!capacity) return;
+    const scaled = capacity * Math.pow(siblingLevel / level, DENSE_LEVER_ENDURANCE_EXP);
+    if (!best || scaled > best.value) best = { value: scaled, from: sibling, fromCapacity: capacity };
+  });
+  return best;
+}
+
 // Deterministic per-scheme reps/min target for the log form. Keeps the value
 // stable when the user toggles schemes: the suggested scheme restores the
 // progression proposal exactly; other schemes derive from best proven capacity.
@@ -7533,6 +7588,11 @@ function denseFormTargetRepsPerSet(exercise, scheme, suggestion) {
   const capacity = denseBestCapacity(exercise.id, "bodyweight_capacity");
   const multiplier = bodyweightMultipliers[denseSchemeBase(scheme)];
   if (capacity && multiplier) return Math.max(1, Math.round(denseCapRpm(exercise, Math.floor(capacity * multiplier))));
+  const sibling = denseLeverSiblingEstimate(exercise, "bodyweight_capacity");
+  if (sibling && multiplier) {
+    const reps = Math.floor(sibling.value * multiplier);
+    if (reps >= 1) return Math.max(1, Math.round(denseCapRpm(exercise, reps)));
+  }
   return denseDefaultRepsPerSet(exercise, scheme);
 }
 
@@ -7544,6 +7604,13 @@ function denseFormTargetHoldPerRound(exercise, scheme, suggestion) {
   const capacity = denseBestCapacity(exercise.id, "isometric_capacity");
   const multiplier = bodyweightMultipliers[denseSchemeBase(scheme)];
   if (capacity && multiplier) return Math.max(1, Math.floor(capacity * multiplier));
+  // No direct history at this progression: scale a sibling lever level through
+  // the endurance curve (30s tuck ≈ 14s adv tuck ≈ 3s full, not 30s everywhere).
+  const sibling = denseLeverSiblingEstimate(exercise, "isometric_capacity");
+  if (sibling && multiplier) {
+    const hold = Math.floor(sibling.value * multiplier);
+    if (hold >= 2) return hold;
+  }
   return denseDefaultHoldPerRound(exercise, scheme);
 }
 
@@ -7812,8 +7879,12 @@ function denseEstimatedLoadSuggestion(exercise, scheme, readiness = "normal") {
 // capacity math the form inputs use, so the card and the prefill always agree.
 function denseEstimatedBodySuggestion(exercise, scheme, readiness = "normal") {
   const capacityKey = denseIsIsometric(exercise) ? "isometric_capacity" : "bodyweight_capacity";
-  if (!denseBestCapacity(exercise.id, capacityKey)) return null;
-  const sourceEntry = latestDenseEntryForExercise(exercise.id);
+  const ownCapacity = denseBestCapacity(exercise.id, capacityKey);
+  // Lever progressions: no own data yet, but a sibling level scales through
+  // the endurance curve ("puedes X en tuck → puedes Y en adv tuck").
+  const sibling = !ownCapacity ? denseLeverSiblingEstimate(exercise, capacityKey) : null;
+  if (!ownCapacity && !sibling) return null;
+  const sourceEntry = latestDenseEntryForExercise(exercise.id) || (sibling ? latestDenseEntryForExercise(sibling.from.id) : null);
   if (!sourceEntry) return null;
   const minutes = denseSchemeMinutes(scheme) || 0;
   const base = {
@@ -7826,7 +7897,9 @@ function denseEstimatedBodySuggestion(exercise, scheme, readiness = "normal") {
     direction: "hold",
     tone: "neutral",
     estimated: true,
-    reason: `Estimado por capacidad desde ${sourceEntry.scheme}; falta marca directa en ${scheme}.`,
+    reason: sibling
+      ? `Estimado desde ${sibling.from.name} por palanca (nivel ${roundTo((sibling.from.leverLevel / exercise.leverLevel) * 100, 0)}% de esta); trátalo como test.`
+      : `Estimado por capacidad desde ${sourceEntry.scheme}; falta marca directa en ${scheme}.`,
   };
   if (denseIsIsometric(exercise)) {
     const holdSecondsPerRound = Number(denseFormTargetHoldPerRound(exercise, scheme, null)) || 0;
@@ -8821,7 +8894,7 @@ function denseFormDefaults() {
   // Test session: planned as test, or the target comes from transfer/estimation
   // with no direct evidence — exploring a number, not executing a known one.
   const sourceKind = denseTargetSource(activeExercise, scheme).kind;
-  const isTest = Boolean(planItem?.is_test) || ["transfer", "estimated", "none"].includes(sourceKind);
+  const isTest = Boolean(planItem?.is_test) || ["family", "transfer", "estimated", "none"].includes(sourceKind);
   return {
     date: dateKey(selectedDate),
     bodyweightKg: latestKnownBodyweight(dateKey(selectedDate)) || 80,
