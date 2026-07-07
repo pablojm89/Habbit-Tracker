@@ -241,10 +241,8 @@ const trainingAnalyticsTabs = [
   ["progress", "Progreso", "trending-up"],
   ["volume", "Volumen", "bar-chart-3"],
   ["strength", "Fuerza", "trophy"],
-  ["conditioning", "Conditioning", "zap"],
   ["recovery", "Recovery", "heart-pulse"],
   ["balance", "Balance", "scale"],
-  ["consistency", "Consistency", "calendar-check"],
 ];
 
 const trainingAnalyticsWindows = [
@@ -2887,6 +2885,39 @@ function renderTestSuggestionCard() {
   `;
 }
 
+// Equivalent sets per movement group across the given week — the day summary
+// headline (audit #3): pattern balance drives decisions, global tonnage does not.
+function denseWeekPatternSets(weekDayKeys) {
+  const acc = { push: 0, pull: 0, legs: 0 };
+  getDenseEntries().forEach((entry) => {
+    if (!weekDayKeys.includes(entry.date)) return;
+    const sets = denseEquivalentSets(entry);
+    denseGroupKeys(denseExerciseById(entry.exercise_id)).forEach((group) => {
+      if (group in acc) acc[group] += sets;
+    });
+  });
+  return acc;
+}
+
+function densePatternSplitHtml(weekDayKeys) {
+  const sets = denseWeekPatternSets(weekDayKeys);
+  const max = Math.max(sets.push, sets.pull, sets.legs, 1);
+  const cells = [
+    ["push", "Empuje"],
+    ["pull", "Tirón"],
+    ["legs", "Pierna"],
+  ]
+    .map(([key, label]) => {
+      const value = roundTo(sets[key], 1);
+      return `<div class="pattern-split" style="--item-color:${denseCategoryColor(key === "legs" ? "legs" : key)}">
+        <div class="pattern-split-bar"><i style="width:${Math.max(4, (sets[key] / max) * 100)}%"></i></div>
+        <span>${label}</span><b>${value}</b>
+      </div>`;
+    })
+    .join("");
+  return `<div class="pattern-split-row">${cells}</div>`;
+}
+
 function renderWeeklyFailureCard(weekDayKeys, isCurrentWeek) {
   const status = denseWeeklyFailureStatus(weekDayKeys);
   const groups = [
@@ -3015,7 +3046,6 @@ function renderMesocycle() {
   const totalMinutes = entries.reduce((sum, entry) => sum + (Number(entry.duration_minutes) || 0), 0);
   const totalHold = entries.reduce((sum, entry) => sum + (Number(entry.total_hold_seconds) || 0), 0);
   const tonnageGoal = denseTonnageGoal(dateKey(selectedDate));
-  const tonnagePct = tonnageGoal ? Math.min(100, Math.round((volume / tonnageGoal) * 100)) : volume > 0 ? 100 : 0;
   const dayNumber = ((selectedDate.getDay() + 6) % 7) + 1;
   const tonnageLabel = entries.length
     ? tonnageGoal
@@ -3066,10 +3096,10 @@ function renderMesocycle() {
 
         <div class="workout-progress">
           <div class="workout-progress-head">
-            <span class="workout-progress-label"><i data-lucide="${entries.length ? "weight" : planned.length ? "clipboard-list" : "calendar-plus"}"></i>Tonelaje · Day ${dayNumber}</span>
+            <span class="workout-progress-label"><i data-lucide="${entries.length ? "scale" : planned.length ? "clipboard-list" : "calendar-plus"}"></i>Patrones · semana · Day ${dayNumber}</span>
             <span class="workout-progress-time ${statusTone}">${tonnageLabel}</span>
           </div>
-          <div class="progress-track"><i style="width:${tonnagePct}%"></i></div>
+          ${densePatternSplitHtml(weekDayKeys)}
         </div>
 
         <div class="workout-metric-row">
@@ -3274,9 +3304,7 @@ function renderTrainingAnalyticsTab(tab, entries) {
   if (tab === "progress") return renderProgressAnalytics(entries);
   if (tab === "volume") return renderVolumeAnalytics(entries);
   if (tab === "strength") return renderStrengthAnalytics(entries);
-  if (tab === "conditioning") return renderConditioningAnalytics(entries);
   if (tab === "recovery") return renderRecoveryAnalytics(entries);
-  if (tab === "consistency") return renderConsistencyAnalytics(entries);
   return renderBalanceAnalytics(entries);
 }
 
@@ -3381,6 +3409,8 @@ function renderProgressAnalytics(entries) {
         ? `<div class="dc-collapse-body is-open">${prEvents.slice(0, 5).map(dcPrRow).join("")}</div>`
         : `<p class="dc-empty-note">Sin level-ups en esta ventana. Cambia a “All” para ver los históricos.</p>`
     }
+
+    ${denseConsistencySectionHtml()}
   `;
 }
 
@@ -3436,9 +3466,19 @@ function renderVolumeAnalytics(entries) {
       return `<div class="dc-stack-col" title="${escapeAttr(`${roundTo(total, 1)} sets`)}"><div class="dc-stack-bar">${segs}</div><em>${escapeHtml(week.label)}</em></div>`;
     })
     .join("");
+  // Time-based volume (absorbed from the old Conditioning tab)
+  const totalMinutes = entries.reduce((sum, entry) => sum + (entry.duration_minutes || 0), 0);
+  const totalTut = Math.round(entries.reduce((sum, entry) => sum + (entry.total_hold_seconds || 0), 0));
+  const condCount = entries.filter((entry) => entry.nature === "conditioning" || entry.movement_pattern === "conditioning").length;
   return `
     ${dcBarTrendCard("Tonnage trend", `${roundTo(tonnage / 1000, 1)}t`, denseTrendPct((entry) => entry.tonnage_kg || 0, chartDays), denseDailyTrend((entry) => (entry.tonnage_kg || 0) / 1000, chartDays), "t")}
     ${dcBarTrendCard("Dense blocks", roundTo(totalSets, 1), denseTrendPct((entry) => denseEquivalentSets(entry), chartDays), denseDailyTrend((entry) => denseEquivalentSets(entry), chartDays), "")}
+
+    <div class="analytics-stat-grid">
+      ${analyticsStatCard("Dense minutes", totalMinutes, "minutos registrados", "clock-3")}
+      ${analyticsStatCard("TUT", `${totalTut}s`, "isométricos y holds", "pause-circle")}
+      ${analyticsStatCard("Conditioning", condCount, "sesiones en ventana", "zap")}
+    </div>
 
     <div class="dc-section-head"><strong>CNS load</strong><span>carga diaria 0–100 · 50 ≈ día típico</span></div>
     <article class="analytics-card">
@@ -3546,42 +3586,6 @@ function renderStrengthAnalytics(entries) {
 
     <div class="dc-section-head"><strong>Effort progress</strong><span>esfuerzo medio diario (RPE ×10)</span></div>
     <article class="analytics-card">${dcLineChart(effortSeries, { legend: false })}</article>
-  `;
-}
-
-function renderConditioningAnalytics(entries) {
-  const conditioning = entries.filter((entry) => entry.nature === "conditioning" || entry.movement_pattern === "conditioning");
-  const timed = entries.filter((entry) => entry.total_hold_seconds || entry.duration_minutes);
-  const totalMinutes = entries.reduce((sum, entry) => sum + (entry.duration_minutes || 0), 0);
-  const cnsLoad = entries.reduce((sum, entry) => sum + denseEquivalentSets(entry) * (entry.effort_value || 5), 0);
-  const recent = (conditioning.length ? conditioning : timed).slice(-5).reverse();
-  const loadByDay = denseLoadByDay(entries);
-  const maxLoad = Math.max(...loadByDay.map((row) => row.load), 1);
-  return `
-    <div class="analytics-stat-grid">
-      ${analyticsStatCard("Cond sessions", conditioning.length, "Entradas marcadas como conditioning", "timer")}
-      ${analyticsStatCard("Dense minutes", totalMinutes, "Minutos registrados", "clock-3")}
-      ${analyticsStatCard("CNS load", roundTo(cnsLoad, 1), "sets eq x esfuerzo", "activity")}
-      ${analyticsStatCard("TUT", `${Math.round(entries.reduce((sum, entry) => sum + (entry.total_hold_seconds || 0), 0))}s`, "isométricos y holds", "pause-circle")}
-    </div>
-    <div class="analytics-card-grid">
-      <article class="analytics-card">
-        <div class="section-subhead"><strong>Conditioning volume</strong><span>últimas señales</span></div>
-        ${
-          recent.length
-            ? `<div class="analytics-detail-list is-in-card">
-                ${recent.map((entry) => analyticsDetailRow(entry.exercise_name, entry.scheme, denseEntryValue(entry), "activity")).join("")}
-              </div>`
-            : `<div class="analytics-empty is-compact"><i data-lucide="zap"></i><strong>Sin conditioning todavía</strong><span>Cuando registres carries, sprints, saltos o circuitos aparecerán aquí.</span></div>`
-        }
-      </article>
-      <article class="analytics-card">
-        <div class="section-subhead"><strong>CNS load</strong><span>últimos días</span></div>
-        <div class="recovery-sparkline">
-          ${loadByDay.map((row) => `<span style="height:${Math.max(8, pct(row.load, maxLoad))}%" title="${escapeAttr(`${row.date}: ${roundTo(row.load, 1)}`)}"></span>`).join("")}
-        </div>
-      </article>
-    </div>
   `;
 }
 
@@ -3723,7 +3727,9 @@ function renderBalanceAnalytics(entries) {
   `;
 }
 
-function renderConsistencyAnalytics(entries) {
+// Streak + heatmap + engagement, now embedded at the end of Progreso
+// (the Consistency tab was folded into it — audit fase 3).
+function denseConsistencySectionHtml() {
   const todayKey = dateKey(today);
   // Engagement over the last 28 days: planned exercises logged + planned days trained
   let plannedDays = 0;
@@ -3773,19 +3779,7 @@ function renderConsistencyAnalytics(entries) {
     const weekPct = assigned ? Math.round((weekDays.filter((day) => dateKey(day) <= todayKey && plannedExercisesForDate(day).length && denseEntriesForDate(dateKey(day)).length).length / assigned) * 100) : trained ? Math.round((trained / 7) * 100) : 0;
     weekRows.push(`<div class="dc-heat-row"><small>${dateKey(weekDays[0]).slice(5)}</small>${cells}<b>${weekPct}%</b></div>`);
   }
-  // Completion by weekday (last 4 weeks)
   const weekdayLabels = ["L", "M", "X", "J", "V", "S", "D"];
-  const weekdayCounts = Array(7).fill(0);
-  for (let i = 0; i < 28; i += 1) {
-    const day = addDays(today, -i);
-    if (denseEntriesForDate(dateKey(day)).length) weekdayCounts[(day.getDay() + 6) % 7] += 1;
-  }
-  const blobs = weekdayLabels
-    .map((label, index) => {
-      const pctVal = Math.round((weekdayCounts[index] / 4) * 100);
-      return `<div class="dc-blob ${pctVal >= 50 ? "is-on" : ""}"><i style="opacity:${Math.max(0.12, pctVal / 100)}"></i><span>${label}</span><small>${pctVal}%</small></div>`;
-    })
-    .join("");
   // Genuinely abandoned = trained before but not lately. Never-used exercises
   // aren't "skipped", they're just not in your rotation — showing them is noise
   // while the base is still filling up.
@@ -3793,7 +3787,7 @@ function renderConsistencyAnalytics(entries) {
     .filter((exercise) => denseExerciseStats(exercise.id).count > 0)
     .slice(0, 5);
   return `
-    <div class="dc-section-head"><strong>Engagement</strong><span>últimos 28 días</span></div>
+    <div class="dc-section-head"><strong>Consistencia</strong><span>últimos 28 días</span></div>
     <div class="analytics-stat-grid">
       ${analyticsStatCard("Action", actionPct === null ? "—" : `${actionPct}%`, "% de ejercicios planificados registrados", "activity")}
       ${analyticsStatCard("Completion", completionPct === null ? "—" : `${completionPct}%`, "% de días con plan completados", "circle-check-big")}
@@ -3812,17 +3806,9 @@ function renderConsistencyAnalytics(entries) {
       </div>
     </article>
 
-    <div class="dc-section-head"><strong>Completion by day</strong></div>
-    <article class="analytics-card"><div class="dc-blob-row">${blobs}</div></article>
-
     ${
       skipped.length
-        ? `<div class="dc-section-head"><strong>Ejercicios abandonados</strong><span>entrenados antes, no últimamente</span></div>
-    <article class="analytics-card">
-      <div class="analytics-detail-list is-in-card">
-        ${skipped.map((exercise) => analyticsDetailRow(exercise.name, denseCategoryLabel(exercise.category), `${denseExerciseStats(exercise.id).count} marcas · retomar`, "corner-down-right")).join("")}
-      </div>
-    </article>`
+        ? dcCollapse("corner-down-right", "Ejercicios abandonados", "entrenados antes, no últimamente", `${skipped.length}`, `<div class="analytics-detail-list is-in-card">${skipped.map((exercise) => analyticsDetailRow(exercise.name, denseCategoryLabel(exercise.category), `${denseExerciseStats(exercise.id).count} marcas · retomar`, "corner-down-right")).join("")}</div>`)
         : ""
     }
   `;
@@ -3878,6 +3864,20 @@ function renderCalibrationCard() {
   `;
 }
 
+// PRs per week over the last N weeks — the timeline in PR lab.
+function densePrWeeklyTimeline(weeksBack = 12) {
+  const prDates = getDenseEntries()
+    .filter((entry) => entry.date && denseEntryIsPr(entry))
+    .map((entry) => entry.date);
+  const rows = [];
+  for (let w = weeksBack - 1; w >= 0; w -= 1) {
+    const startKey = dateKey(addDays(today, -7 * w - 6));
+    const endKey = dateKey(addDays(today, -7 * w));
+    rows.push({ label: endKey.slice(5), count: prDates.filter((d) => d >= startKey && d <= endKey).length });
+  }
+  return rows;
+}
+
 function renderDensePrs() {
   if (!nodes.densePrPanel) return;
   const entries = [...getDenseEntries()];
@@ -3895,6 +3895,20 @@ function renderDensePrs() {
       <span class="mini-tag ${entries.length ? "is-green" : "is-amber"}">${entries.length ? `${entries.length} marks` : "esperando datos"}</span>
     </div>
     ${renderCalibrationCard()}
+    ${(() => {
+      const weeks = densePrWeeklyTimeline(12);
+      const total = weeks.reduce((sum, w) => sum + w.count, 0);
+      if (!total) return "";
+      const max = Math.max(...weeks.map((w) => w.count), 1);
+      return `
+        <div class="dc-section-head"><strong>PR timeline</strong><span>${total} PRs · 12 semanas</span></div>
+        <article class="analytics-card">
+          <div class="recovery-sparkline is-pr-timeline">
+            ${weeks.map((w) => `<span style="height:${w.count ? Math.max(14, (w.count / max) * 100) : 4}%" title="${escapeAttr(`sem ${w.label}: ${w.count} PR${w.count === 1 ? "" : "s"}`)}"></span>`).join("")}
+          </div>
+          <div class="dc-timeline-foot"><span>${escapeHtml(weeks[0].label)}</span><span>hoy</span></div>
+        </article>`;
+    })()}
     <div class="dense-pr-layout">
       <div class="dense-pr-table">
         <div class="section-subhead"><strong>PRs reales</strong><span>marcas registradas y testeadas</span></div>

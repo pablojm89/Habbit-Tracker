@@ -1930,6 +1930,64 @@ button:active:not(:disabled),
 }
 
 /* Weekly failure challenge (1 push / pull / lower to failure per week) */
+.pattern-split-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.pattern-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 6px;
+  align-items: center;
+  padding: 7px 9px;
+  border: 1px solid color-mix(in srgb, var(--item-color), #2b2b2b 55%);
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--item-color), transparent 92%);
+}
+
+.pattern-split-bar {
+  grid-column: 1 / -1;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+}
+
+.pattern-split-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--item-color);
+}
+
+.pattern-split span {
+  color: var(--muted);
+  font-size: 0.6rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.pattern-split b {
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.recovery-sparkline.is-pr-timeline span {
+  background: color-mix(in srgb, #ffd166, transparent 22%);
+}
+
+.dc-timeline-foot {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  color: var(--dim);
+  font-size: 0.6rem;
+  font-weight: 750;
+}
+
 .weekly-failure-card {
   margin-top: 0;
   padding: 7px 8px;
