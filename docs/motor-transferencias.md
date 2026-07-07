@@ -159,6 +159,23 @@ que muestre "mejor marca estimada", pásala por `denseBoosted`.**
 - Tarjeta de calibración (`renderCalibrationCard`) con el kit principal y el tier
   "Anclas de barra".
 
+## 9.5 Palanca dentro de una familia de progresiones (levers)
+
+`denseLeverProgressionLevel` (tuck 0.35 → full 1.0) alimenta `leverLevel` en cada
+ejercicio generado por `leverSkillExercises`. `denseLeverSiblingEstimate(ex, key)` escala
+la capacidad entre niveles por la curva de resistencia isométrica:
+`capacidad_objetivo = capacidad_hermana × (palanca_hermana / palanca_objetivo)^2.2`
+(`DENSE_LEVER_ENDURANCE_EXP`). Cadena de ejemplo desde tuck 30s (10D): 1/4 17s → adv 13s
+→ 1 pierna 9s → straddle 6s → 1/2 5s → 3/4 4s → full 2s. Aplica también a las variantes
+dinámicas `_pull` (bodyweight_capacity).
+
+Está cableado en un único resolvedor (tarjeta y formulario siempre coinciden):
+`denseFormTargetHoldPerRound`/`denseFormTargetRepsPerSet` (propio → hermana → default),
+`denseEstimatedBodySuggestion` (razón "Estimado desde X por palanca… trátalo como test"),
+`denseTargetSource` (kind **family**, badge "Desde …", sigma 0.18, auto modo test) y
+`densePlannedTargetValue`/`densePlannedTargetRange`. Distinto del boost de transferencia:
+esto es estimación de capacidad determinista entre niveles, no propagación de mejoras.
+
 ## 10. Estructura de `state.transfer`
 
 ```js

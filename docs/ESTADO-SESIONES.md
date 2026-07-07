@@ -8,11 +8,11 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 > App: PWA de entrenamiento (Dense training). Vanilla JS sin build: `app.js` (~9000
 > líneas), `styles.css`, `index.html`, `sw.js`. Sincroniza a Google Sheets vía Apps Script.
 > Modo training-only (`TRAINING_ONLY = true`). Cache busting: string `?v=…` en `index.html`
-> **y** `sw.js` a la vez. **Última versión: `20260706-fase3-16`.**
+> **y** `sw.js` a la vez. **Última versión: `20260706-lever-chain-17`.**
 
 ## Cómo trabajar aquí (imprescindible)
 
-- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **38 asserts**.
+- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **42 asserts**.
   Correr siempre tras tocar el motor.
 - **TDZ**: cualquier `const` de nivel superior que use el render debe declararse en el
   bloque de constantes de arriba (cerca de `trainingAnalyticsTabs` / `bodyweightSchemes`).
@@ -104,7 +104,10 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
   Conditioning disuelta — su CNS estaba triplicada; minutos/TUT→Volumen); resumen del
   día con **split por patrón semanal** (`densePatternSplitHtml`, audit #3 cerrado) y
   tonelaje degradado a texto secundario; **PR timeline** (12 semanas) en PR lab.
+- `fd2c3c9` **Levers por palanca**: `leverLevel` en cada progresión; `denseLeverSiblingEstimate`
+  escala capacidad entre niveles (curva ^2.2). Tuck 30s → estima cada nivel hasta full.
+  Fuente "family" en tarjeta, auto-test, tarjeta y formulario alineados (mismo resolvedor).
 
 ## Estado actual conocido
-- 38/38 self-tests en verde.
+- 42/42 self-tests en verde.
 - Móvil "no carga bien" resuelto: era deploy de GitHub Pages + de paso lucide fijado y SW cache-first.
