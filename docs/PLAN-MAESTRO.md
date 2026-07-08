@@ -1,8 +1,25 @@
 # Plan maestro — BitTracker como app definitiva de entrenamiento
 
-> Escrito tras revisar el estado real: `app.js` (9.384 líneas), `styles.css` (7.306),
-> `google-sheets-apps-script.gs` (536, 11 hojas), docs del motor, y el historial de
-> ~30 commits de las últimas sesiones. No es un plan para una app imaginaria.
+> Escrito tras revisar el estado real del proyecto; **actualizado el 7 jul 2026 tras
+> completar las Fases 1–4** (ver "Estado de ejecución" abajo y el detalle con commits en
+> [ESTADO-SESIONES.md](ESTADO-SESIONES.md)). `app.js` ~9.900 líneas, 47 self-tests,
+> última versión de caché `20260707-picker-scroll-19`.
+
+## Estado de ejecución (7 jul 2026)
+
+| Fase | Estado | Commits clave |
+|---|---|---|
+| 1 — Fiabilidad de datos | ✅ hecha | `b19e786`, `aeba24f` |
+| 2 — Progresión redonda (test, rangos, deload, plans v2) | ✅ hecha | `66e18f6` |
+| 3 — Analytics 5 pestañas + patrones + PR timeline | ✅ hecha | `c890c2b` |
+| 3.5 — Levers por palanca (no estaba en el plan, pedida) | ✅ hecha | `fd2c3c9` |
+| 4 — Aprendizaje (sigma empírica + curva personal) | ✅ hecha | `deb5a84` |
+| 5 — Planificación ligera | ⬜ pendiente | — |
+| 6 — Sistema completo | ⬜ pendiente | — |
+
+Además, todo el audit UX original (#1–#6) está cerrado, y una auditoría externa (Codex,
+jul 2026) aportó hallazgos verificados — integrados abajo en "Auditoría externa" y en la
+lista de acciones.
 
 ---
 
@@ -187,7 +204,7 @@ Poca cirugía; es afinado de jerarquía:
 > Cada fase es pequeña, no rompe lo anterior, y pasa por: `node --check`, suite
 > `?selftest=1` (ampliándola), prueba manual en harness móvil, bump de versión SW.
 
-### Fase 1 — Fiabilidad de datos (1-2 sesiones) ⭐ la más importante
+### Fase 1 — Fiabilidad de datos ✅ HECHA (`b19e786`, `aeba24f`) ⭐
 - **Objetivo:** que ningún bug ni límite de cuota pueda costarte historial.
 - **Cambios:** try/catch + aviso en `saveState`; snapshots con fecha (N=10) en RawState
   (.gs `appendSnapshot`/`latestSnapshot`); indicador "última copia hace X" en Backup;
@@ -199,7 +216,7 @@ Poca cirugía; es afinado de jerarquía:
   con grep exhaustivo y probar todas las vistas; redeploy del .gs (proceso ya conocido).
 - **Notarás:** nada visible — y exactamente esa es la señal de éxito. Más un "backup ✓ hace 2h".
 
-### Fase 2 — Progresión redonda (1-2 sesiones)
+### Fase 2 — Progresión redonda ✅ HECHA (`66e18f6`)
 - **Objetivo:** cerrar audit #4 y el modo test.
 - **Cambios:** `is_test` end-to-end (§6.1); rango en tarjeta cuando fuente ≠ directa;
   deload sugerido tras estancamiento; `denseDayPlans` v2 (necesario para marcar un plan
@@ -210,7 +227,7 @@ Poca cirugía; es afinado de jerarquía:
 - **Notarás:** "92kg (87–97) · test" en la tarjeta; los tests fallidos dejan de
   penalizarte la semana.
 
-### Fase 3 — Analytics con menos y mejor (1 sesión)
+### Fase 3 — Analytics con menos y mejor ✅ HECHA (`c890c2b`)
 - **Objetivo:** cada pestaña responde una pregunta.
 - **Cambios:** 7→5 pestañas (fusión Consistency→Progreso, Conditioning→Recovery);
   tonelaje degradado + sets por patrón en el resumen del día (audit #3); timeline de PRs.
@@ -218,7 +235,7 @@ Poca cirugía; es afinado de jerarquía:
 - **Riesgos:** bajos; cuidado con `state.settings.trainingAnalyticsTab` guardada (clamp ya existe).
 - **Notarás:** el resumen del día habla de patrones, no de toneladas; menos ruido.
 
-### Fase 4 — Aprendizaje profundo (2 sesiones)
+### Fase 4 — Aprendizaje profundo ✅ HECHA (`deb5a84`)
 - **Objetivo:** que la confianza mostrada sea la TUYA.
 - **Cambios:** `calibrationLog` derivable + sigma empírica por tipo de fuente (§7.1);
   bias de curva personal por ejercicio (§7.2); exponerlo: "confianza alta (±4% en tus
@@ -227,6 +244,11 @@ Poca cirugía; es afinado de jerarquía:
   self-tests nuevos.
 - **Riesgos:** medio — es motor; hacerlo con fold re-derivable y clamps como siempre.
 - **Notarás:** los rangos se estrechan donde aciertas y se ensanchan donde no.
+
+**Desviaciones del plan (hechas de más):** cadena de palanca en levers (`fd2c3c9`,
+`denseLeverSiblingEstimate`, exp 2.2, fuente "family"); toggle de test dinámico al cambiar
+de esquema; la purga del legacy habit-era quedó PARCIAL (solo el badge EXR → sets; el
+estado `records/habits/mesocycle/trainingLogs` sigue vivo — ver Fase 6).
 
 ### Fase 5 — Planificación ligera (2-3 sesiones)
 - **Objetivo:** plantillas sin jaula.
@@ -247,19 +269,44 @@ Poca cirugía; es afinado de jerarquía:
 - **Riesgos:** migración de storage — hacerla con doble escritura temporal.
 - **Notarás:** app instantánea con años de historial; alta desde cero en 20 minutos.
 
-## 10. Próximas 10 acciones priorizadas
+## Auditoría externa (Codex, jul 2026) — verificada por Claude
 
-1. `saveState` con try/catch + toast de error (30 min, riesgo 0, protege todo).
-2. Snapshots con fecha (N=10) en RawState + restaurar-el-último-válido (.gs + app).
-3. Indicador "última copia hace X" en el modal Backup.
-4. Purga del legacy habit-era (mesocycleDefault, habits, records, trainingLogs) con
-   export de despedida.
-5. `denseDayPlans` v2 (objetos con scheme/target/is_test/source, migración perezosa).
-6. `is_test` end-to-end: badge → formulario → guardado → fatiga suavizada.
-7. Rangos en la tarjeta del workout cuando la fuente no es directa (audit #4).
-8. Resumen del día: sets por patrón como cabecera, tonelaje secundario (audit #3).
-9. Analytics 7→5 pestañas (fusiones, no borrados de datos).
-10. Sigma empírica desde `calibrationLog` (la app aprende su propio error).
+1. ✅ **ARREGLADO** (`c5d9e2b`): scroll del picker móvil roto — la media query ponía
+   `overflow: visible` (resto del panel register eliminado) y el bloque premium del modal
+   no lo restauraba; lista de 52vh sin scroll → contenido cortado. Verificado a 390px.
+2. **CONFIRMADO, pendiente**: la hoja `DenseTraining` del .gs no refleja los campos nuevos
+   (`schema_version`, `is_test`, `readiness`, `assist_load_kg`, `rom_cm`,
+   `target_total_hold_seconds`, ladder…) — headers en `google-sheets-apps-script.gs` ~línea
+   395. RawState sí lo conserva todo (restore OK); es la vista estructurada la que cojea.
+   Requiere redeploy del Apps Script (proceso conocido, vía Chrome con sesión del usuario).
+3. **CONFIRMADO, pendiente**: `recPct = 0` hardcodeado en Recovery (app.js ~3397) — el
+   badge de tendencia de recovery siempre marca 0%. Convertir en tendencia real
+   (`denseTrendPct` sobre la serie de recovery) y, más ambicioso, integrar fallo/deload/
+   peso en la señal.
+4. **CONFIRMADO, conocido**: token/endpoint de Sheets hardcodeado (app.js:4-5). Uso privado
+   OK; rotar y mover a config si el repo se comparte. (Ya estaba en backlog.)
+5. **CONFIRMADO**: monolito ~9.900 líneas. La extracción de módulos (motor / transferencias
+   / analytics / cloud / UI) estaba en Fase 6; los TDZ recurrentes (4 ya) confirman que
+   debe adelantarse a ANTES de meter más motor.
+6. Micro-UX sugerida: nombres largos en tarjetas compactas, chip de semana apretado,
+   separar visualmente "objetivo sugerido" vs "resultado guardado".
+
+## Próximas acciones priorizadas (actualizada 7 jul 2026)
+
+1. ~~Scroll del picker móvil~~ ✅ hecho (`c5d9e2b`).
+2. **Ampliar `DenseTraining` en el .gs** con las columnas nuevas + redeploy (Codex #2).
+3. **Recovery real**: tendencia calculada en vez de `recPct = 0` (Codex #3).
+4. **Probar en real**: entrenar unos días con modo test / rangos / sigma empírica / curva
+   personal y palanca de levers antes de construir Fase 5 — el feedback de uso manda.
+5. **Extraer `engine.js`** (módulos ES nativos, sin build): motor puro separado de UI.
+   Adelantado desde Fase 6 por los TDZ recurrentes (Codex #5). Prerequisito de Fase 5.
+6. **Fase 5 — planificación ligera**: plantillas de día ("Empuje A") sobre denseDayPlans
+   v2 (ya preparado), rotación sugerida desde el balance semanal, día deload/test.
+7. Purga completa del legacy habit-era (records/habits/mesocycle demo/trainingLogs) —
+   junto con la extracción de módulos.
+8. Micro-UX de Codex #6 (truncados, chip de semana, objetivo vs resultado).
+9. Token de Sheets → pantalla de configuración + rotación (antes de compartir el repo).
+10. Onboarding de calibración (los 6+4 tests como flujo guiado) — Fase 6.
 
 ---
 
