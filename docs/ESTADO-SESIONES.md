@@ -8,11 +8,11 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 > App: PWA de entrenamiento (Dense training). Vanilla JS sin build: `app.js` (~9000
 > líneas), `styles.css`, `index.html`, `sw.js`. Sincroniza a Google Sheets vía Apps Script.
 > Modo training-only (`TRAINING_ONLY = true`). Cache busting: string `?v=…` en `index.html`
-> **y** `sw.js` a la vez. **Última versión: `20260707-fase4-18`.**
+> **y** `sw.js` a la vez. **Última versión: `20260707-unify-weighted-20`.**
 
 ## Cómo trabajar aquí (imprescindible)
 
-- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **47 asserts**.
+- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **51 asserts**.
   Correr siempre tras tocar el motor.
 - **TDZ**: cualquier `const` de nivel superior que use el render debe declararse en el
   bloque de constantes de arriba (cerca de `trainingAnalyticsTabs` / `bodyweightSchemes`).
@@ -114,6 +114,18 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
   ejercicio, clamp ±0.15, corrige `denseEstimatedLoadSuggestion` — caso bench 5D10→5D5).
   Toggle de test dinámico al cambiar de esquema en el form.
 
+### Unificación de ejercicios con lastre (Codex, jul 2026)
+- `c5d9e2b` fix scroll del picker móvil (`overflow-y:auto` en la regla del modal; la media
+  query lo ponía a `visible`).
+- `bfd9a2e` **Un ejercicio por biomecánica**: eliminados los 4 gemelos `weighted_*`
+  (pull_up/ring_dip/parallel_bar_dip/atg_split_squat) — la base ya tenía la modalidad.
+  `denseExerciseAliases` + resolución en los getters + `denseMigrateUnifiedExercises`
+  (idempotente en `normalizeState`) reescribe marcas/planes/favoritos históricos al id base.
+  La estimación de lastre cae a `denseUnifiedE1rm` desde marcas BW (ya no sale "-"), y
+  `applyDenseFormTargets` respeta la modalidad elegida (leía sólo el id, no `nature`).
+  Los planes del día llevan `nature`. **Al arrancar con tus datos, los `weighted_*` viejos
+  migran solos** (RawState los conservaba).
+
 ## Estado actual conocido
-- 47/47 self-tests en verde.
+- 51/51 self-tests en verde.
 - Móvil "no carga bien" resuelto: era deploy de GitHub Pages + de paso lucide fijado y SW cache-first.
