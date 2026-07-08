@@ -6934,6 +6934,10 @@ button:focus-visible {
    ancestro con backdrop-filter renderiza negro a partir del área visible. */
 [data-modal-kind="workout-exercise-picker"] .exercise-picker-list {
   max-height: 52vh;
+  /* The mobile media query resets the generic list to overflow:visible (a
+     leftover for the removed inline register panel); this scoped rule wins by
+     specificity, so restore scrolling here or the modal list gets cut. */
+  overflow-y: auto;
   gap: 7px;
   padding: 2px 2px 14px;
   overscroll-behavior: contain;

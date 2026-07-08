@@ -1,10 +1,10 @@
-const CACHE_NAME = "bittracker-mobile-20260707-fase4-18";
+const CACHE_NAME = "bittracker-mobile-20260707-picker-scroll-19";
 const LUCIDE_URL = "https://unpkg.com/lucide@1.23.0/dist/umd/lucide.min.js";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=20260707-fase4-18",
-  "./app.js?v=20260707-fase4-18",
+  "./styles.css?v=20260707-picker-scroll-19",
+  "./app.js?v=20260707-picker-scroll-19",
   "./manifest.webmanifest?v=20260627-mobile-01",
   "./icon.svg",
   LUCIDE_URL
