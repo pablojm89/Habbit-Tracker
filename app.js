@@ -198,7 +198,7 @@ const bodyweightSchemes = ["2D", "5D", "10D", "20D"];
 // pattern latent and pins sigma low on its exercise.
 const denseCalibrationKit = [
   { id: "pull_up", scheme: "5D", why: "ancla tirón vertical + eje reps" },
-  { id: "weighted_pull_up", scheme: "2D5", why: "tu curva carga↔reps de tirón" },
+  { id: "pull_up", scheme: "2D5", why: "tu curva carga↔reps de tirón (con lastre)" },
   { id: "ring_row", scheme: "5D", why: "ancla tirón horizontal" },
   { id: "ring_push_up", scheme: "5D", why: "ancla empuje horizontal" },
   { id: "pike_push_up", scheme: "5D", why: "ancla empuje vertical" },
@@ -237,6 +237,17 @@ const denseExerciseSortOptions = [
 
 const DENSE_RECOVERY_MIN_WELLNESS = 3;
 const DENSE_DELOAD_STREAK = 4;
+// Unified biomechanics: exercises that can carry extra load are a SINGLE
+// exercise with a modality selector (bodyweight ↔ weighted_calisthenics), not
+// two catalog entries. These legacy 'weighted_*' twins are aliased to their
+// base id; historical marks are migrated (normalizeState) and any lingering
+// reference resolves through denseExerciseById.
+const denseExerciseAliases = {
+  weighted_pull_up: "pull_up",
+  weighted_ring_dip: "ring_dip",
+  weighted_parallel_bar_dip: "parallel_bar_dip",
+  weighted_atg_split_squat: "atg_split_squat",
+};
 // Leverage factor of lever progressions (torque relative to the full lay) and
 // the isometric-endurance exponent used to cross-estimate between levels:
 // capacity_target = capacity_source × (lever_source / lever_target)^EXP.
@@ -283,36 +294,12 @@ const denseExerciseCatalog = [
     icon: "arrow-up-to-line",
   },
   {
-    id: "weighted_pull_up",
-    name: "Dominadas con lastre",
-    category: "pull",
-    family: "strict_pull",
-    nature: "weighted_calisthenics",
-    allowedNatures: ["weighted_calisthenics", "bodyweight"],
-    bodyweightContributionPct: 100,
-    tonnageFactor: 1,
-    alpha: 0.16,
-    icon: "arrow-up-to-line",
-  },
-  {
     id: "ring_dip",
     name: "Dips en anillas",
     category: "push",
     family: "strict_dip",
     nature: "bodyweight",
     allowedNatures: ["bodyweight", "weighted_calisthenics"],
-    bodyweightContributionPct: 95,
-    tonnageFactor: 1,
-    alpha: 0.14,
-    icon: "arrow-down-to-line",
-  },
-  {
-    id: "weighted_ring_dip",
-    name: "Dips en anillas con lastre",
-    category: "push",
-    family: "strict_dip",
-    nature: "weighted_calisthenics",
-    allowedNatures: ["weighted_calisthenics", "bodyweight"],
     bodyweightContributionPct: 95,
     tonnageFactor: 1,
     alpha: 0.14,
@@ -599,18 +586,6 @@ const denseExerciseCatalog = [
     icon: "arrow-down-to-line",
   },
   {
-    id: "weighted_parallel_bar_dip",
-    name: "Dips en paralelas con lastre",
-    category: "push",
-    family: "parallel_dip",
-    nature: "weighted_calisthenics",
-    allowedNatures: ["weighted_calisthenics", "bodyweight"],
-    bodyweightContributionPct: 90,
-    tonnageFactor: 1,
-    alpha: 0.15,
-    icon: "arrow-down-to-line",
-  },
-  {
     id: "bench_press",
     name: "Press banca",
     category: "push",
@@ -657,19 +632,6 @@ const denseExerciseCatalog = [
     tonnageFactor: 1,
     repsPerSide: true,
     alpha: 0.12,
-    icon: "person-standing",
-  },
-  {
-    id: "weighted_atg_split_squat",
-    name: "ATG Split Squat con peso",
-    category: "legs",
-    family: "atg_split_squat",
-    nature: "weighted_calisthenics",
-    allowedNatures: ["weighted_calisthenics", "bodyweight"],
-    bodyweightContributionPct: 80,
-    tonnageFactor: 1,
-    repsPerSide: true,
-    alpha: 0.13,
     icon: "person-standing",
   },
   {
@@ -1321,15 +1283,9 @@ function denseModalityFactor(e, f) {
 const densePairOverrides = {
   "pull_up>chin_up": 0.8,
   "chin_up>pull_up": 0.8,
-  "pull_up>weighted_pull_up": 0.85,
-  "weighted_pull_up>pull_up": 0.9,
   "bench_press>military_press": 0.5,
   "military_press>bench_press": 0.45,
   "military_press>full_rom_hspu": 0.55,
-  "parallel_bar_dip>weighted_parallel_bar_dip": 0.85,
-  "weighted_parallel_bar_dip>parallel_bar_dip": 0.9,
-  "atg_split_squat>weighted_atg_split_squat": 0.85,
-  "weighted_atg_split_squat>atg_split_squat": 0.9,
   // Barbell anchors: squat<->hinge transfer is stronger than the disjoint
   // pattern vectors suggest (shared posterior chain + axial loading).
   "back_squat>deadlift": 0.45,
@@ -2410,6 +2366,21 @@ function runDenseSelfTests() {
     return Number(s.externalLoadKg) < roundTo(naive, 1) - 1 && /curva personal/.test(s.reason);
   });
 
+  // Unificación de gemelos con lastre (Dominadas = una sola, modalidad dentro)
+  test("alias: weighted_pull_up resuelve a pull_up", () => denseExerciseById("weighted_pull_up").id === "pull_up" && findDenseExerciseById("weighted_pull_up").id === "pull_up");
+  test("alias: el gemelo ya no está en el catálogo", () => !denseExerciseCatalog.some((e) => e.id === "weighted_pull_up"));
+  test("migración: marca weighted_pull_up se reescribe a pull_up", () => {
+    const migrated = denseMigrateUnifiedExercises({ denseTrainingEntries: [{ id: "m1", exercise_id: "weighted_pull_up", nature: "weighted_calisthenics", added_load_kg: 20 }], denseDayPlans: { "2026-07-01": ["weighted_ring_dip"] }, denseExerciseFavorites: ["weighted_pull_up", "pull_up"], denseEstimates: { weighted_pull_up: { e1rm_kg: 150 } } });
+    const e = migrated.denseTrainingEntries[0];
+    return e.exercise_id === "pull_up" && e.nature === "weighted_calisthenics" && e.added_load_kg === 20 && migrated.denseDayPlans["2026-07-01"][0].exercise_id === "ring_dip" && migrated.denseExerciseFavorites.length === 1 && !migrated.denseEstimates.weighted_pull_up;
+  });
+  test("estimación de lastre desde historial BW (no queda vacía)", () => {
+    add({ ...computeDenseEntry({ id: "bwpu", exercise_id: "pull_up", exercise_name: "Dominadas", nature: "bodyweight", scheme: "5D", total_reps: 60, bodyweight_kg: 80, bodyweight_contribution_pct: 100 }), date: "2026-06-20", created_at: "2026-06-20T10:00:00Z" });
+    rebuildDenseEstimates();
+    const s = denseEstimatedLoadSuggestion({ ...denseExerciseById("pull_up"), nature: "weighted_calisthenics" }, "5D5");
+    return s && s.type === "load" && s.addedLoadKg !== "" && Number(s.addedLoadKg) >= 0;
+  });
+
   state.denseTrainingEntries = savedEntries;
   denseNeighborCache = null;
   rebuildTransferState();
@@ -3018,7 +2989,7 @@ const denseFailureGroupLabels = { push: "Empuje", pull: "Tirón", legs: "Pierna"
 // group still appears below, sorted by how often you use it.
 const denseFailureFeatured = {
   push: ["parallel_bar_dip", "ring_dip", "floor_push_up", "ring_push_up", "pike_push_up", "bench_press"],
-  pull: ["pull_up", "chin_up", "ring_row", "weighted_pull_up"],
+  pull: ["pull_up", "chin_up", "ring_row"],
   legs: ["pistol_squat", "air_squat", "bulgarian_split_squat", "cossack_squat", "back_squat"],
 };
 
@@ -5653,6 +5624,46 @@ function normalizeState(input) {
   merged.bodyweightLogs ||= {};
   merged.denseEstimates ||= {};
   merged.denseExerciseFavorites = Array.isArray(merged.denseExerciseFavorites) ? merged.denseExerciseFavorites : [];
+  denseMigrateUnifiedExercises(merged);
+  return merged;
+}
+
+// Rewrite the legacy 'weighted_*' twin ids onto their unified base id (keeping
+// each mark's own nature/loads). Idempotent — safe to run on every load.
+function denseMigrateUnifiedExercises(merged) {
+  merged.denseTrainingEntries = merged.denseTrainingEntries.map((entry) => {
+    const baseId = denseExerciseAliases[entry.exercise_id];
+    if (!baseId) return entry;
+    const base = denseExerciseCatalog.find((exercise) => exercise.id === baseId);
+    return {
+      ...entry,
+      exercise_id: baseId,
+      exercise_name: base?.name || entry.exercise_name,
+      exercise_family_id: base?.family || entry.exercise_family_id,
+      family: base?.family || entry.family,
+      variant_id: baseId,
+      nature: entry.nature || "weighted_calisthenics",
+    };
+  });
+  Object.keys(merged.denseDayPlans || {}).forEach((day) => {
+    merged.denseDayPlans[day] = (merged.denseDayPlans[day] || []).map((raw) => {
+      const item = typeof raw === "string" ? { exercise_id: raw } : { ...raw };
+      const baseId = denseExerciseAliases[item.exercise_id];
+      if (baseId) {
+        item.exercise_id = baseId;
+        item.nature = item.nature || "weighted_calisthenics";
+      }
+      return item;
+    });
+  });
+  if (Array.isArray(merged.denseExerciseFavorites)) {
+    merged.denseExerciseFavorites = [...new Set(merged.denseExerciseFavorites.map((id) => denseExerciseAliases[id] || id))];
+  }
+  // Estimates are re-derivable; drop aliased keys so rebuildDenseEstimates
+  // regenerates them under the unified id.
+  Object.keys(merged.denseEstimates || {}).forEach((id) => {
+    if (denseExerciseAliases[id]) delete merged.denseEstimates[id];
+  });
   return merged;
 }
 
@@ -6104,8 +6115,13 @@ function denseFormReadiness(form) {
 // refreshes the recommendation card. Shared by scheme and readiness changes.
 function applyDenseFormTargets(form, { resetStaleLoad = false } = {}) {
   if (!form) return;
-  const exercise = denseExerciseById(form.querySelector("[name='exerciseId']")?.value);
-  if (!exercise) return;
+  const baseExercise = denseExerciseById(form.querySelector("[name='exerciseId']")?.value);
+  if (!baseExercise) return;
+  // Respect the chosen modality: scheme/readiness recalcs must estimate as
+  // weighted (or bodyweight) exactly like the picked nature, not the default.
+  const chosenNature = form.querySelector("input[name='nature']")?.value;
+  const allowed = baseExercise.allowedNatures?.length ? baseExercise.allowedNatures : [baseExercise.nature];
+  const exercise = chosenNature && allowed.includes(chosenNature) ? { ...baseExercise, nature: chosenNature } : baseExercise;
   const scheme = form.querySelector("input[name='scheme']:checked")?.value || denseAllowedSchemes(exercise)[0];
   const readiness = denseFormReadiness(form);
   const suggestion = denseProgressionSuggestion(exercise, readiness, scheme);
@@ -7413,7 +7429,7 @@ function plannedExercisesForDate(day) {
     .map((item, index) => {
       const exercise = findDenseExerciseById(item.exercise_id);
       return exercise
-        ? { ...exercise, plannedSource: "custom", planIndex: index, plannedScheme: item.scheme || "", plannedIsTest: Boolean(item.is_test) }
+        ? { ...exercise, nature: item.nature && (exercise.allowedNatures || [exercise.nature]).includes(item.nature) ? item.nature : exercise.nature, plannedSource: "custom", planIndex: index, plannedScheme: item.scheme || "", plannedIsTest: Boolean(item.is_test) }
         : null;
     })
     .filter(Boolean);
@@ -7443,11 +7459,13 @@ function denseExerciseFromPlannedName(name = "") {
 }
 
 function denseExerciseById(id) {
-  return denseExerciseCatalog.find((exercise) => exercise.id === id) || denseExerciseCatalog[0];
+  const key = denseExerciseAliases[id] || id;
+  return denseExerciseCatalog.find((exercise) => exercise.id === key) || denseExerciseCatalog[0];
 }
 
 function findDenseExerciseById(id) {
-  return denseExerciseCatalog.find((exercise) => exercise.id === id) || null;
+  const key = denseExerciseAliases[id] || id;
+  return denseExerciseCatalog.find((exercise) => exercise.id === key) || null;
 }
 
 function denseExerciseFavorites() {
@@ -7978,8 +7996,13 @@ function denseBestWeightedE1rmSource(exerciseId) {
   // the same impossible load forever. Entry max only when no estimate exists.
   const estimated = Number(state.denseEstimates?.[exerciseId]?.e1rm_kg) || 0;
   const best = estimated || Number(bestEntry?.e1rm_kg || 0);
-  if (!best) return null;
-  return { e1rm: denseBoosted(exerciseId, best), entry: bestEntry };
+  if (best) return { e1rm: denseBoosted(exerciseId, best), entry: bestEntry };
+  // No direct weighted mark: derive a system e1RM from BODYWEIGHT history
+  // (unified exercise — a heavy BW pull-up implies a weighted-pull-up e1RM), so
+  // switching to lastre suggests a real load instead of a blank "-".
+  const unified = denseUnifiedE1rm(exerciseId);
+  if (unified?.e1rm) return { e1rm: unified.e1rm, entry: bestEntry || latestDenseEntryForExercise(exerciseId), fromBodyweight: true };
+  return null;
 }
 
 function denseEstimatedLoadSuggestion(exercise, scheme, readiness = "normal") {
@@ -8379,7 +8402,7 @@ function densePatternProfile(exercise) {
   const family = exercise?.family || "";
   const id = exercise?.id || "";
 
-  if (["strict_pull", "weighted_pull_up"].includes(family) || id.includes("pull_up")) patterns.add("vertical_pull");
+  if (family === "strict_pull" || id.includes("pull_up")) patterns.add("vertical_pull");
   if (family === "horizontal_pull" || id.includes("row")) patterns.add("horizontal_pull");
   if (["strict_pull", "horizontal_pull"].includes(family) || exercise?.category === "pull") patterns.add("pull");
   if (family === "front_lever_pull" || family === "back_lever_pull") {
@@ -9028,15 +9051,17 @@ function denseFormDefaults() {
   // (schemes, suggestion, field targets) is computed for that modality.
   const allowedNatures = exercise.allowedNatures?.length ? exercise.allowedNatures : [exercise.nature];
   const overrideNature = denseFormNatureOverride && allowedNatures.includes(denseFormNatureOverride) ? denseFormNatureOverride : null;
-  const nature = overrideNature || (shouldUseLatest && referenceEntry?.nature && allowedNatures.includes(referenceEntry.nature) ? referenceEntry.nature : exercise.nature);
+  // A planned item for today may pin a scheme AND a modality (e.g. "Dominadas
+  // con lastre"). Both win over the last-session default unless the user
+  // switched modality in-form.
+  const planItem = densePlanItemsForDate(selectedDate).find((item) => item.exercise_id === exercise.id) || null;
+  const planNature = planItem?.nature && allowedNatures.includes(planItem.nature) ? planItem.nature : null;
+  const nature = overrideNature || planNature || (shouldUseLatest && referenceEntry?.nature && allowedNatures.includes(referenceEntry.nature) ? referenceEntry.nature : exercise.nature);
   const activeExercise = { ...exercise, nature };
   const allowedSchemes = denseAllowedSchemes(activeExercise);
   // Same default resolver the planned card uses, so the "Target" preview and
   // the scheme the form opens with agree. An explicit modality switch drops
   // the old scheme and picks the mid-range default for the new modality.
-  // A planned item for today may pin a scheme (e.g. a suggested test) — it wins
-  // over the last-session default unless the user switched modality in-form.
-  const planItem = densePlanItemsForDate(selectedDate).find((item) => item.exercise_id === exercise.id) || null;
   const preferredScheme = overrideNature
     ? denseIsLoadExercise(activeExercise)
       ? "10D5"
