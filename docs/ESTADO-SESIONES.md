@@ -22,6 +22,15 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
   (renderiza negro). El `.swipe-wrap` recorta con `overflow:hidden`, así que su
   `border-radius` debe igualar el de la tarjeta (fallo en minimal ya arreglado).
 - **styles.css** fue WIP de una sesión paralela de iconos; ya consolidado.
+- **Harness de verificación** (para comprobar de verdad, no de memoria): servir la carpeta
+  (`localhost:4173`) e iframear en un tab de Chrome MCP a 390px (móvil). Recarga limpia =
+  desregistrar el SW + borrar caches + `iframe.src` con `?fresh=<ts>`. Luego `w.eval(...)`
+  accede al `state`/funciones del módulo. Inyectar estado sintético SIEMPRE con restauración
+  en `finally`. Las claves sensibles (p.ej. `sessions`) se redactan en la salida del eval.
+- **Convención self-tests**: los de una fase nueva van AL FINAL de `runDenseSelfTests()`
+  (si van en medio, sus marcas sintéticas contaminan los tests del motor posteriores).
+- **git push lo hace el usuario.** Ahora mismo `main` está a la par de `origin/main`
+  (todo subido hasta `ca66640`).
 
 ## Sistemas grandes (base sólida)
 
@@ -82,13 +91,31 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 
 ## Pendiente
 
+### Codex — verificados, aún por hacer (viven también en PLAN-MAESTRO)
+- **#2 Columnas de `DenseTraining` en el `.gs`**: la hoja no guarda `schema_version`,
+  `is_test`, `readiness`, `assist_load_kg`, `rom_cm`, `target_total_hold_seconds`, `ladder`.
+  Ampliar el esquema en `google-sheets-apps-script.gs` + redeploy (sólo con sesión abierta y
+  autorización explícita del usuario; NUNCA tocar el token).
+- **#3 Recovery real**: `recPct` está hardcodeado a 0 (≈`app.js:3397`); derivarlo de la
+  tendencia real de wellness en vez de placeholder.
+- **#5 Extraer `engine.js`**: el monolito `app.js` (~9.9k líneas) provoca TDZ recurrentes;
+  separar el motor puro (curvas, transferencias, calibración) en su módulo. Adelantado del plan.
+- **#6 Micro-UX**: pulir presentación del campo "Peso corporal kg" en modo lastre
+  (no es redundante — hace falta para `carga total = BW + lastre` — es cuestión de UI).
+
 ### Backlog / higiene
-- **Push**: subir todos los commits de la sesión (el usuario hace el push).
 - **Token de Sheets** hardcodeado en `app.js` (líneas ~4-5): ocultar / rotar; el repo debe
-  seguir privado. El usuario lo sabe.
+  seguir privado. El usuario lo sabe (deprioritizado). Idea: pantalla de config para el token.
 - Rename de marca "Habbit Tracker" (pendiente antiguo).
-- Otras ideas: red de seguridad de datos (try/catch en `saveState`, snapshots con fecha),
-  onboarding de calibración, cronómetro de descanso auto.
+- **Purga legacy de hábitos**: `records`/`habits`/`mesocycle`/`trainingLogs` aún alimentan
+  renders ocultos que corren en cada `render()`; purga total diferida a Fase 6.
+- Otras ideas: onboarding de calibración, cronómetro de descanso auto.
+
+### Fases 5–6 del plan maestro (siguientes)
+- **Fase 5 — planificación ligera**: plantillas de día sobre `denseDayPlans` v2, rotación
+  sugerida desde el balance por patrón. (`denseDayPlans` v2 + nature en plan ya preparados.)
+- **Fase 6 — infra**: `engine.js`, IndexedDB, onboarding, purga total del legacy de hábitos.
+- Antes de la Fase 5: el usuario quería **entrenar unos días** con lo ya hecho y validarlo en real.
 
 ### Fases 1–4 del plan maestro (jul 2026) — hechas
 - `b19e786`/`aeba24f` Fase 1: saveState con try/catch + push forzado a nube en fallo de
