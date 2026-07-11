@@ -2381,6 +2381,18 @@ function runDenseSelfTests() {
     return s && s.type === "load" && s.addedLoadKg !== "" && Number(s.addedLoadKg) >= 0;
   });
 
+  // Recovery real: recPct sale de la tendencia de readiness, no de 0 hardcodeado.
+  test("recovery: sin baseline previo = 0, y sube ~50% cuando mejora la readiness", () => {
+    const mk = (offset, readiness) => add({ exercise_id: "pull_up", date: dateKey(addDays(today, -offset)), readiness });
+    // solo la ventana reciente poblada → no hay baseline anterior → 0 (no +100%)
+    mk(0, "high"); mk(1, "high"); mk(2, "high");
+    const flat = denseRecoveryTrendPct(3);
+    // ahora la ventana anterior con peor readiness → la reciente debe subir
+    mk(3, "low"); mk(4, "low"); mk(5, "low");
+    const up = denseRecoveryTrendPct(3);
+    return flat === 0 && up > 0 && Math.abs(up - 50) < 1;
+  });
+
   state.denseTrainingEntries = savedEntries;
   denseNeighborCache = null;
   rebuildTransferState();
@@ -3365,7 +3377,7 @@ function renderProgressAnalytics(entries) {
   const cnsAvg = Math.round(average(cns.map((p) => p.value).filter(Boolean)) || 0);
   const recovery = denseRecoverySeries(chartDays);
   const recAvg = Math.round(average(recovery.map((p) => p.value).filter(Boolean)) || 0);
-  const recPct = 0;
+  const recPct = denseRecoveryTrendPct(chartDays);
   const bw = latestKnownBodyweight() || 0;
   // Momentum phrase, DENSE-style
   const phrase = uniqueDays < 3
@@ -8819,6 +8831,23 @@ function denseRecoverySeries(days) {
     out.push({ key, short: `${day.getMonth() + 1}/${day.getDate()}`, value: score });
   }
   return out;
+}
+
+// % change of the average recovery score: latest `days` vs the previous `days`.
+// Only training days (value > 0) count, so rest days don't dilute the average, and
+// with no wellness signals every day sits at the 60 baseline → 0% (honest flat).
+// Recovery is a level (not a cumulative), so an absent prior baseline returns 0,
+// never a spurious +100%.
+function denseRecoveryTrendPct(days) {
+  const series = denseRecoverySeries(days * 2);
+  const avgActive = (points) => {
+    const vals = points.map((p) => p.value).filter((v) => v > 0);
+    return vals.length ? vals.reduce((sum, v) => sum + v, 0) / vals.length : 0;
+  };
+  const previous = avgActive(series.slice(0, days));
+  const current = avgActive(series.slice(days));
+  if (!previous) return 0;
+  return Math.round(((current - previous) / previous) * 100);
 }
 
 function denseWellnessCount() {
