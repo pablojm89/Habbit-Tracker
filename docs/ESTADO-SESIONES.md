@@ -92,10 +92,15 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 ## Pendiente
 
 ### Codex — verificados, aún por hacer (viven también en PLAN-MAESTRO)
-- **#2 Columnas de `DenseTraining` en el `.gs`**: la hoja no guarda `schema_version`,
-  `is_test`, `readiness`, `assist_load_kg`, `rom_cm`, `target_total_hold_seconds`, `ladder`.
-  Ampliar el esquema en `google-sheets-apps-script.gs` + redeploy (sólo con sesión abierta y
-  autorización explícita del usuario; NUNCA tocar el token).
+- **#2 Columnas de `DenseTraining` en el `.gs` — HECHO (11 jul 2026).** `871b9f4` añade 8
+  columnas (`schema_version`, `target_total_hold_seconds`, `rom_cm`, `assist_load_kg`,
+  `readiness`, `is_test`, `ladder_planned`, `ladder_actual`) a fila+cabecera (verificado
+  alineado 58=58). **Desplegado a script.google.com como "Versión 4 del 11 jul 2026"** en
+  la implementación existente (mismo ID `AKfycbxbs5_ucjo9cf_iSsxYE…`, endpoint sin cambios).
+  El editor Monaco se editó por `setValue` con edits de string deterministas (mismas 11
+  sustituciones que el commit) y se verificó char-length + región byte-idéntica. Prueba de
+  vida sin token → `{"ok":false,"error":"unauthorized"}` (fail-closed OK). Las columnas
+  nuevas se poblarán en la próxima sincronización (rewrite completo de la hoja).
 - **#3 Recovery real**: `recPct` está hardcodeado a 0 (≈`app.js:3397`); derivarlo de la
   tendencia real de wellness en vez de placeholder.
 - **#5 Extraer `engine.js`**: el monolito `app.js` (~9.9k líneas) provoca TDZ recurrentes;
