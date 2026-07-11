@@ -8,11 +8,11 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 > App: PWA de entrenamiento (Dense training). Vanilla JS sin build: `app.js` (~9000
 > líneas), `styles.css`, `index.html`, `sw.js`. Sincroniza a Google Sheets vía Apps Script.
 > Modo training-only (`TRAINING_ONLY = true`). Cache busting: string `?v=…` en `index.html`
-> **y** `sw.js` a la vez. **Última versión: `20260707-unify-weighted-20`.**
+> **y** `sw.js` a la vez. **Última versión: `20260711-recovery-real-21`.**
 
 ## Cómo trabajar aquí (imprescindible)
 
-- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **51 asserts**.
+- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **52 asserts**.
   Correr siempre tras tocar el motor.
 - **TDZ**: cualquier `const` de nivel superior que use el render debe declararse en el
   bloque de constantes de arriba (cerca de `trainingAnalyticsTabs` / `bodyweightSchemes`).
@@ -29,8 +29,8 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
   en `finally`. Las claves sensibles (p.ej. `sessions`) se redactan en la salida del eval.
 - **Convención self-tests**: los de una fase nueva van AL FINAL de `runDenseSelfTests()`
   (si van en medio, sus marcas sintéticas contaminan los tests del motor posteriores).
-- **git push lo hace el usuario.** Ahora mismo `main` está a la par de `origin/main`
-  (todo subido hasta `ca66640`).
+- **git push lo hace el usuario.** Commits locales sin subir desde `acbc696` (cierre de
+  sesión, deploy .gs `871b9f4`+`ec652fa`, recovery real `e304ecb`).
 
 ## Sistemas grandes (base sólida)
 
@@ -101,8 +101,12 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
   sustituciones que el commit) y se verificó char-length + región byte-idéntica. Prueba de
   vida sin token → `{"ok":false,"error":"unauthorized"}` (fail-closed OK). Las columnas
   nuevas se poblarán en la próxima sincronización (rewrite completo de la hoja).
-- **#3 Recovery real**: `recPct` está hardcodeado a 0 (≈`app.js:3397`); derivarlo de la
-  tendencia real de wellness en vez de placeholder.
+- **#3 Recovery real — HECHO (11 jul 2026).** `e304ecb`: `recPct` ya no es 0 fijo.
+  `denseRecoveryTrendPct(days)` compara la media de recuperación (solo días con marca, los
+  de descanso no diluyen) de la ventana reciente vs la anterior. Recovery es un nivel, no un
+  acumulado → sin baseline previo devuelve 0 (nunca +100% espurio); sin señales de wellness
+  todo queda en base 60 → 0% (plano honesto). Self-test nuevo (52/52).
+  Versión `20260711-recovery-real-21`.
 - **#5 Extraer `engine.js`**: el monolito `app.js` (~9.9k líneas) provoca TDZ recurrentes;
   separar el motor puro (curvas, transferencias, calibración) en su módulo. Adelantado del plan.
 - **#6 Micro-UX**: pulir presentación del campo "Peso corporal kg" en modo lastre
@@ -159,5 +163,5 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
   migran solos** (RawState los conservaba).
 
 ## Estado actual conocido
-- 51/51 self-tests en verde.
+- 52/52 self-tests en verde.
 - Móvil "no carga bien" resuelto: era deploy de GitHub Pages + de paso lucide fijado y SW cache-first.
