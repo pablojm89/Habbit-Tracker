@@ -8,11 +8,11 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 > App: PWA de entrenamiento (Dense training). Vanilla JS sin build: `app.js` (~9000
 > líneas), `styles.css`, `index.html`, `sw.js`. Sincroniza a Google Sheets vía Apps Script.
 > Modo training-only (`TRAINING_ONLY = true`). Cache busting: string `?v=…` en `index.html`
-> **y** `sw.js` a la vez. **Última versión: `20260711-recovery-real-21`.**
+> **y** `sw.js` a la vez. **Última versión: `20260712-niveles-progresion-22`.**
 
 ## Cómo trabajar aquí (imprescindible)
 
-- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **52 asserts**.
+- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **57 asserts**.
   Correr siempre tras tocar el motor.
 - **TDZ**: cualquier `const` de nivel superior que use el render debe declararse en el
   bloque de constantes de arriba (cerca de `trainingAnalyticsTabs` / `bodyweightSchemes`).
@@ -55,6 +55,21 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
   cuando el bloque no tiene historial (`denseEstimatedLoadSuggestion`).
 - `23b547b` e1RM efectivo: los fallos recalibran al instante.
 - `8618f72` Fix estrella de favorito que no se actualizaba en el picker.
+
+### Niveles de dificultad por familia (12 jul 2026 — plan corto §2 completo)
+- **`progressionLevel`** curado en 34 ejercicios de 12 familias (calibrado con el
+  usuario: sissy/NLE ~la mitad de reps, 4 negativas OAC ≈ 1 OAC, 60s bilateral ≈ 20s
+  a una mano, bridge iso < push-up < walkover). `denseProgressionLevelOf` unifica con
+  `leverLevel`; `denseLeverSiblingEstimate` ahora escala TODAS las familias niveladas
+  (mata el bug "NLE sugiere sissy como si fuera más fácil" y toda su clase).
+- **Defaults en frío honestos**: `denseFamilyDifficultyFactor` (ancla = hermano más
+  fácil) escala `denseDefaultRpm` y la semilla de 38s de holds.
+- **Higiene tarjeta de test**: fuente fuerte requerida (`DENSE_TEST_MIN_PAIR_C 0.35`)
+  y primer test muestra rango "empieza por abajo".
+- Observación de calibración `family` solo en primer contacto (si hay historial propio
+  en otro bloque → `cross`).
+- +5 self-tests (57 total). Detalle en `motor-transferencias.md` §9.5 y plan en
+  `plan-progresiones-y-catalogo.md`.
 
 ### Motor / relaciones entre ejercicios
 - `46717c8` Selector de **modalidad** en el formulario (conectado a `allowedNatures`;

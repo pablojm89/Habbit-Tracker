@@ -1,5 +1,11 @@
 # Plan — dificultad relativa, progresiones y catálogo
 
+> **Estado (12 jul 2026): plan corto (§2) COMPLETO** — `progressionLevel` en 34
+> ejercicios / 12 familias (calibrado con el usuario), defaults en frío escalados,
+> tarjeta de test filtrada por fuerza del par + rango en primer test, 5 self-tests
+> nuevos (57/57 OK). Versión `20260712-niveles-progresion-22`. Detalle en
+> `motor-transferencias.md` §9 y §9.5. Siguiente: §3 (medio plazo).
+
 > Escrito el 12 jul 2026 tras auditar el caso reportado: *Natural Leg Extension sugiere
 > Sissy Squat a un nivel que lo trata como si fuera más fácil* (es al revés: sissy es
 > bastante más duro). Complementa [PLAN-MAESTRO.md](PLAN-MAESTRO.md) y
@@ -78,7 +84,7 @@ de pares marginales (c ≈ 0.2) pueden sumar 3% y sugerir un test que no está j
 por ninguna relación fuerte. Guards actuales (movilidad, `denseFamilyPairOverrides`)
 son parches reactivos por par, no una regla.
 
-## 2. Plan a corto plazo (1–2 sesiones) — corregir la clase de error
+## 2. Plan a corto plazo (1–2 sesiones) — corregir la clase de error ✅ HECHO (12 jul 2026)
 
 Objetivo: que ningún objetivo/test trate un ejercicio duro como fácil. Sin refactor.
 

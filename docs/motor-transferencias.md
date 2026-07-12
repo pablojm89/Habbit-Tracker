@@ -155,26 +155,58 @@ que muestre "mejor marca estimada", pásala por `denseBoosted`.**
 - Feed "Transferencias recientes" en `renderProgressAnalytics` (últimos 6 eventos:
   origen→destino, +%, fecha, reconciliado/pendiente).
 - Tarjeta de sugerencia de test semanal en `renderMesocycle`
-  (`renderTestSuggestionCard`/`denseTestSuggestion`): boost ≥ 3% sin verificar ≥ 14 días.
+  (`renderTestSuggestionCard`/`denseTestSuggestion`): boost ≥ 3% sin verificar ≥ 14 días,
+  **y** al menos una fuente del boost con coeficiente fuerte hacia el destino
+  (`denseTestSourceStrength ≥ DENSE_TEST_MIN_PAIR_C = 0.35`) — goteos acumulados de pares
+  marginales cuentan para las estimaciones pero no justifican gastar una sesión de test.
+  Si el destino no tiene ninguna marca directa (`firstTest`), la tarjeta muestra el
+  **rango** (`densePlannedTargetRange`) con "primer test: empieza por abajo" en vez del
+  valor central.
 - Tarjeta de calibración (`renderCalibrationCard`) con el kit principal y el tier
   "Anclas de barra".
 
-## 9.5 Palanca dentro de una familia de progresiones (levers)
+## 9.5 Nivel de dificultad dentro de una familia (levers y progresiones)
 
-`denseLeverProgressionLevel` (tuck 0.35 → full 1.0) alimenta `leverLevel` en cada
-ejercicio generado por `leverSkillExercises`. `denseLeverSiblingEstimate(ex, key)` escala
-la capacidad entre niveles por la curva de resistencia isométrica:
-`capacidad_objetivo = capacidad_hermana × (palanca_hermana / palanca_objetivo)^2.2`
+Dos campos con la misma semántica, resueltos por `denseProgressionLevelOf(ex)`
+(0–1, más alto = más duro, el hermano más duro de la familia ≈ 1; 0 = sin nivel):
+
+- **`leverLevel`**: generado para front/back lever (`denseLeverProgressionLevel`,
+  tuck 0.35 → full 1.0).
+- **`progressionLevel`** (jul 2026): curado a mano en el catálogo para el resto de
+  familias-progresión. Familias niveladas: `strict_pull` (chin 0.95 · pull 1),
+  `pushup` (suelo 0.75 · déficit 0.85 · palmada 0.9), `single_leg_squat` (bulgarian 0.6 ·
+  pistol 0.9), `hinge_bodyweight` (SL GM 0.45 · nordic 0.95), `knee_dominant` (NLE 0.6 ·
+  sissy 0.85), `hspu` (pike 0.55 · HeSPU 0.85 · full ROM 1), `handstand` (straddle 0.9 ·
+  straight 1), `toes_to_bar` (kip 0.65 · estricto 0.85), `cuelgue` (bilateral 0.4 ·
+  activo 0.55 · activo IG 0.55 · pasivo 1 mano 0.7 · activo 1 mano 0.9), `one_arm_chin`
+  (archer 0.65 · negativa 0.8 · OAC 1; la asistida va por carga), `l_sit` (tuck 0.5 ·
+  1 pierna 0.62 · L 0.72 · straddle 0.82 · v-sit 1), `bridge` (iso 0.55 · push-up 0.7 ·
+  walkover 0.95). Valores calibrados con el usuario (sesión 12 jul 2026); sus tests
+  reales los corregirán (fase media: niveles aprendidos).
+
+`denseLeverSiblingEstimate(ex, key)` escala la capacidad entre niveles por la curva de
+resistencia: `capacidad_objetivo = capacidad_hermana × (nivel_hermana / nivel_objetivo)^2.2`
 (`DENSE_LEVER_ENDURANCE_EXP`). Cadena de ejemplo desde tuck 30s (10D): 1/4 17s → adv 13s
-→ 1 pierna 9s → straddle 6s → 1/2 5s → 3/4 4s → full 2s. Aplica también a las variantes
-dinámicas `_pull` (bodyweight_capacity).
+→ 1 pierna 9s → straddle 6s → 1/2 5s → 3/4 4s → full 2s. La estimación solo cruza
+hermanas del **mismo eje** (iso↔iso, dinámico↔dinámico) porque compara la misma
+`capacity key`. Ejemplo dinámico: NLE 15 rpm → sissy ≈ 7 (×(0.6/0.85)^2.2 = 0.46).
 
 Está cableado en un único resolvedor (tarjeta y formulario siempre coinciden):
 `denseFormTargetHoldPerRound`/`denseFormTargetRepsPerSet` (propio → hermana → default),
-`denseEstimatedBodySuggestion` (razón "Estimado desde X por palanca… trátalo como test"),
+`denseEstimatedBodySuggestion` (razón "Estimado desde X por nivel… trátalo como test"),
 `denseTargetSource` (kind **family**, badge "Desde …", sigma 0.18, auto modo test) y
 `densePlannedTargetValue`/`densePlannedTargetRange`. Distinto del boost de transferencia:
 esto es estimación de capacidad determinista entre niveles, no propagación de mejoras.
+
+**Defaults en frío** (familia entera sin datos): `denseFamilyDifficultyFactor(ex)` ancla
+el default de categoría al hermano más fácil de la familia (su "punto de entrada") y
+escala hacia abajo con la misma curva: `denseDefaultRpm` (un sissy en frío arranca a
+~6.5 rpm, no al ritmo de sentadilla al aire) y la semilla de 38s de
+`denseDefaultHoldPerRound` (cuelgue a una mano siembra ~2s en 10D, no 12s).
+
+La observación de calibración kind **family** ahora exige primer contacto con el
+ejercicio (`!seenExercise`): con historial propio en otro bloque, el error cuenta como
+**cross**, que es la estimación que realmente se usó.
 
 ## 10. Estructura de `state.transfer`
 

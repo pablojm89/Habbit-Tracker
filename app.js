@@ -249,10 +249,15 @@ const denseExerciseAliases = {
   weighted_atg_split_squat: "atg_split_squat",
 };
 // Leverage factor of lever progressions (torque relative to the full lay) and
-// the isometric-endurance exponent used to cross-estimate between levels:
-// capacity_target = capacity_source × (lever_source / lever_target)^EXP.
+// the endurance exponent used to cross-estimate between difficulty levels:
+// capacity_target = capacity_source × (level_source / level_target)^EXP.
+// The same semantics generalize to `progressionLevel` on non-lever catalog
+// entries (harder sibling = higher level, hardest of the family ≈ 1).
 const denseLeverProgressionLevel = { tuck: 0.35, one_quarter: 0.45, adv_tuck: 0.5, one_leg: 0.6, straddle: 0.7, half: 0.75, three_quarter: 0.85, full: 1 };
 const DENSE_LEVER_ENDURANCE_EXP = 2.2;
+// A weekly test slot is only worth suggesting when at least one boost source
+// has a genuinely strong relationship with the target exercise.
+const DENSE_TEST_MIN_PAIR_C = 0.35;
 // Fase 4 — aprendizaje: mínimo de observaciones para usar sigma empírica y
 // clamp del bias de pendiente de la curva personal por ejercicio.
 const DENSE_CALIBRATION_MIN_OBS = 4;
@@ -289,6 +294,7 @@ const denseExerciseCatalog = [
     nature: "bodyweight",
     allowedNatures: ["bodyweight", "weighted_calisthenics"],
     bodyweightContributionPct: 100,
+    progressionLevel: 1,
     tonnageFactor: 1,
     alpha: 0.15,
     icon: "arrow-up-to-line",
@@ -337,6 +343,7 @@ const denseExerciseCatalog = [
     nature: "bodyweight",
     allowedNatures: ["bodyweight", "weighted_calisthenics"],
     bodyweightContributionPct: 64,
+    progressionLevel: 0.75,
     tonnageFactor: 1,
     alpha: 0.12,
     icon: "arrow-up-from-line",
@@ -361,6 +368,7 @@ const denseExerciseCatalog = [
     nature: "bodyweight",
     allowedNatures: ["bodyweight", "weighted_calisthenics"],
     bodyweightContributionPct: 85,
+    progressionLevel: 0.9,
     tonnageFactor: 1,
     repsPerSide: true,
     alpha: 0.13,
@@ -386,6 +394,7 @@ const denseExerciseCatalog = [
     nature: "bodyweight",
     allowedNatures: ["bodyweight", "weighted"],
     bodyweightContributionPct: 55,
+    progressionLevel: 0.45,
     tonnageFactor: 0.85,
     repsPerSide: true,
     alpha: 0.11,
@@ -399,6 +408,7 @@ const denseExerciseCatalog = [
     nature: "bodyweight",
     allowedNatures: ["bodyweight", "skill"],
     bodyweightContributionPct: 55,
+    progressionLevel: 0.7,
     tonnageFactor: 0.7,
     alpha: 0.11,
     icon: "rainbow",
@@ -411,6 +421,7 @@ const denseExerciseCatalog = [
     nature: "skill",
     allowedNatures: ["skill", "bodyweight"],
     bodyweightContributionPct: 55,
+    progressionLevel: 0.55,
     tonnageFactor: 0.7,
     alpha: 0.1,
     icon: "rainbow",
@@ -423,6 +434,7 @@ const denseExerciseCatalog = [
     nature: "skill",
     allowedNatures: ["skill", "bodyweight"],
     bodyweightContributionPct: 65,
+    progressionLevel: 0.95,
     tonnageFactor: 0.8,
     alpha: 0.12,
     icon: "refresh-ccw",
@@ -435,6 +447,7 @@ const denseExerciseCatalog = [
     nature: "bodyweight",
     allowedNatures: ["bodyweight", "weighted_calisthenics", "skill"],
     bodyweightContributionPct: 92,
+    progressionLevel: 0.85,
     tonnageFactor: 1,
     alpha: 0.16,
     icon: "arrow-big-up",
@@ -447,6 +460,7 @@ const denseExerciseCatalog = [
     nature: "bodyweight",
     allowedNatures: ["bodyweight", "weighted_calisthenics", "skill"],
     bodyweightContributionPct: 95,
+    progressionLevel: 1,
     tonnageFactor: 1,
     alpha: 0.17,
     icon: "arrow-big-up",
@@ -460,6 +474,7 @@ const denseExerciseCatalog = [
     isometric: true,
     allowedNatures: ["skill", "bodyweight"],
     bodyweightContributionPct: 95,
+    progressionLevel: 1,
     tonnageFactor: 1,
     alpha: 0.16,
     icon: "person-standing",
@@ -473,6 +488,7 @@ const denseExerciseCatalog = [
     isometric: true,
     allowedNatures: ["skill", "bodyweight"],
     bodyweightContributionPct: 95,
+    progressionLevel: 0.9,
     tonnageFactor: 1,
     alpha: 0.15,
     icon: "person-standing",
@@ -497,6 +513,7 @@ const denseExerciseCatalog = [
     nature: "bodyweight",
     allowedNatures: ["bodyweight", "weighted_calisthenics"],
     bodyweightContributionPct: 60,
+    progressionLevel: 0.6,
     tonnageFactor: 0.9,
     alpha: 0.13,
     icon: "unfold-horizontal",
@@ -533,6 +550,7 @@ const denseExerciseCatalog = [
     nature: "bodyweight",
     allowedNatures: ["bodyweight", "weighted_calisthenics"],
     bodyweightContributionPct: 70,
+    progressionLevel: 0.85,
     tonnageFactor: 0.9,
     alpha: 0.12,
     icon: "chevrons-down",
@@ -557,6 +575,7 @@ const denseExerciseCatalog = [
     nature: "bodyweight",
     allowedNatures: ["bodyweight"],
     bodyweightContributionPct: 64,
+    progressionLevel: 0.9,
     tonnageFactor: 1,
     alpha: 0.13,
     icon: "arrow-up-from-line",
@@ -569,6 +588,7 @@ const denseExerciseCatalog = [
     nature: "bodyweight",
     allowedNatures: ["bodyweight", "weighted_calisthenics"],
     bodyweightContributionPct: 68,
+    progressionLevel: 0.85,
     tonnageFactor: 1,
     alpha: 0.13,
     icon: "arrow-up-from-line",
@@ -642,6 +662,7 @@ const denseExerciseCatalog = [
     nature: "bodyweight",
     allowedNatures: ["bodyweight", "weighted_calisthenics"],
     bodyweightContributionPct: 60,
+    progressionLevel: 0.85,
     tonnageFactor: 1,
     alpha: 0.14,
     icon: "move-up",
@@ -654,6 +675,7 @@ const denseExerciseCatalog = [
     nature: "bodyweight",
     allowedNatures: ["bodyweight"],
     bodyweightContributionPct: 55,
+    progressionLevel: 0.65,
     tonnageFactor: 1,
     alpha: 0.13,
     icon: "move-up",
@@ -667,6 +689,7 @@ const denseExerciseCatalog = [
     isometric: true,
     allowedNatures: ["skill", "bodyweight"],
     bodyweightContributionPct: 100,
+    progressionLevel: 0.4,
     tonnageFactor: 1,
     alpha: 0.1,
     icon: "grip-horizontal",
@@ -681,6 +704,7 @@ const denseExerciseCatalog = [
     isometric: true,
     allowedNatures: ["skill", "bodyweight"],
     bodyweightContributionPct: 100,
+    progressionLevel: 0.55,
     tonnageFactor: 1,
     alpha: 0.12,
     icon: "grip-horizontal",
@@ -695,6 +719,7 @@ const denseExerciseCatalog = [
     isometric: true,
     allowedNatures: ["skill", "bodyweight"],
     bodyweightContributionPct: 100,
+    progressionLevel: 0.55,
     tonnageFactor: 1,
     alpha: 0.13,
     icon: "grip-horizontal",
@@ -709,6 +734,7 @@ const denseExerciseCatalog = [
     isometric: true,
     allowedNatures: ["skill", "bodyweight"],
     bodyweightContributionPct: 100,
+    progressionLevel: 0.7,
     tonnageFactor: 1,
     alpha: 0.15,
     icon: "grip-horizontal",
@@ -723,6 +749,7 @@ const denseExerciseCatalog = [
     isometric: true,
     allowedNatures: ["skill", "bodyweight"],
     bodyweightContributionPct: 100,
+    progressionLevel: 0.9,
     tonnageFactor: 1,
     alpha: 0.17,
     icon: "grip-horizontal",
@@ -738,6 +765,7 @@ const denseExerciseCatalog = [
     nature: "bodyweight",
     allowedNatures: ["bodyweight", "weighted_calisthenics"],
     bodyweightContributionPct: 100,
+    progressionLevel: 0.95,
     tonnageFactor: 1,
     alpha: 0.14,
     icon: "arrow-up-to-line",
@@ -764,6 +792,7 @@ const denseExerciseCatalog = [
     nature: "bodyweight",
     allowedNatures: ["bodyweight", "weighted_calisthenics"],
     bodyweightContributionPct: 60,
+    progressionLevel: 0.55,
     tonnageFactor: 1,
     alpha: 0.12,
     icon: "triangle",
@@ -803,6 +832,7 @@ const denseExerciseCatalog = [
     nature: "bodyweight",
     allowedNatures: ["bodyweight", "weighted_calisthenics", "weighted"],
     bodyweightContributionPct: 85,
+    progressionLevel: 0.6,
     tonnageFactor: 1,
     repsPerSide: true,
     alpha: 0.12,
@@ -817,6 +847,7 @@ const denseExerciseCatalog = [
     nature: "bodyweight",
     allowedNatures: ["bodyweight"],
     bodyweightContributionPct: 70,
+    progressionLevel: 0.95,
     tonnageFactor: 1,
     alpha: 0.13,
     icon: "fold-horizontal",
@@ -845,6 +876,7 @@ const denseExerciseCatalog = [
     isometric: true,
     allowedNatures: ["skill", "bodyweight"],
     bodyweightContributionPct: 45,
+    progressionLevel: 0.72,
     tonnageFactor: 1,
     alpha: 0.12,
     icon: "armchair",
@@ -937,6 +969,7 @@ const denseExerciseCatalog = [
     nature: "bodyweight",
     allowedNatures: ["bodyweight", "weighted_calisthenics"],
     bodyweightContributionPct: 95,
+    progressionLevel: 0.65,
     tonnageFactor: 1,
     repsPerSide: true,
     alpha: 0.13,
@@ -951,6 +984,7 @@ const denseExerciseCatalog = [
     nature: "bodyweight",
     allowedNatures: ["bodyweight", "weighted_calisthenics"],
     bodyweightContributionPct: 100,
+    progressionLevel: 0.8,
     tonnageFactor: 1,
     repsPerSide: true,
     alpha: 0.14,
@@ -979,6 +1013,7 @@ const denseExerciseCatalog = [
     nature: "bodyweight",
     allowedNatures: ["bodyweight", "weighted_calisthenics"],
     bodyweightContributionPct: 100,
+    progressionLevel: 1,
     tonnageFactor: 1,
     repsPerSide: true,
     alpha: 0.16,
@@ -995,6 +1030,7 @@ const denseExerciseCatalog = [
     isometric: true,
     allowedNatures: ["skill", "bodyweight"],
     bodyweightContributionPct: 40,
+    progressionLevel: 0.5,
     tonnageFactor: 1,
     alpha: 0.1,
     icon: "armchair",
@@ -1009,6 +1045,7 @@ const denseExerciseCatalog = [
     isometric: true,
     allowedNatures: ["skill", "bodyweight"],
     bodyweightContributionPct: 43,
+    progressionLevel: 0.62,
     tonnageFactor: 1,
     alpha: 0.11,
     icon: "armchair",
@@ -1023,6 +1060,7 @@ const denseExerciseCatalog = [
     isometric: true,
     allowedNatures: ["skill", "bodyweight"],
     bodyweightContributionPct: 48,
+    progressionLevel: 0.82,
     tonnageFactor: 1,
     alpha: 0.13,
     icon: "armchair",
@@ -1037,6 +1075,7 @@ const denseExerciseCatalog = [
     isometric: true,
     allowedNatures: ["skill", "bodyweight"],
     bodyweightContributionPct: 55,
+    progressionLevel: 1,
     tonnageFactor: 1,
     alpha: 0.14,
     icon: "armchair",
@@ -2393,6 +2432,57 @@ function runDenseSelfTests() {
     return flat === 0 && up > 0 && Math.abs(up - 50) < 1;
   });
 
+  // Niveles de progresión: dificultad relativa dentro de cada familia (no solo levers)
+  add({ id: "nle1", exercise_id: "natural_leg_extension", exercise_name: "Natural Leg Extension", scheme: "5D", date: "2026-06-20", created_at: "2026-06-20T10:00:00Z", total_reps: 75, reps_per_min: 15, bodyweight_capacity: 15 });
+  test("niveles: sissy hereda de NLE escalado por dificultad (~46%)", () => {
+    const sibling = denseLeverSiblingEstimate(denseExerciseById("sissy_squat"), "bodyweight_capacity");
+    const expected = 15 * Math.pow(0.6 / 0.85, DENSE_LEVER_ENDURANCE_EXP);
+    return sibling && sibling.from.id === "natural_leg_extension" && Math.abs(sibling.value - expected) < 0.05;
+  });
+  test("niveles: objetivo sissy < objetivo NLE (mismo esquema)", () => {
+    const reps = (id) => Number(denseFormTargetRepsPerSet(denseExerciseById(id), "5D", null)) || 0;
+    return reps("sissy_squat") > 0 && reps("sissy_squat") < reps("natural_leg_extension");
+  });
+  test("niveles: defaults en frío escalan (OAC < archer · 1 mano < bilateral · v-sit < tuck)", () => {
+    const rpm = (id) => denseDefaultRpm(denseExerciseById(id), "5D");
+    const hold = (id) => Number(denseDefaultHoldPerRound(denseExerciseById(id), "10D")) || 0;
+    return (
+      rpm("one_arm_chin_up") < rpm("archer_chin_up") &&
+      hold("cuelgue_active_one_hand") < hold("cuelgue_passive_bilateral") &&
+      hold("v_sit") < hold("l_sit_tuck")
+    );
+  });
+  test("niveles: default monótono en todas las familias niveladas", () => {
+    const families = [...new Set(denseExerciseCatalog.filter((item) => denseProgressionLevelOf(item) > 0).map((item) => item.family))];
+    return families.every((family) => {
+      const members = denseExerciseCatalog.filter((item) => item.family === family && denseProgressionLevelOf(item) > 0);
+      return members.every((a) =>
+        members.every((b) => denseProgressionLevelOf(a) > denseProgressionLevelOf(b) || denseDefaultRpm(a, "5D") >= denseDefaultRpm(b, "5D")),
+      );
+    });
+  });
+  test("tarjeta test: fuente débil no sugiere, fuerte sí, primer test da rango", () => {
+    const savedTransfer = state.transfer;
+    try {
+      state.transfer = {
+        boosts: {
+          front_lever_full: { pct: 0.05, from: [{ name: "Sentadillas sin peso", date: "2026-06-01" }] },
+          chin_up: { pct: 0.05, from: [{ name: "Dominadas", date: "2026-06-01" }] },
+          sissy_squat: { pct: 0.04, from: [{ name: "Natural Leg Extension", date: "2026-06-20" }] },
+        },
+        events: [],
+        pairK: {},
+        pendingK: {},
+      };
+      const suggestions = denseTestSuggestions();
+      const ids = suggestions.map((s) => s.exercise.id);
+      const sissy = suggestions.find((s) => s.exercise.id === "sissy_squat");
+      return ids.includes("chin_up") && !ids.includes("front_lever_full") && Boolean(sissy) && sissy.firstTest === true && /–/.test(sissy.range || "");
+    } finally {
+      state.transfer = savedTransfer;
+    }
+  });
+
   state.denseTrainingEntries = savedEntries;
   denseNeighborCache = null;
   rebuildTransferState();
@@ -2879,18 +2969,53 @@ function denseWeeklyFailureStatus(weekDayKeys) {
 // Weekly test nudges: every boosted-but-unverified exercise, most-boosted
 // first. The card shows the top one and folds the rest into a dropdown so a
 // pending test never scrolls out of reach when the ranking shifts.
+// Strongest transfer coefficient between the boost's sources and the target.
+// Sources come from the event log (ids) plus the slot's `from` names; a boost
+// accumulated only from weak drips (c < DENSE_TEST_MIN_PAIR_C) is real for
+// estimates but not worth burning a test session on.
+function denseTestSourceStrength(exercise, slot) {
+  const sourceIds = new Set(
+    (state.transfer?.events || [])
+      .filter((event) => event.target === exercise.id || (event.family && event.family === exercise.family))
+      .map((event) => event.source),
+  );
+  (slot?.from || []).forEach((from) => {
+    const source = denseExerciseCatalog.find((item) => item.name === from.name);
+    if (source) sourceIds.add(source.id);
+  });
+  let max = 0;
+  sourceIds.forEach((sourceId) => {
+    const source = denseExerciseById(sourceId);
+    if (!source || source.id === exercise.id) return;
+    max = Math.max(max, denseTransferCoefficient(source, exercise));
+  });
+  return max;
+}
+
 function denseTestSuggestions() {
   return Object.entries(state.transfer?.boosts || {})
     .map(([id, slot]) => {
       const exercise = denseExerciseById(id);
       if (!exercise || !(slot?.pct >= 0.03)) return null;
+      if (denseTestSourceStrength(exercise, slot) < DENSE_TEST_MIN_PAIR_C) return null;
       const last = [...getDenseEntries()]
         .filter((entry) => entry.exercise_id === id)
         .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")))[0];
       const days = last ? Math.round((today.getTime() - parseDate(last.date).getTime()) / 86400000) : 999;
       if (days < 14) return null;
       const scheme = denseDefaultScheme(exercise);
-      return { exercise, pct: slot.pct, days, from: slot.from?.[0]?.name || "", scheme, target: densePlannedTargetValue(exercise, scheme) };
+      return {
+        exercise,
+        pct: slot.pct,
+        days,
+        from: slot.from?.[0]?.name || "",
+        scheme,
+        target: densePlannedTargetValue(exercise, scheme),
+        // First direct test of an estimated exercise: surface the range and
+        // tell the user to start from its low end, not the central estimate.
+        firstTest: !last,
+        range: densePlannedTargetRange(exercise, scheme),
+      };
     })
     .filter(Boolean)
     .sort((a, b) => b.pct - a.pct);
@@ -2908,7 +3033,7 @@ function denseTestSuggestionRow(suggestion, { lead = false } = {}) {
       <span class="tiny-icon"><i data-lucide="flask-conical"></i></span>
       <div>
         <strong>${escapeHtml(title)}</strong>
-        <span>Estimación +${roundTo(suggestion.pct * 100, 1)}%${suggestion.from ? ` por transferencia de ${escapeHtml(suggestion.from)}` : ""} sin verificar · objetivo ${escapeHtml(suggestion.target)} · ${daysLabel}</span>
+        <span>Estimación +${roundTo(suggestion.pct * 100, 1)}%${suggestion.from ? ` por transferencia de ${escapeHtml(suggestion.from)}` : ""} sin verificar · objetivo ${suggestion.firstTest && suggestion.range ? `${escapeHtml(suggestion.range)} (primer test: empieza por abajo)` : escapeHtml(suggestion.target)} · ${daysLabel}</span>
       </div>
       <button class="dc-badge calibration-add" type="button" data-action="add-planned-exercise" data-exercise="${escapeAttr(suggestion.exercise.id)}" data-test="1" data-scheme="${escapeAttr(suggestion.scheme)}">+ hoy</button>
     </div>
@@ -7168,7 +7293,9 @@ function denseCalibrationObservations() {
     if (!seenScheme.has(schemeKey)) {
       let kind = null;
       if (seenBase.has(baseKey)) kind = "block";
-      else if (exercise?.leverLevel && leverFamilySeen.has(exercise.family)) kind = "family";
+      // "family" = first-ever contact with the exercise, targeted from a leveled
+      // sibling. With own history at another base the estimate is a cross one.
+      else if (denseProgressionLevelOf(exercise) && leverFamilySeen.has(exercise.family) && !seenExercise.has(entry.exercise_id)) kind = "family";
       else if (seenExercise.has(entry.exercise_id)) kind = "cross";
       if (kind) {
         const error = denseCalibrationError(entry);
@@ -7178,7 +7305,7 @@ function denseCalibrationObservations() {
     seenScheme.add(schemeKey);
     seenBase.add(baseKey);
     seenExercise.add(entry.exercise_id);
-    if (exercise?.leverLevel && exercise.family) leverFamilySeen.add(exercise.family);
+    if (denseProgressionLevelOf(exercise) && exercise?.family) leverFamilySeen.add(exercise.family);
   });
   denseCalibrationCache = observations;
   return observations;
@@ -7668,8 +7795,9 @@ function denseDefaultHoldPerRound(exercise, scheme) {
     .sort((a, b) => (b.created_at || b.date || "").localeCompare(a.created_at || a.date || ""))[0];
   if (latestSameScheme) return Math.max(1, Math.round(Number(latestSameScheme.hold_seconds_per_round) || Number(latestSameScheme.total_hold_seconds) / minutes));
   // No history yet: seed a sensible starter hold so fresh isometrics (e.g. a new
-  // cuelgue) aren't left empty. Scaled by density like a modest capacity of ~38s.
-  if (denseIsIsometric(exercise)) return Math.max(1, Math.floor(38 * multiplier));
+  // cuelgue) aren't left empty. Scaled by density like a modest capacity of ~38s,
+  // and by the family difficulty level (a one-hand hang seeds far shorter).
+  if (denseIsIsometric(exercise)) return Math.max(1, Math.floor(38 * denseFamilyDifficultyFactor(exercise) * multiplier));
   return "";
 }
 
@@ -7735,17 +7863,41 @@ function denseBestCapacity(exerciseId, key) {
   return denseBoosted(exerciseId, Math.max(estimate, ...fromEntries, 0));
 }
 
-// Cross-estimate within a lever progression family: your capacity at one
-// leverage level implies a capacity at every other level via the isometric
-// endurance curve (harder lever → disproportionally shorter holds / fewer
-// reps). Returns the best-supported scaled estimate among siblings, or null.
+// Difficulty level of an exercise within its family progression (0–1].
+// `leverLevel` (generated front/back lever chains) and `progressionLevel`
+// (hand-curated catalog entries) share the same semantics: relative
+// difficulty inside the family, hardest sibling ≈ 1. 0 = unleveled.
+function denseProgressionLevelOf(exercise) {
+  return Number(exercise?.progressionLevel ?? exercise?.leverLevel) || 0;
+}
+
+// Cold-start difficulty factor: the category default rpm/hold fits the
+// family's easiest leveled sibling (its entry point); harder siblings scale
+// down through the endurance curve so a sissy squat never starts at
+// air-squat pace nor a one-hand hang at two-hand seconds.
+function denseFamilyDifficultyFactor(exercise) {
+  const level = denseProgressionLevelOf(exercise);
+  if (!level || !exercise.family) return 1;
+  let entry = level;
+  denseExerciseCatalog.forEach((sibling) => {
+    if (sibling.family !== exercise.family) return;
+    const siblingLevel = denseProgressionLevelOf(sibling);
+    if (siblingLevel && siblingLevel < entry) entry = siblingLevel;
+  });
+  return Math.pow(entry / level, DENSE_LEVER_ENDURANCE_EXP);
+}
+
+// Cross-estimate within a leveled progression family: your capacity at one
+// difficulty level implies a capacity at every other level via the endurance
+// curve (harder sibling → disproportionally shorter holds / fewer reps).
+// Returns the best-supported scaled estimate among siblings, or null.
 function denseLeverSiblingEstimate(exercise, key) {
-  const level = Number(exercise?.leverLevel) || 0;
+  const level = denseProgressionLevelOf(exercise);
   if (!level || !exercise.family) return null;
   let best = null;
   denseExerciseCatalog.forEach((sibling) => {
     if (sibling.family !== exercise.family || sibling.id === exercise.id) return;
-    const siblingLevel = Number(sibling.leverLevel) || 0;
+    const siblingLevel = denseProgressionLevelOf(sibling);
     if (!siblingLevel) return;
     const capacity = denseBestCapacity(sibling.id, key);
     if (!capacity) return;
@@ -8087,7 +8239,7 @@ function denseEstimatedBodySuggestion(exercise, scheme, readiness = "normal") {
     tone: "neutral",
     estimated: true,
     reason: sibling
-      ? `Estimado desde ${sibling.from.name} por palanca (nivel ${roundTo((sibling.from.leverLevel / exercise.leverLevel) * 100, 0)}% de esta); trátalo como test.`
+      ? `Estimado desde ${sibling.from.name} por nivel de palanca/progresión (${roundTo((denseProgressionLevelOf(sibling.from) / denseProgressionLevelOf(exercise)) * 100, 0)}% de esta); trátalo como test.`
       : `Estimado por capacidad desde ${sourceEntry.scheme}; falta marca directa en ${scheme}.`,
   };
   if (denseIsIsometric(exercise)) {
@@ -8389,7 +8541,9 @@ function denseDefaultRpm(exercise, base) {
     mobility: 8,
   }[exercise.category] || 8;
   const factor = { "2D": 1.25, "5D": 1, "10D": 0.75, "20D": 0.6 }[base] || 1;
-  return categoryBase * factor;
+  // Cold-start honesty: the category default fits the family's entry-level
+  // sibling; harder leveled siblings scale down (sissy ≠ air-squat pace).
+  return categoryBase * factor * denseFamilyDifficultyFactor(exercise);
 }
 
 function trainingAnalyticsEntries(windowKey) {

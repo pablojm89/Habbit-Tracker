@@ -68,6 +68,18 @@ se tocan a mano).
    `denseProgressionFamilies` (recibe boosts en bloque) y `denseLeverProgressionLevel`
    (factor de palanca por progresión).
 
+7b. **`progressionLevel` obligatorio si entra en una familia nivelada** (ver
+   [motor-transferencias.md](motor-transferencias.md) §9.5: strict_pull, pushup,
+   single_leg_squat, hinge_bodyweight, knee_dominant, hspu, handstand, toes_to_bar,
+   cuelgue, one_arm_chin, l_sit, bridge — y cualquier otra que niveles después).
+   Es la dificultad relativa dentro de la familia (0–1, el más duro ≈ 1): alimenta la
+   estimación entre hermanas (`denseLeverSiblingEstimate`) y los defaults en frío
+   (`denseFamilyDifficultyFactor`). Un ejercicio sin nivel en familia nivelada no estima
+   ni recibe estimación de sus hermanas y arranca con el default de categoría sin
+   escalar. Regla para elegirlo: pregunta "¿cuántas reps/segundos de éste salen por N
+   del hermano conocido?" y despeja `nivel = nivel_hermano / ratio^(1/2.2)`. El
+   self-test de monotonicidad valida que el default decrece al subir nivel.
+
 8. **No hace falta tocar nada más.** Vecinos, coeficientes, calibración, sugerencias y
    analítica se derivan solos del catálogo + metadata.
 
@@ -75,8 +87,8 @@ se tocan a mano).
 
 1. `node --check` no funciona con el fichero directamente si lo copias como `.gs`; para
    `app.js` basta: `node --check app.js`.
-2. Abrir la app con **`?selftest=1`** → deben pasar 17/17 (consola). Si tocaste
-   coeficientes, revisar los asserts de la matriz en `runDenseSelfTests` (~línea 1965) y
+2. Abrir la app con **`?selftest=1`** → deben pasar todos (57 a jul 2026, consola). Si
+   tocaste coeficientes, revisar los asserts de la matriz en `runDenseSelfTests` y
    actualizarlos SOLO si el cambio de valor es intencionado.
 3. Sanity manual en consola:
    ```js
