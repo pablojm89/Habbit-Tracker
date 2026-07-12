@@ -190,6 +190,11 @@ resistencia: `capacidad_objetivo = capacidad_hermana × (nivel_hermana / nivel_o
 → 1 pierna 9s → straddle 6s → 1/2 5s → 3/4 4s → full 2s. La estimación solo cruza
 hermanas del **mismo eje** (iso↔iso, dinámico↔dinámico) porque compara la misma
 `capacity key`. Ejemplo dinámico: NLE 15 rpm → sissy ≈ 7 (×(0.6/0.85)^2.2 = 0.46).
+Cuando varias hermanas tienen datos, manda la de **nivel más cercano** al objetivo
+(mejor evidencia local), no la de mayor valor escalado: elegir la optimista invertía
+dificultades (un test flojo del cuelgue pasivo a 1 mano quedaba ignorado frente al
+cuelgue activo bilateral, y el activo a 1 mano salía con objetivo mayor que el pasivo).
+Hallado en simulación de 6 semanas (jul 2026); self-test "hermana más cercana manda".
 
 Está cableado en un único resolvedor (tarjeta y formulario siempre coinciden):
 `denseFormTargetHoldPerRound`/`denseFormTargetRepsPerSet` (propio → hermana → default),

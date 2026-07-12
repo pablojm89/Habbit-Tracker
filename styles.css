@@ -4516,7 +4516,9 @@ button:active:not(:disabled),
 
 .dc-pr-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  /* value column must be able to shrink+wrap: long targets ("objetivo 10D3 ·
+     17/30 reps · 1.7 rpm real") used to overflow onto the name at 390px */
+  grid-template-columns: minmax(0, 1fr) minmax(0, auto) auto;
   gap: 10px;
   align-items: center;
   padding: 9px 0;
@@ -4547,6 +4549,10 @@ button:active:not(:disabled),
   font-family: var(--mono);
   color: var(--lime-soft);
   font-size: 0.84rem;
+  min-width: 0;
+  text-align: right;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .dc-pr-row span {

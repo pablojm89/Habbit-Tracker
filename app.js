@@ -2461,14 +2461,23 @@ function runDenseSelfTests() {
       );
     });
   });
-  test("tarjeta test: fuente débil no sugiere, fuerte sí, primer test da rango", () => {
+  // Inversión de dificultad: manda la hermana de nivel más cercano, no la optimista
+  add({ id: "ch1", exercise_id: "cuelgue_active", exercise_name: "Cuelgue activo", scheme: "10D", date: "2026-06-24", created_at: "2026-06-24T10:00:00Z", nature: "skill", total_hold_seconds: 120, hold_seconds_per_round: 12, isometric_capacity: 36 });
+  add({ id: "ch2", exercise_id: "cuelgue_passive_one_hand", exercise_name: "Cuelgue pasivo a una mano", scheme: "10D", date: "2026-06-26", created_at: "2026-06-26T10:00:00Z", nature: "skill", total_hold_seconds: 30, hold_seconds_per_round: 3, isometric_capacity: 9, effort: "VH" });
+  test("niveles: hermana más cercana manda (activo 1 mano ≤ pasivo 1 mano)", () => {
+    const sibling = denseLeverSiblingEstimate(denseExerciseById("cuelgue_active_one_hand"), "isometric_capacity");
+    const hold = (id) => Number(denseFormTargetHoldPerRound(denseExerciseById(id), "10D", null)) || 0;
+    return sibling && sibling.from.id === "cuelgue_passive_one_hand" && hold("cuelgue_active_one_hand") <= hold("cuelgue_passive_one_hand");
+  });
+  test("tarjeta test: débil fuera, hermana nivelada fuera, cruzada fuerte dentro", () => {
     const savedTransfer = state.transfer;
     try {
       state.transfer = {
         boosts: {
           front_lever_full: { pct: 0.05, from: [{ name: "Sentadillas sin peso", date: "2026-06-01" }] },
-          chin_up: { pct: 0.05, from: [{ name: "Dominadas", date: "2026-06-01" }] },
           sissy_squat: { pct: 0.04, from: [{ name: "Natural Leg Extension", date: "2026-06-20" }] },
+          military_press: { pct: 0.05, from: [{ name: "Press banca", date: "2026-06-01" }] },
+          ring_push_up: { pct: 0.04, from: [{ name: "Flexiones en suelo", date: "2026-06-01" }] },
         },
         events: [],
         pairK: {},
@@ -2476,8 +2485,16 @@ function runDenseSelfTests() {
       };
       const suggestions = denseTestSuggestions();
       const ids = suggestions.map((s) => s.exercise.id);
-      const sissy = suggestions.find((s) => s.exercise.id === "sissy_squat");
-      return ids.includes("chin_up") && !ids.includes("front_lever_full") && Boolean(sissy) && sissy.firstTest === true && /–/.test(sissy.range || "");
+      const ring = suggestions.find((s) => s.exercise.id === "ring_push_up");
+      const military = suggestions.find((s) => s.exercise.id === "military_press");
+      return (
+        ids.includes("military_press") &&
+        ids.includes("ring_push_up") &&
+        !ids.includes("front_lever_full") &&
+        !ids.includes("sissy_squat") &&
+        Boolean(ring) && ring.firstTest === true && /–/.test(ring.range || "") &&
+        Boolean(military) && !/objetivo -/.test(denseTestSuggestionRow(military))
+      );
     } finally {
       state.transfer = savedTransfer;
     }
@@ -2984,20 +3001,28 @@ function denseTestSourceStrength(exercise, slot) {
     if (source) sourceIds.add(source.id);
   });
   let max = 0;
+  let crossMax = 0;
   sourceIds.forEach((sourceId) => {
     const source = denseExerciseById(sourceId);
     if (!source || source.id === exercise.id) return;
-    max = Math.max(max, denseTransferCoefficient(source, exercise));
+    const c = denseTransferCoefficient(source, exercise);
+    max = Math.max(max, c);
+    if (!source.family || source.family !== exercise.family) crossMax = Math.max(crossMax, c);
   });
-  return max;
+  return { max, crossMax };
 }
 
 function denseTestSuggestions() {
-  return Object.entries(state.transfer?.boosts || {})
+  const suggestions = Object.entries(state.transfer?.boosts || {})
     .map(([id, slot]) => {
       const exercise = denseExerciseById(id);
       if (!exercise || !(slot?.pct >= 0.03)) return null;
-      if (denseTestSourceStrength(exercise, slot) < DENSE_TEST_MIN_PAIR_C) return null;
+      const strength = denseTestSourceStrength(exercise, slot);
+      // A leveled exercise boosted only by its own family carries no test-worthy
+      // news: the deterministic sibling estimate already tracks that progress.
+      // It needs a strong CROSS-family source to justify burning a session.
+      const gate = denseProgressionLevelOf(exercise) > 0 ? strength.crossMax : strength.max;
+      if (gate < DENSE_TEST_MIN_PAIR_C) return null;
       const last = [...getDenseEntries()]
         .filter((entry) => entry.exercise_id === id)
         .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")))[0];
@@ -3019,6 +3044,15 @@ function denseTestSuggestions() {
     })
     .filter(Boolean)
     .sort((a, b) => b.pct - a.pct);
+  // One suggestion per family (highest boost wins) — four hang variants at
+  // once is noise, not a plan.
+  const seenFamilies = new Set();
+  return suggestions.filter((item) => {
+    const key = item.exercise.family || item.exercise.id;
+    if (seenFamilies.has(key)) return false;
+    seenFamilies.add(key);
+    return true;
+  });
 }
 
 function denseTestSuggestion() {
@@ -3033,7 +3067,10 @@ function denseTestSuggestionRow(suggestion, { lead = false } = {}) {
       <span class="tiny-icon"><i data-lucide="flask-conical"></i></span>
       <div>
         <strong>${escapeHtml(title)}</strong>
-        <span>Estimación +${roundTo(suggestion.pct * 100, 1)}%${suggestion.from ? ` por transferencia de ${escapeHtml(suggestion.from)}` : ""} sin verificar · objetivo ${suggestion.firstTest && suggestion.range ? `${escapeHtml(suggestion.range)} (primer test: empieza por abajo)` : escapeHtml(suggestion.target)} · ${daysLabel}</span>
+        <span>Estimación +${roundTo(suggestion.pct * 100, 1)}%${suggestion.from ? ` por transferencia de ${escapeHtml(suggestion.from)}` : ""} sin verificar${(() => {
+          if (suggestion.firstTest && suggestion.range) return ` · objetivo ${escapeHtml(suggestion.range)} (primer test: empieza por abajo)`;
+          return suggestion.target && suggestion.target !== "-" ? ` · objetivo ${escapeHtml(suggestion.target)}` : "";
+        })()} · ${daysLabel}</span>
       </div>
       <button class="dc-badge calibration-add" type="button" data-action="add-planned-exercise" data-exercise="${escapeAttr(suggestion.exercise.id)}" data-test="1" data-scheme="${escapeAttr(suggestion.scheme)}">+ hoy</button>
     </div>
@@ -5879,12 +5916,13 @@ function loadCloudConfig() {
   const defaults = { enabled: true, endpointUrl: DEFAULT_CLOUD_ENDPOINT_URL, token: DEFAULT_CLOUD_SYNC_TOKEN };
   try {
     const saved = JSON.parse(localStorage.getItem(CLOUD_CONFIG_KEY));
-    const savedComplete = Boolean(saved?.endpointUrl && saved?.token);
     return saved
       ? {
           ...defaults,
           ...saved,
-          enabled: savedComplete ? saved.enabled ?? true : true,
+          // An explicit "off" must survive reloads even if endpoint/token are
+          // empty — refilling defaults used to silently re-enable auto-sync.
+          enabled: saved.enabled !== false,
           endpointUrl: saved.endpointUrl || DEFAULT_CLOUD_ENDPOINT_URL,
           token: saved.token || DEFAULT_CLOUD_SYNC_TOKEN,
         }
@@ -7145,11 +7183,10 @@ function denseEntrySummaryLine(entry) {
   const scheme = entry.scheme || "";
   if (entry.total_hold_seconds) {
     const perRound = entry.hold_seconds_per_round || (entry.duration_minutes ? Math.round(entry.total_hold_seconds / entry.duration_minutes) : 0);
-    return `<span class="set-main-metric">${escapeHtml(`${scheme}${perRound || ""}`)} <span class="set-paren">(${entry.total_hold_seconds}s TUT)</span></span>`;
+    return `<span class="set-main-metric">${escapeHtml(denseSchemeCode(scheme, perRound))} <span class="set-paren">(${entry.total_hold_seconds}s TUT)</span></span>`;
   }
   const rpm = Math.round(Number(entry.reps_per_min || entry.reps_per_set || 0));
-  const code = rpm ? `${scheme}${rpm}` : scheme;
-  return `<span class="set-main-metric">${escapeHtml(code)} <span class="set-paren">(${entry.total_reps || 0} reps)</span></span>`;
+  return `<span class="set-main-metric">${escapeHtml(denseSchemeCode(scheme, rpm))} <span class="set-paren">(${entry.total_reps || 0} reps)</span></span>`;
 }
 
 // Wrap a card so it can be swiped left to reveal a delete action (iOS-style).
@@ -7453,8 +7490,7 @@ function denseLastSessionSummary(exercise, scheme) {
   const effort = last.effort || "N";
   if (last.total_hold_seconds) return `Última ${escapeHtml(last.scheme)} (${last.total_hold_seconds}s) · ${escapeHtml(effort)}`;
   const rpm = Math.round(Number(last.reps_per_min || last.target_reps_per_min || 0));
-  const schemeLabel = rpm ? `${last.scheme}${rpm}` : last.scheme;
-  return `Última ${escapeHtml(schemeLabel)} (${last.total_reps || 0} reps) · ${escapeHtml(effort)}`;
+  return `Última ${escapeHtml(denseSchemeCode(last.scheme, rpm))} (${last.total_reps || 0} reps) · ${escapeHtml(effort)}`;
 }
 
 function plannedWorkoutCard(exercise) {
@@ -7774,7 +7810,7 @@ function denseDefaultRepsPerSet(exercise, scheme) {
       ? Math.max(1, Math.floor(estimate * multiplier))
       : crossRpm
         ? Math.max(1, Math.floor(crossRpm))
-        : Math.max(1, Math.round(denseDefaultRpm(exercise, denseSchemeBase(scheme))));
+        : Math.max(1, Math.round(denseDefaultRpm(exercise, denseSchemeBase(scheme)) * denseColdStartFactor(exercise)));
   }
   return Math.max(1, Math.round(denseCapRpm(exercise, raw)));
 }
@@ -7890,7 +7926,10 @@ function denseFamilyDifficultyFactor(exercise) {
 // Cross-estimate within a leveled progression family: your capacity at one
 // difficulty level implies a capacity at every other level via the endurance
 // curve (harder sibling → disproportionally shorter holds / fewer reps).
-// Returns the best-supported scaled estimate among siblings, or null.
+// Picks the sibling CLOSEST in level (best local evidence), not the highest
+// scaled value: taking the optimist used to invert difficulty — a fresh weak
+// direct test on the near sibling was ignored in favour of a far easy one.
+// Ties break toward the higher scaled estimate.
 function denseLeverSiblingEstimate(exercise, key) {
   const level = denseProgressionLevelOf(exercise);
   if (!level || !exercise.family) return null;
@@ -7902,7 +7941,10 @@ function denseLeverSiblingEstimate(exercise, key) {
     const capacity = denseBestCapacity(sibling.id, key);
     if (!capacity) return;
     const scaled = capacity * Math.pow(siblingLevel / level, DENSE_LEVER_ENDURANCE_EXP);
-    if (!best || scaled > best.value) best = { value: scaled, from: sibling, fromCapacity: capacity };
+    const gap = Math.abs(siblingLevel - level);
+    if (!best || gap < best.gap - 0.001 || (Math.abs(gap - best.gap) <= 0.001 && scaled > best.value)) {
+      best = { value: scaled, from: sibling, fromCapacity: capacity, gap };
+    }
   });
   return best;
 }
@@ -8508,6 +8550,13 @@ function denseSchemeTarget(scheme) {
   return String(scheme || "").replace(/^\d+D/, "") || "";
 }
 
+// Display code "5D" + 7 → "5D7". Load schemes already carry their prescription
+// ("10D5" must never become "10D55" by appending the rpm again).
+function denseSchemeCode(scheme, perMinute) {
+  const value = Math.round(Number(perMinute) || 0);
+  return denseSchemeTarget(scheme) || !value ? String(scheme || "") : `${scheme}${value}`;
+}
+
 function denseLadderSequence(scheme) {
   const values = denseSchemeTarget(scheme)
     .split("-")
@@ -8540,10 +8589,23 @@ function denseDefaultRpm(exercise, base) {
     skills: 4,
     mobility: 8,
   }[exercise.category] || 8;
-  const factor = { "2D": 1.25, "5D": 1, "10D": 0.75, "20D": 0.6 }[base] || 1;
+  // Scheme scaling must follow the SAME endurance model as capacity-based
+  // targets (bodyweightMultipliers), or 10D/20D cold defaults run ~2× hot
+  // (the old hand-tuned {10D:0.75} vs the model's 0.33/0.6 ratio).
+  const factor = (bodyweightMultipliers[base] || bodyweightMultipliers["5D"]) / bodyweightMultipliers["5D"];
   // Cold-start honesty: the category default fits the family's entry-level
   // sibling; harder leveled siblings scale down (sissy ≠ air-squat pace).
   return categoryBase * factor * denseFamilyDifficultyFactor(exercise);
+}
+
+// First contact with a whole family (no marks anywhere in it): propose a
+// prudent starter — undershooting a first test beats grinding a failure.
+function denseColdStartFactor(exercise) {
+  const family = exercise.family || "";
+  const seen = getDenseEntries().some(
+    (entry) => !entry.deleted_at && (entry.exercise_id === exercise.id || (family && (entry.family || denseExerciseById(entry.exercise_id)?.family) === family)),
+  );
+  return seen ? 1 : 0.7;
 }
 
 function trainingAnalyticsEntries(windowKey) {
@@ -9034,10 +9096,28 @@ function denseStrengthMovers(entries) {
     if (inWindow.has(entry.id)) row.inWin = Math.max(row.inWin, score);
     else row.before = Math.max(row.before, score);
   });
-  return Object.values(byExercise)
+  const movers = Object.values(byExercise)
     .filter((row) => row.inWin && row.before)
     .map((row) => ({ name: row.name, pct: Math.round(((row.inWin - row.before) / row.before) * 100) }))
     .filter((row) => row.pct !== 0)
+    .sort((a, b) => b.pct - a.pct)
+    .slice(0, 4);
+  if (movers.length) return movers;
+  // The window covers the whole history (nothing "before" to compare against):
+  // fall back to progression INSIDE the window — first mark vs best later mark —
+  // so six weeks of PRs never reads as "sin mejoras medibles".
+  const byId = {};
+  entries.forEach((entry) => (byId[entry.exercise_id] ||= []).push(entry));
+  return Object.values(byId)
+    .map((list) => {
+      const sorted = [...list].sort((a, b) => String(a.created_at || a.date || "").localeCompare(String(b.created_at || b.date || "")));
+      const firstScore = denseEntryScore(sorted[0]) || 0;
+      const best = Math.max(0, ...sorted.slice(1).map((entry) => denseEntryScore(entry) || 0));
+      if (!firstScore || !best) return null;
+      const pct = Math.round(((best - firstScore) / firstScore) * 100);
+      return pct > 0 ? { name: sorted[0].exercise_name, pct } : null;
+    })
+    .filter(Boolean)
     .sort((a, b) => b.pct - a.pct)
     .slice(0, 4);
 }
@@ -9713,7 +9793,7 @@ function denseEntryValue(entry) {
     const targetTotal = Number(entry.target_total_reps || 0);
     const total = Number(entry.total_reps || 0);
     if (targetRpm && targetTotal && total && total !== targetTotal) {
-      return `objetivo ${entry.scheme}${targetRpm} · ${total}/${targetTotal} reps · ${entry.reps_per_min} rpm real`;
+      return `objetivo ${denseSchemeCode(entry.scheme, targetRpm)} · ${total}/${targetTotal} reps · ${entry.reps_per_min} rpm real`;
     }
     if (targetRpm && targetTotal) return `${targetRpm}/min · ${targetTotal} reps`;
     return `${entry.reps_per_min} rpm · ${entry.total_reps} reps`;

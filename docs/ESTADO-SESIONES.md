@@ -8,12 +8,18 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 > App: PWA de entrenamiento (Dense training). Vanilla JS sin build: `app.js` (~9000
 > líneas), `styles.css`, `index.html`, `sw.js`. Sincroniza a Google Sheets vía Apps Script.
 > Modo training-only (`TRAINING_ONLY = true`). Cache busting: string `?v=…` en `index.html`
-> **y** `sw.js` a la vez. **Última versión: `20260712-niveles-progresion-22`.**
+> **y** `sw.js` a la vez. **Última versión: `20260712-sim-fixes-23`.**
 
 ## Cómo trabajar aquí (imprescindible)
 
-- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **57 asserts**.
+- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **58 asserts**.
   Correr siempre tras tocar el motor.
+- **Simulación de entrenamiento** (nueva herramienta de QA): 6 semanas × 4 días con un
+  atleta sintético que sigue las sugerencias reales de la app vía Playwright+Chromium
+  (formulario y guardado reales, red externa bloqueada, capturas por semana). Guion de
+  referencia en el scratchpad de la sesión del 12 jul (`sim.js`); reproducir con
+  `playwright-core` + chromium local. Detecta objetivos absurdos, inversiones de
+  dificultad, NaN/undefined en pantalla y spam de tests.
 - **TDZ**: cualquier `const` de nivel superior que use el render debe declararse en el
   bloque de constantes de arriba (cerca de `trainingAnalyticsTabs` / `bodyweightSchemes`).
   Ya nos ha mordido varias veces (la última, `DENSE_RECOVERY_MIN_WELLNESS`).
@@ -55,6 +61,32 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
   cuando el bloque no tiene historial (`denseEstimatedLoadSuggestion`).
 - `23b547b` e1RM efectivo: los fallos recalibran al instante.
 - `8618f72` Fix estrella de favorito que no se actualizaba en el picker.
+
+### Simulación 6 semanas + fixes (12 jul 2026, tarde)
+- **`loadCloudConfig` re-activaba el sync desactivado** al recargar si endpoint/token
+  estaban vacíos (rellenaba defaults y forzaba `enabled: true`). Ahora un `enabled: false`
+  explícito sobrevive siempre. **Bug de seguridad de datos.**
+- **Inversión de dificultad entre hermanas**: `denseLeverSiblingEstimate` elegía la
+  hermana con mayor valor escalado (la optimista); ahora manda la de **nivel más
+  cercano**. Detectado: cuelgue activo 1 mano (4s) > pasivo 1 mano testeado (3s).
+- **Defaults en frío ~2× calientes en 10D/20D**: el factor de esquema de
+  `denseDefaultRpm` ({10D: 0.75}) no seguía el modelo de capacidad
+  (`bodyweightMultipliers`, ratio 0.55); ahora derivado de él. Además
+  `denseColdStartFactor` (×0.7) si la familia entera está sin datos.
+- **Tarjeta de test**: hermanas de familia nivelada ya no se sugieren por boosts de su
+  propia familia (la estimación determinista ya lo cubre); dedupe 1 por familia; sin
+  "objetivo -" cuando no hay target.
+- **"10D55 (50 reps)"**: los esquemas con objetivo embebido (10D5) ya no concatenan el
+  rpm otra vez (`denseSchemeCode`, aplicado en 4 sitios).
+- **Strength momentum vacío** con la ventana cubriendo todo el historial: fallback a
+  progresión primera→mejor marca dentro de la ventana.
+- **Level-ups desbordaban** a 390px con objetivos largos (CSS `.dc-pr-row`).
+- Observaciones para el medio plazo (no tocadas): iconos lucide desde unpkg (sin red no
+  hay iconos pese a la PWA); gap de dificultad absoluta entre familias (primer archer
+  sugiere 3 rpm aunque el atleta no llegue — se autocorrige tras el primer test);
+  transferencias bodyweight→barra (pistol→peso muerto +3%) pendientes de la asimetría
+  por dificultad (§3.2 del plan); el boost llega al tope del 12% en ~1 semana de marcas
+  buenas dentro de una familia-progresión.
 
 ### Niveles de dificultad por familia (12 jul 2026 — plan corto §2 completo)
 - **`progressionLevel`** curado en 34 ejercicios de 12 familias (calibrado con el
