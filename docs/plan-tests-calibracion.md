@@ -6,18 +6,23 @@
 > de transferencia (`pairK`), sigma empírica y corrección de niveles curados.
 > n=1 no es extrapolable al 100%, pero es exactamente lo que la app debe modelar: a ti.
 
+## Cómo funciona (13 jul 2026 — ritmo pausado a petición del usuario)
+
+**Solo está activa la T1 (tirón).** T2–T5 quedan en espera hasta hacer y revisar la
+T1 juntos — sin agobios. La batería vive en este MD; los resultados se registran en
+la app como marcas normales.
+
 ## Reglas de ejecución
 
-1. **Todo con el toggle "Sesión test" activado** (no penaliza fatiga/progresión igual
-   que un fallo real y dispara las reconciliaciones).
+1. Si al abrir el formulario aparece el toggle ámbar **"Sesión test"** (sale solo
+   cuando el objetivo es estimado), déjalo activado. En ejercicios con historial
+   directo no aparece: registra normal, el motor aprende igual.
 2. **Empieza por el extremo bajo del rango** que proponga la tarjeta; si te quedas
-   corto, repites mejor otro día antes que ir al fallo.
-3. Una batería por sesión, 48h entre baterías. Ordenadas de más a menos prioridad —
-   si solo haces T1–T3 ya calibran lo gordo.
-4. Los **pares de la misma familia** (mismo día, frescura comparable) son lo valioso:
+   corto, mejor repetir otro día que ir al fallo.
+3. Los **pares de la misma familia** (mismo día, frescura comparable) son lo valioso:
    dan tu curva real de dificultad. Anclas sueltas calibran e1RM y curva personal.
 
-## T1 — Tirón (pares: strict_pull · cuelgue)
+## T1 — Tirón (pares: strict_pull · cuelgue) ← ÚNICA ACTIVA
 | Test | Esquema sugerido | Para qué |
 |---|---|---|
 | Chin-up | 5D | ancla del eje (tu progresión principal) |
@@ -26,7 +31,7 @@
 | Cuelgue activo | 10D hold | ancla cuelgue |
 | Cuelgue pasivo 1 mano | 10D hold | **par** con activo → exponente cuelgue |
 
-## T2 — Empuje (pares: pushup · hspu)
+## T2 — Empuje (pares: pushup · hspu) — EN ESPERA hasta revisar T1
 | Test | Esquema | Para qué |
 |---|---|---|
 | Flexiones en suelo | 5D | ancla pushup |
