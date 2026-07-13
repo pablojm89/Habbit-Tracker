@@ -8,11 +8,11 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 > App: PWA de entrenamiento (Dense training). Vanilla JS sin build: `app.js` (~9000
 > líneas), `styles.css`, `index.html`, `sw.js`. Sincroniza a Google Sheets vía Apps Script.
 > Modo training-only (`TRAINING_ONLY = true`). Cache busting: string `?v=…` en `index.html`
-> **y** `sw.js` a la vez. **Última versión: `20260713-feedback-real-26`.**
+> **y** `sw.js` a la vez. **Última versión: `20260713-repaso-qa-27`.**
 
 ## Cómo trabajar aquí (imprescindible)
 
-- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **68 asserts**.
+- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **71 asserts**.
   Correr siempre tras tocar el motor.
 - **Simulación de entrenamiento** (nueva herramienta de QA): 6 semanas × 4 días con un
   atleta sintético que sigue las sugerencias reales de la app vía Playwright+Chromium
@@ -61,6 +61,23 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
   cuando el bloque no tiene historial (`denseEstimatedLoadSuggestion`).
 - `23b547b` e1RM efectivo: los fallos recalibran al instante.
 - `8618f72` Fix estrella de favorito que no se actualizaba en el picker.
+
+### Repaso QA completo de la app (13 jul 2026, tarde)
+- **Buscador arreglado** (`denseSearchNormalize`/`denseSearchMatches`): insensible a
+  tildes ("extension"→Extensión), por tokens ("curl biceps" encuentra "Curl de
+  bíceps en anillas 45º"), guiones/espacios ("l sit"→L-Sit), busca también por id, y
+  la **búsqueda guardada ya no persiste** entre aperturas del picker (dejaba la
+  lista filtrada/vacía "sin motivo"). 16/16 casos en el crawler + self-test.
+- **Doble notas eliminado**: el modal de feedback post-set ya no repite el campo
+  Notes (queda fatiga + expectativas); las notas viven solo en el formulario del set.
+- **Escalado a hermana fácil saturado** (≤×4): 20 chins estimaban "78 rpm de
+  dominada escapular" (la ley de potencia explota hacia abajo con gaps grandes).
+- **Techo global de 30 rpm** en cualquier objetivo dinámico (`denseMaxRepsPerMin`).
+- Crawler QA (`qa-crawl.js` en scratchpad): buscador, TODOS los ejercicios × TODAS
+  las modalidades (campos correctos por naturaleza, sin NaN/undefined, targets
+  sanos), todos los detalles, timer (start/tick/pause, metrónomo, inputs live),
+  pantallas y flujo de feedback. Resultado final: verde. Botón muerto legacy
+  `archive-habit-inline` (oculto en training-only, sin daño). +3 self-tests (71).
 
 ### Feedback de uso real en iPhone (13 jul 2026)
 - **Checkbox del toggle de test gigante en iOS** (captura del usuario): la regla

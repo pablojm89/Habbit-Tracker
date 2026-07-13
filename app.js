@@ -2868,6 +2868,30 @@ function runDenseSelfTests() {
     );
   });
 
+  // Repaso QA completo (13 jul): buscador, saturación de escalado y feedback
+  test("buscador: tildes, espacios y guiones (extension · curl biceps · l sit · jalón · doble espacio)", () => {
+    const finds = (query, id) => denseExerciseLibrary({ category: "all", sort: "az", search: query }).some((item) => item.id === id);
+    return (
+      finds("extension", "ring_triceps_extension_45") &&
+      finds("curl biceps", "ring_biceps_curl_45") &&
+      finds("l sit", "l_sit") &&
+      finds("jalón ", "lat_pulldown") &&
+      finds("dominada  supina", "chin_up")
+    );
+  });
+  test("sanidad: escalado a hermana fácil saturado (≤×4) y rpm global ≤30", () => {
+    const sibling = denseLeverSiblingEstimate(denseExerciseById("scapular_pull"), "bodyweight_capacity");
+    const rpm = Number(denseFormTargetRepsPerSet(denseExerciseById("scapular_pull"), "5D", null)) || 0;
+    return sibling && sibling.value <= denseBestCapacity("chin_up", "bodyweight_capacity") * 4 + 0.001 && rpm <= 30;
+  });
+  test("feedback post-set sin campo de notas duplicado (solo fatiga + expectativas)", () => {
+    openDenseFeedbackModal("ft1");
+    const form = document.querySelector("#denseFeedbackForm");
+    const ok = form && !form.querySelector("[name='sessionNotes']") && form.querySelector("[name='sessionFatigue']");
+    closeModal();
+    return Boolean(ok);
+  });
+
   state.denseTrainingEntries = savedEntries;
   denseNeighborCache = null;
   rebuildTransferState();
@@ -5362,6 +5386,8 @@ function openDenseTrainingModal({ exerciseId = "", entryId = "", failure = false
   denseFormNatureOverride = null;
   denseFailureSetMode = failure && !entry;
   denseSetModalContext = { includePicker: !entry && !exerciseId, editing: Boolean(entry) };
+  // A stale saved query used to leave the picker filtered/empty on open.
+  if (denseSetModalContext.includePicker) state.settings.denseExerciseSearch = "";
   nodes.modalCard.dataset.modalKind = "dense-set";
   nodes.modalEyebrow.textContent = denseSetModalContext.editing ? "Editing set" : denseFailureSetMode ? "Set al fallo" : "New set";
   nodes.modalTitle.textContent = exercise.name;
@@ -5406,6 +5432,7 @@ function updateDenseNatureSelection(input) {
 }
 
 function openWorkoutExercisePickerModal() {
+  state.settings.denseExerciseSearch = ""; // fresh search every open
   nodes.modalCard.dataset.modalKind = "workout-exercise-picker";
   nodes.modalEyebrow.textContent = "Programar";
   nodes.modalTitle.textContent = "Elegir ejercicio";
@@ -5997,10 +6024,6 @@ function openDenseFeedbackModal(entryId) {
           ${feedbackOption("harder", "Harder than expected", entry.expected_comparison)}
         </div>
       </fieldset>
-      <label class="field is-full">
-        <span>Notes</span>
-        <textarea name="sessionNotes" placeholder="Fatiga, molestias, sueño, técnica, si tocó cortar reps...">${escapeHtml(entry.session_notes || "")}</textarea>
-      </label>
       <div class="modal-actions">
         <button class="text-button" type="button" data-action="close-modal"><i data-lucide="x"></i>Luego</button>
         <button class="text-button is-hot" type="submit"><i data-lucide="save"></i>Guardar feedback</button>
@@ -6035,7 +6058,8 @@ function saveDenseFeedbackForm(form) {
   }
   entry.session_fatigue = clamp(Number(data.sessionFatigue) || 5, 1, 10);
   entry.expected_comparison = data.expectedComparison || "as_expected";
-  entry.session_notes = (data.sessionNotes || "").trim();
+  // Notes live ONLY in the set form now — the duplicated feedback textarea
+  // confused users ("¿dónde escribo la nota?"); keep any legacy value as-is.
   entry.updated_at = new Date().toISOString();
   closeModal();
   saveAndRender("Feedback guardado");
@@ -6686,7 +6710,7 @@ function denseExercisePickCard(exercise, selectedId, action = "pick-dense-exerci
     <article
       class="exercise-pick-card ${selected ? "is-selected" : ""}"
       data-exercise-card
-      data-search="${escapeAttr(`${exercise.name} ${exercise.family} ${denseCategoryLabel(exercise.category)}`.toLowerCase())}"
+      data-search="${escapeAttr(denseSearchHaystack(exercise))}"
       data-exercise="${escapeAttr(exercise.id)}"
     >
       <button class="exercise-pick-main" type="button" data-action="${escapeAttr(action)}" data-exercise="${escapeAttr(exercise.id)}">
@@ -8109,15 +8133,35 @@ function denseExerciseFavorites() {
   return Array.isArray(state.denseExerciseFavorites) ? state.denseExerciseFavorites : [];
 }
 
+// Accent/space-insensitive search: "extension" finds "Extensión", "curl biceps"
+// finds "Curl de bíceps en anillas 45º", "l sit" finds "L-Sit". Every token of
+// the query must appear somewhere in the normalized haystack.
+function denseSearchNormalize(value) {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[-_/·.]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function denseSearchMatches(haystack, query) {
+  const tokens = denseSearchNormalize(query).split(" ").filter(Boolean);
+  if (!tokens.length) return true;
+  const normalized = denseSearchNormalize(haystack);
+  return tokens.every((token) => normalized.includes(token));
+}
+
+function denseSearchHaystack(exercise) {
+  return `${exercise.name} ${exercise.family} ${denseCategoryLabel(exercise.category)} ${exercise.id}`;
+}
+
 function denseExerciseLibrary({ category = "all", sort = "recent", search = "" } = {}) {
-  const query = search.trim().toLowerCase();
   return denseExerciseCatalog
     .map((exercise) => ({ ...exercise, stats: denseExerciseStats(exercise.id), favorite: denseExerciseFavorites().includes(exercise.id) }))
     .filter((exercise) => category === "all" || exercise.category === category)
-    .filter((exercise) => {
-      if (!query) return true;
-      return `${exercise.name} ${exercise.family} ${denseCategoryLabel(exercise.category)}`.toLowerCase().includes(query);
-    })
+    .filter((exercise) => denseSearchMatches(denseSearchHaystack(exercise), search))
     .sort((a, b) => denseExerciseSortValue(a, b, sort));
 }
 
@@ -8238,7 +8282,8 @@ function denseDefaultTotalReps(exercise, scheme) {
 // so we never propose an impossible pace (e.g. ATG split squats at 14/side).
 function denseMaxRepsPerMin(exercise) {
   if (exercise?.repsPerSide) return 12;
-  return Infinity;
+  // Global sanity ceiling: no exercise is honestly EMOM-able beyond ~30/min.
+  return 30;
 }
 
 function denseCapRpm(exercise, rpm) {
@@ -8445,7 +8490,9 @@ function denseLeverSiblingEstimate(exercise, key) {
     if (!siblingLevel) return;
     const capacity = denseBestCapacity(sibling.id, key);
     if (!capacity) return;
-    const scaled = capacity * Math.pow(siblingLevel / level, enduranceExp);
+    // Downward (easier target) the power law explodes over big level gaps
+    // (20 chins → "378 scap pulls"): saturate the upward scale at ×4.
+    const scaled = capacity * Math.min(4, Math.pow(siblingLevel / level, enduranceExp));
     const gap = Math.abs(siblingLevel - level);
     if (!best || gap < best.gap - 0.001 || (Math.abs(gap - best.gap) <= 0.001 && scaled > best.value)) {
       best = { value: scaled, from: sibling, fromCapacity: capacity, gap };
@@ -9783,10 +9830,8 @@ function average(values) {
 }
 
 function applyDenseExerciseSearch(value) {
-  const query = value.trim().toLowerCase();
   document.querySelectorAll("[data-exercise-card]").forEach((card) => {
-    const match = !query || (card.dataset.search || "").includes(query);
-    card.classList.toggle("is-hidden", !match);
+    card.classList.toggle("is-hidden", !denseSearchMatches(card.dataset.search || "", value));
   });
 }
 
