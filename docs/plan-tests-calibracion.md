@@ -28,11 +28,24 @@ la app como marcas normales.
 > Notación: `5D` (bodyweight) = EMOM 5', eliges reps/min y las mantienes.
 > `5D3` (lastre) = EMOM 5' con 3 reps fijas al minuto, mismo lastre todo el rato.
 
+### Regla de dedo — de reps máximas a ritmo de densidad (corregida por el usuario)
+
+En densidad solo descansas lo que sobra del minuto: el ritmo sostenible es MUCHO
+más bajo de lo que parece. Dato real del usuario: **20 chins máximas → 5D7-8**
+(~0.35-0.4×). Escalando con los ratios internos del motor:
+
+| Bloque | rpm ≈ × reps máximas |
+|---|---|
+| 2D | ~0.55× |
+| 5D | ~0.35-0.4× |
+| 10D | ~0.2× |
+| 20D | ~0.17× |
+
 ### Día A — eje sin lastre + camino OAC
 | Test | Esquema exacto | Cómo |
 |---|---|---|
-| Chin-up sin lastre | **5D** | elige un reps/min que puedas CLAVAR los 5 minutos y que la última ronda salga dura (RPE 8-9). Orientación: ~60% de tus chins máximas seguidas |
-| Archer chin-up | **5D por lado** | mismo criterio, contando por lado |
+| Chin-up sin lastre | **5D** | en tu caso: **5D7 u 5D8** (tus 20 máximas × ~0.37). Clavar los 5 minutos, última ronda RPE 8-9 |
+| Archer chin-up | **5D por lado** | mismas cuentas con tus archers máximas por lado (p. ej. 5-6 máx → 5D2/lado) |
 | OAC | **2D** | 1 rep/min por lado (2/lado en total); si va sobrado, 2/min. **Par archer↔OAC** → exponente real de la familia |
 
 ### Día B (48h después) — lastre (dibuja tu curva personal reps↔%1RM)
