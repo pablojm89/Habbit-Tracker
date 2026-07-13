@@ -153,6 +153,11 @@ hay ramas paralelas que atacan el mismo patrón desde puntos distintos**.
 
 ## 4. Plan a largo plazo — ampliar y curar el catálogo
 
+> **12 jul 2026**: este bloque tiene ya su plan operativo fino en
+> [plan-catalogo-por-patrones.md](plan-catalogo-por-patrones.md) — una sesión por
+> patrón, cadena investigada (videoteca + fuentes externas), veredicto del usuario
+> ejercicio a ejercicio y alta con el pipeline completo. Piloto: tirón vertical.
+
 Objetivo: crecer el catálogo sin degradar el motor, mezclando investigación y tus
 bibliotecas/conocimiento.
 
