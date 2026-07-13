@@ -301,7 +301,8 @@ const denseExerciseCatalog = [
     category: "pull",
     family: "strict_pull",
     nature: "bodyweight",
-    allowedNatures: ["bodyweight", "weighted_calisthenics"],
+    // "assisted" = máquina de dominadas asistidas / contrapeso (S1)
+    allowedNatures: ["bodyweight", "weighted_calisthenics", "assisted"],
     bodyweightContributionPct: 100,
     progressionLevel: 1,
     tonnageFactor: 1,
@@ -340,6 +341,7 @@ const denseExerciseCatalog = [
     nature: "bodyweight",
     allowedNatures: ["bodyweight", "banded"],
     bodyweightContributionPct: 70,
+    progressionLevel: 1,
     tonnageFactor: 1,
     alpha: 0.13,
     icon: "arrow-left-to-line",
@@ -772,7 +774,7 @@ const denseExerciseCatalog = [
     category: "pull",
     family: "strict_pull",
     nature: "bodyweight",
-    allowedNatures: ["bodyweight", "weighted_calisthenics"],
+    allowedNatures: ["bodyweight", "weighted_calisthenics", "assisted"],
     bodyweightContributionPct: 100,
     progressionLevel: 0.95,
     tonnageFactor: 1,
@@ -1002,7 +1004,7 @@ const denseExerciseCatalog = [
   },
   {
     id: "oac_assisted",
-    name: "OAC asistida (contrapeso)",
+    name: "OAC asistida (goma/polea)",
     category: "pull",
     family: "one_arm_chin",
     nature: "assisted",
@@ -1187,6 +1189,116 @@ const denseExerciseCatalog = [
     icon: "fold-vertical",
     video: "https://youtu.be/xuKeTXLtHtM",
   },
+  // ── S1 Tirón vertical (fase 3, sesión de patrón — jul 2026) ─────────────
+  {
+    id: "scapular_pull",
+    name: "Dominada escapular",
+    category: "pull",
+    family: "strict_pull",
+    nature: "bodyweight",
+    allowedNatures: ["bodyweight"],
+    bodyweightContributionPct: 100,
+    progressionLevel: 0.25,
+    tonnageFactor: 0.5,
+    alpha: 0.08,
+    icon: "grip-horizontal",
+    video: "https://www.youtube.com/watch?v=u_l2NdCKsq8",
+  },
+  {
+    id: "pull_up_feet_assisted",
+    name: "Dominada asistida con pies en suelo",
+    category: "pull",
+    family: "strict_pull",
+    nature: "bodyweight",
+    allowedNatures: ["bodyweight"],
+    bodyweightContributionPct: 45,
+    progressionLevel: 0.35,
+    tonnageFactor: 0.8,
+    alpha: 0.1,
+    icon: "footprints",
+    video: "https://www.youtube.com/watch?v=YX_OQ6zg05w",
+  },
+  {
+    id: "pull_up_band_assisted",
+    name: "Dominada asistida con goma",
+    category: "pull",
+    family: "strict_pull",
+    nature: "bodyweight",
+    allowedNatures: ["bodyweight", "banded"],
+    bodyweightContributionPct: 70,
+    progressionLevel: 0.5,
+    tonnageFactor: 0.9,
+    alpha: 0.11,
+    icon: "arrow-up-to-line",
+    video: "https://www.youtube.com/watch?v=LCy9HntgIAg",
+  },
+  {
+    id: "pull_up_negative",
+    name: "Dominada negativa",
+    category: "pull",
+    family: "strict_pull",
+    nature: "bodyweight",
+    allowedNatures: ["bodyweight"],
+    bodyweightContributionPct: 100,
+    progressionLevel: 0.6,
+    tonnageFactor: 0.9,
+    alpha: 0.12,
+    icon: "arrow-down-to-line",
+    video: "https://youtu.be/1dFqq5BmgD4",
+  },
+  {
+    id: "l_pull_up",
+    name: "L-Pull-up",
+    category: "pull",
+    family: "strict_pull",
+    nature: "bodyweight",
+    allowedNatures: ["bodyweight", "weighted_calisthenics"],
+    bodyweightContributionPct: 100,
+    progressionLevel: 1.1,
+    tonnageFactor: 1,
+    alpha: 0.15,
+    icon: "armchair",
+  },
+  {
+    id: "incline_row",
+    name: "Remo inclinado",
+    category: "pull",
+    family: "horizontal_pull",
+    nature: "bodyweight",
+    allowedNatures: ["bodyweight", "banded"],
+    bodyweightContributionPct: 50,
+    progressionLevel: 0.6,
+    tonnageFactor: 0.9,
+    alpha: 0.11,
+    icon: "arrow-left-to-line",
+    video: "https://www.youtube.com/watch?v=nZQEnke3QTs",
+  },
+  {
+    id: "lat_pulldown",
+    name: "Jalón al pecho (polea)",
+    category: "pull",
+    family: "lat_pulldown",
+    nature: "weighted",
+    allowedNatures: ["weighted"],
+    bodyweightContributionPct: 0,
+    tonnageFactor: 1,
+    alpha: 0.12,
+    icon: "arrow-down-to-line",
+  },
+  {
+    id: "oac_finger_assisted",
+    name: "OAC con dedos de asistencia",
+    category: "pull",
+    family: "one_arm_chin",
+    nature: "bodyweight",
+    allowedNatures: ["bodyweight"],
+    bodyweightContributionPct: 100,
+    progressionLevel: 0.88,
+    tonnageFactor: 1,
+    repsPerSide: true,
+    alpha: 0.15,
+    icon: "hand",
+  },
 ];
 
 function leverSkillExercises(prefix, label, bodyweightContributionPct) {
@@ -1275,11 +1387,23 @@ const denseProgressionEdges = [
   ["bench_press", "floor_push_up", "paralela"],
   ["straddle_handstand", "straight_handstand", "progresa"],
   ["straight_handstand", "press_to_handstand", "progresa"],
-  // Tirón
-  ["chin_up", "pull_up", "paralela"],
+  // Tirón (S1: cadena completa con veredicto del usuario, jul 2026)
+  ["scapular_pull", "pull_up_feet_assisted", "progresa"],
+  ["scapular_pull", "cuelgue_active", "paralela"],
+  ["incline_row", "ring_row", "progresa"],
+  ["ring_row", "pull_up_feet_assisted", "progresa"],
+  ["pull_up_feet_assisted", "pull_up_band_assisted", "progresa"],
+  ["pull_up_band_assisted", "pull_up_negative", "progresa"],
+  ["pull_up_negative", "chin_up", "progresa"],
+  // supinas siempre antes que pronas (veredicto usuario)
+  ["chin_up", "pull_up", "progresa"],
+  ["lat_pulldown", "pull_up", "paralela"],
+  ["pull_up", "l_pull_up", "paralela"],
+  // hito antes de archer: dominada lastrada ≈ +BW/6 (modalidad, no nodo)
   ["pull_up", "archer_chin_up", "progresa"],
-  ["chin_up", "archer_chin_up", "progresa"],
   ["archer_chin_up", "oac_negative", "progresa"],
+  ["oac_negative", "oac_finger_assisted", "paralela"],
+  ["oac_finger_assisted", "one_arm_chin_up", "progresa"],
   ["oac_negative", "one_arm_chin_up", "progresa"],
   ["oac_assisted", "one_arm_chin_up", "progresa"],
   ["oac_assisted", "oac_negative", "paralela"],
@@ -1404,6 +1528,7 @@ const denseTransferIdMeta = {
   bench_press: { patterns: { horizontal_push: 1 }, muscles: { chest: 0.9, triceps: 0.6, front_delt: 0.5 }, specificity: 0.2 },
   back_extension: { patterns: { hinge: 0.7, core_ext: 0.6 }, muscles: { glutes_hams: 0.7, core_ext: 0.8 }, specificity: 0.15 },
   machine_leg_extension: { patterns: { squat: 0.4 }, muscles: { quads: 0.95 }, specificity: 0.1 },
+  lat_pulldown: { patterns: { vertical_pull: 0.6 }, muscles: { lats: 0.9, biceps: 0.5, upper_back: 0.4 }, specificity: 0.1 },
   machine_leg_curl: { patterns: { hinge: 0.4 }, muscles: { glutes_hams: 0.9 }, specificity: 0.1 },
   natural_leg_extension: { patterns: { squat: 0.5, range_strength: 0.3 }, muscles: { quads: 0.95 }, specificity: 0.3 },
   sissy_squat: { patterns: { squat: 0.5, range_strength: 0.4 }, muscles: { quads: 0.95 }, specificity: 0.3 },
@@ -2671,6 +2796,25 @@ function runDenseSelfTests() {
       Math.abs(denseFamilyEnduranceExp("cuelgue", "isometric_capacity") - 3.4) < 0.01 &&
       denseFamilyEnduranceExp("knee_dominant", "bodyweight_capacity") === DENSE_LEVER_ENDURANCE_EXP
     );
+  });
+
+  // S1 Tirón vertical: regresiones niveladas + camino OAC + modalidad asistida
+  test("S1: cadena de dominadas nivelada y monótona (escapular→pies→goma→negativa→supina→prona→L)", () => {
+    const level = (id) => denseProgressionLevelOf(denseExerciseById(id));
+    const chain = ["scapular_pull", "pull_up_feet_assisted", "pull_up_band_assisted", "pull_up_negative", "chin_up", "pull_up", "l_pull_up"];
+    return chain.every((id, index) => index === 0 || level(chain[index - 1]) < level(id));
+  });
+  test("S1: OAC dedos entre negativa y OAC · pull_up admite asistida · jalón cubierto", () => {
+    const finger = denseProgressionLevelOf(denseExerciseById("oac_finger_assisted"));
+    return (
+      finger > denseProgressionLevelOf(denseExerciseById("oac_negative")) &&
+      finger < denseProgressionLevelOf(denseExerciseById("one_arm_chin_up")) &&
+      denseExerciseById("pull_up").allowedNatures.includes("assisted") &&
+      denseTransferCoefficient(denseExerciseById("lat_pulldown"), denseExerciseById("pull_up")) > 0.2
+    );
+  });
+  test("S1: el suelo del factor de dificultad protege el default de pull_up", () => {
+    return denseFamilyDifficultyFactor(denseExerciseById("pull_up")) >= 0.25 && denseDefaultRpm(denseExerciseById("pull_up"), "5D") >= 1;
   });
 
   state.denseTrainingEntries = savedEntries;
@@ -8140,7 +8284,9 @@ function denseFamilyDifficultyFactor(exercise) {
     const siblingLevel = denseProgressionLevelOf(sibling);
     if (siblingLevel && siblingLevel < entry) entry = siblingLevel;
   });
-  return Math.pow(entry / level, DENSE_LEVER_ENDURANCE_EXP);
+  // Floor: families that now include deep regressions (scap pull 0.25 vs
+  // pull-up 1.0) must not crush the top sibling's cold default to near zero.
+  return Math.max(0.25, Math.pow(entry / level, DENSE_LEVER_ENDURANCE_EXP));
 }
 
 // §3.3 — learned endurance exponent per (family, axis). Every pair of leveled
@@ -8241,8 +8387,9 @@ function denseFormTargetHoldPerRound(exercise, scheme, suggestion) {
   // the endurance curve (30s tuck ≈ 14s adv tuck ≈ 3s full, not 30s everywhere).
   const sibling = denseLeverSiblingEstimate(exercise, "isometric_capacity");
   if (sibling && multiplier) {
-    const hold = Math.floor(sibling.value * multiplier);
-    if (hold >= 2) return hold;
+    // Trust the sibling evidence even when tiny (1s): discarding it here used
+    // to fall through to a HIGHER generic default, inverting difficulty.
+    return Math.max(1, Math.floor(sibling.value * multiplier));
   }
   return denseDefaultHoldPerRound(exercise, scheme);
 }

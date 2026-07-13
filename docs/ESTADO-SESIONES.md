@@ -8,11 +8,11 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 > App: PWA de entrenamiento (Dense training). Vanilla JS sin build: `app.js` (~9000
 > líneas), `styles.css`, `index.html`, `sw.js`. Sincroniza a Google Sheets vía Apps Script.
 > Modo training-only (`TRAINING_ONLY = true`). Cache busting: string `?v=…` en `index.html`
-> **y** `sw.js` a la vez. **Última versión: `20260712-fase2-grafo-24`.**
+> **y** `sw.js` a la vez. **Última versión: `20260713-s1-tiron-vertical-25`.**
 
 ## Cómo trabajar aquí (imprescindible)
 
-- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **62 asserts**.
+- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **65 asserts**.
   Correr siempre tras tocar el motor.
 - **Simulación de entrenamiento** (nueva herramienta de QA): 6 semanas × 4 días con un
   atleta sintético que sigue las sugerencias reales de la app vía Playwright+Chromium
@@ -61,6 +61,19 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
   cuando el bloque no tiene historial (`denseEstimatedLoadSuggestion`).
 - `23b547b` e1RM efectivo: los fallos recalibran al instante.
 - `8618f72` Fix estrella de favorito que no se actualizaba en el picker.
+
+### S1 Tirón vertical — primera sesión de patrón (13 jul 2026)
+- 8 altas con veredicto del usuario: `scapular_pull` 0.25 · `pull_up_feet_assisted`
+  0.35 · `pull_up_band_assisted` 0.5 · `pull_up_negative` 0.6 · `l_pull_up` 1.1 ·
+  `incline_row` 0.6 (`horizontal_pull` nivelada con `ring_row` 1.0) · `lat_pulldown`
+  (weighted, vectores id) · `oac_finger_assisted` 0.88.
+- Modalidades: `assisted` en pull_up/chin_up (máquina/contrapeso); `oac_assisted`
+  renombrada "goma/polea". Arista chin→pull ahora `progresa` (supinas antes).
+- Rechazos documentados en `patrones/tiron-vertical.md` (chest-to-bar, typewriter,
+  uneven, jackknife, anillas-variante, high pull → S10).
+- Fixes de paso: suelo 0.25 en `denseFamilyDifficultyFactor` (regresiones profundas
+  hundían el default del hermano duro) y `denseFormTargetHoldPerRound` ya no descarta
+  estimaciones de hermana <2s (invertía dificultad vía default). +3 self-tests (65).
 
 ### Fase 2 — grafo, asimetría y niveles aprendidos (12 jul 2026, noche)
 - **§3.1 Grafo de progresión** (`denseProgressionEdges` + `leverChainEdges`): aristas

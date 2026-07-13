@@ -123,7 +123,7 @@ con vectores propios (y guard de espurios verificado).
 
 | Sesión | Estado | Doc |
 |---|---|---|
-| S1 Tirón vertical | ⬜ pendiente (piloto) | docs/patrones/tiron-vertical.md |
+| S1 Tirón vertical | ✅ 13 jul 2026 — 8 altas, 2 modalidades, 6 rechazos documentados | [patrones/tiron-vertical.md](patrones/tiron-vertical.md) |
 | S2–S10 | ⬜ | — |
 
 > Al completar cada sesión: actualizar esta tabla, `ESTADO-SESIONES.md` y la tabla de

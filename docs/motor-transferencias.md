@@ -179,7 +179,10 @@ Dos campos con la misma semántica, resueltos por `denseProgressionLevelOf(ex)`
 - **`leverLevel`**: generado para front/back lever (`denseLeverProgressionLevel`,
   tuck 0.35 → full 1.0).
 - **`progressionLevel`** (jul 2026): curado a mano en el catálogo para el resto de
-  familias-progresión. Familias niveladas: `strict_pull` (chin 0.95 · pull 1),
+  familias-progresión. Familias niveladas: `strict_pull` (escapular 0.25 · asistida
+  pies 0.35 · goma 0.5 · negativa 0.6 · chin 0.95 · pull 1 · L-pull-up 1.1 — S1),
+  `horizontal_pull` (remo inclinado 0.6 · ring row 1 — S1), `one_arm_chin` con
+  `oac_finger_assisted` 0.88 (S1),
   `pushup` (suelo 0.75 · déficit 0.85 · palmada 0.9), `single_leg_squat` (bulgarian 0.6 ·
   pistol 0.9), `hinge_bodyweight` (SL GM 0.45 · nordic 0.95), `knee_dominant` (NLE 0.6 ·
   sissy 0.85), `hspu` (pike 0.55 · HeSPU 0.85 · full ROM 1), `handstand` (straddle 0.9 ·
