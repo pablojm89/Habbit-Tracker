@@ -8,9 +8,9 @@
 
 ## Cómo funciona (13 jul 2026 — ritmo pausado a petición del usuario)
 
-**Solo está activa la T1 (tirón).** T2–T5 quedan en espera hasta hacer y revisar la
-T1 juntos — sin agobios. La batería vive en este MD; los resultados se registran en
-la app como marcas normales.
+**Activas: T1 (tirón) y T2 (empuje).** T3–T5 en espera hasta revisar estas dos —
+sin agobios. La batería vive en este MD; los resultados se registran en la app como
+marcas normales (los MÁX en notas hasta que exista el esquema MAX).
 
 ## Reglas de ejecución
 
@@ -62,14 +62,25 @@ Con esto la app aprende: exponente one_arm_chin (archer↔OAC), e1RM real de chi
 lastrada + pendiente de tu curva (5D1 vs 5D3), unificación bodyweight↔lastre del
 mismo ejercicio, y tu posición respecto a los hitos (+BW/6, +BW/3).
 
-## T2 — Empuje (pares: pushup · hspu) — EN ESPERA hasta revisar T1
-| Test | Esquema | Para qué |
+## T2 — Empuje (nivel avanzado: máx + lastre) ← ACTIVA junto a T1
+
+### Día A — sin lastre
+| Test | Esquema exacto | Cómo |
 |---|---|---|
-| Flexiones en suelo | 5D | ancla pushup |
-| Flexiones con palmada | 5D | **par** con suelo (0.75→0.9) |
-| Pike push-up | 5D | ancla hspu |
-| HeSPU nariz al suelo | 5D | **par** con pike (0.55→0.85) |
-| Press banca | 5D5 | ancla e1RM + curva personal |
+| **Max reps dips en paralelas** | serie única al fallo técnico | FRESCO, lo primero. Ancla del empuje (en notas hasta que exista el esquema MAX) |
+| — descanso 8-10 min — | | |
+| Dips en paralelas | **5D** | tus máximas × ~0.37 (p. ej. 25 máx → 5D9) |
+| Pike push-up | **5D** | máximas de pike × ~0.37 |
+| HeSPU nariz al suelo | **5D** | **par** con pike (0.55↔0.85) → exponente hspu. Pocas reps/min, es normal |
+
+### Día B (48h) — lastre y barra
+| Test | Esquema exacto | Cómo |
+|---|---|---|
+| Dips lastradas media | **5D3** | lastre de tus series de 4-6 reps · 15 totales |
+| Dips lastradas pesada | **5D1** | lastre cercano a tu 2-3RM · 5 singles. Con el 5D3 dibuja tu curva de empuje |
+| Press militar | **5D3** | peso de tus series de ~5 · ancla del empuje vertical con barra |
+| (opcional) Press banca | **5D5** | si lo entrenas, ancla horizontal |
+| (opcional) Handstand | **10D hold** | lo que aguantes limpio por ronda (~0.2× tu hold máximo) |
 
 ## T3 — Pierna (pares: knee_dominant · single_leg_squat · hinge_bodyweight)
 | Test | Esquema | Para qué |
