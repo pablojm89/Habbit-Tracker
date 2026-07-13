@@ -7298,16 +7298,46 @@ button:focus-visible {
   color: color-mix(in srgb, #ffd166, var(--text) 28%);
 }
 
+/* The native checkbox exploded to a giant square on iOS (user-agent quirks +
+   generic input rules). It is now fully hidden; .test-toggle-box is the visual. */
 .transfer-note.dense-test-toggle input[type="checkbox"] {
-  margin-top: 1px;
-  accent-color: #ffd166;
-  flex: 0 0 auto;
-  width: 16px;
-  height: 16px;
+  position: absolute;
+  width: 1px;
+  height: 1px;
   min-height: 0;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
-.transfer-note.dense-test-toggle span {
+.transfer-note.dense-test-toggle .test-toggle-box {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  border: 2px solid rgba(255, 209, 102, 0.7);
+  border-radius: 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1;
+  color: transparent;
+}
+
+.transfer-note.dense-test-toggle .test-toggle-box::before {
+  content: "✓";
+}
+
+.transfer-note.dense-test-toggle input[type="checkbox"]:checked + .test-toggle-box {
+  background: #ffd166;
+  color: #201a05;
+}
+
+.transfer-note.dense-test-toggle .test-toggle-text {
   flex: 1 1 auto;
   min-width: 0;
 }

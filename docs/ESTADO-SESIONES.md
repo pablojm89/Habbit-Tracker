@@ -8,7 +8,7 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 > App: PWA de entrenamiento (Dense training). Vanilla JS sin build: `app.js` (~9000
 > líneas), `styles.css`, `index.html`, `sw.js`. Sincroniza a Google Sheets vía Apps Script.
 > Modo training-only (`TRAINING_ONLY = true`). Cache busting: string `?v=…` en `index.html`
-> **y** `sw.js` a la vez. **Última versión: `20260713-repaso-qa-27`.**
+> **y** `sw.js` a la vez. **Última versión: `20260713-toggle-blindado-28`.**
 
 ## Cómo trabajar aquí (imprescindible)
 
@@ -61,6 +61,12 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
   cuando el bloque no tiene historial (`denseEstimatedLoadSuggestion`).
 - `23b547b` e1RM efectivo: los fallos recalibran al instante.
 - `8618f72` Fix estrella de favorito que no se actualizaba en el picker.
+
+### Toggle de test blindado (13 jul 2026, noche)
+- El checkbox nativo seguía explotando en iOS (capturas del usuario) pese al fix CSS
+  — probablemente PWA resumida sin recargar, pero da igual: ahora el checkbox está
+  **oculto del todo** y la casilla es dibujada (`.test-toggle-box`, patrón de los
+  chips de esquema). Imposible de romper por user-agent. Verificado 18×18 + tap.
 
 ### Repaso QA completo de la app (13 jul 2026, tarde)
 - **Buscador arreglado** (`denseSearchNormalize`/`denseSearchMatches`): insensible a

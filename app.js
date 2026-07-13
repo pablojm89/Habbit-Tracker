@@ -3777,7 +3777,9 @@ function denseReadinessField(selected = "normal") {
 }
 
 function denseTestToggleHtml() {
-  return `<label class="transfer-note dense-test-toggle"><input type="checkbox" name="isTest" checked /><i data-lucide="flask-conical"></i><span>Sesión test: el objetivo es estimado. Explóralo — si no sale, recalibra sin penalizar tu semana.</span></label>`;
+  // Native checkbox is visually hidden and replaced by a drawn box: iOS
+  // stretched the real one into a giant amber square that crushed the text.
+  return `<label class="transfer-note dense-test-toggle"><input type="checkbox" name="isTest" checked /><span class="test-toggle-box" aria-hidden="true"></span><span class="test-toggle-text">Sesión test: el objetivo es estimado. Explóralo — si no sale, recalibra sin penalizar tu semana.</span></label>`;
 }
 
 function denseTrainingFormMarkup(defaults, { includePicker = false, modal = false, submitLabel = "Guardar marca Dense" } = {}) {
