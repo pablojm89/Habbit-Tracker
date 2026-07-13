@@ -258,6 +258,15 @@ const DENSE_LEVER_ENDURANCE_EXP = 2.2;
 // A weekly test slot is only worth suggesting when at least one boost source
 // has a genuinely strong relationship with the target exercise.
 const DENSE_TEST_MIN_PAIR_C = 0.35;
+// Fase 2 §3.2 — asymmetric transfer: strength moves DOWN a progression almost
+// fully but UP with a discount (same-family upward damp exponent).
+const DENSE_TRANSFER_ASYM_EXP = 1.5;
+// Extra damp when a non-barbell source feeds a pure "weighted" lift: % gains
+// on bodyweight skills don't move an absolutely-loaded bar as much.
+const DENSE_TRANSFER_TO_BARBELL = 0.8;
+// Fase 2 §3.3 — learned per-family endurance exponent (from direct sibling
+// tests) replaces the generic 2.2 once the family has real paired evidence.
+let denseLevelExpCache = null;
 // Fase 4 — aprendizaje: mínimo de observaciones para usar sigma empírica y
 // clamp del bias de pendiente de la curva personal por ejercicio.
 const DENSE_CALIBRATION_MIN_OBS = 4;
@@ -1226,6 +1235,131 @@ function leverSkillExercises(prefix, label, bodyweightContributionPct) {
   });
 }
 
+// ── Fase 2 §3.1: progression graph ───────────────────────────────────────
+// Declarative, typed edges over the catalog. "progresa": the natural next
+// step on the same branch. "paralela": a different branch attacking the same
+// pattern goal (sissy ∥ NLE hacia fuerza de rodilla) — strong transfer but
+// each branch keeps its own difficulty level; never a 1:1 target estimate.
+// UI-only for now (Ruta de progresión); the transfer engine stays vector-based.
+function leverChainEdges(prefix) {
+  const order = ["tuck", "one_quarter", "adv_tuck", "one_leg", "straddle", "half", "three_quarter", "full"];
+  const edges = [];
+  for (let i = 0; i < order.length - 1; i++) {
+    edges.push([`${prefix}_${order[i]}`, `${prefix}_${order[i + 1]}`, "progresa"]);
+    edges.push([`${prefix}_${order[i]}_pull`, `${prefix}_${order[i + 1]}_pull`, "progresa"]);
+  }
+  order.forEach((id) => edges.push([`${prefix}_${id}`, `${prefix}_${id}_pull`, "paralela"]));
+  return edges;
+}
+
+const denseProgressionEdges = [
+  // Tren inferior
+  ["air_squat", "bulgarian_split_squat", "progresa"],
+  ["bulgarian_split_squat", "pistol_squat", "progresa"],
+  ["natural_leg_extension", "sissy_squat", "paralela"],
+  ["machine_leg_extension", "natural_leg_extension", "paralela"],
+  ["machine_leg_curl", "nordic_curl", "paralela"],
+  ["single_leg_good_morning", "nordic_curl", "paralela"],
+  ["single_leg_good_morning", "back_extension", "paralela"],
+  ["back_squat", "front_squat", "paralela"],
+  ["pistol_squat", "back_squat", "paralela"],
+  // Empuje
+  ["floor_push_up", "deficit_push_up", "progresa"],
+  ["floor_push_up", "clap_push_up", "progresa"],
+  ["floor_push_up", "ring_push_up", "progresa"],
+  ["deficit_push_up", "clap_push_up", "paralela"],
+  ["parallel_bar_dip", "ring_dip", "progresa"],
+  ["pike_push_up", "headstand_push_up", "progresa"],
+  ["headstand_push_up", "full_rom_hspu", "progresa"],
+  ["military_press", "headstand_push_up", "paralela"],
+  ["bench_press", "floor_push_up", "paralela"],
+  ["straddle_handstand", "straight_handstand", "progresa"],
+  ["straight_handstand", "press_to_handstand", "progresa"],
+  // Tirón
+  ["chin_up", "pull_up", "paralela"],
+  ["pull_up", "archer_chin_up", "progresa"],
+  ["chin_up", "archer_chin_up", "progresa"],
+  ["archer_chin_up", "oac_negative", "progresa"],
+  ["oac_negative", "one_arm_chin_up", "progresa"],
+  ["oac_assisted", "one_arm_chin_up", "progresa"],
+  ["oac_assisted", "oac_negative", "paralela"],
+  ["pull_up", "front_lever_tuck", "progresa"],
+  // Cuelgues
+  ["cuelgue_passive_bilateral", "cuelgue_active", "progresa"],
+  ["cuelgue_passive_bilateral", "cuelgue_passive_one_hand", "progresa"],
+  ["cuelgue_active", "cuelgue_active_one_hand", "progresa"],
+  ["cuelgue_passive_one_hand", "cuelgue_active_one_hand", "progresa"],
+  ["cuelgue_active_ig", "cuelgue_active", "paralela"],
+  // Core
+  ["toes_to_bar_kip", "toes_to_bar_strict", "progresa"],
+  ["hollow_body_hold", "l_sit_tuck", "progresa"],
+  ["l_sit_tuck", "l_sit_one_leg", "progresa"],
+  ["l_sit_one_leg", "l_sit", "progresa"],
+  ["l_sit", "l_sit_straddle", "progresa"],
+  ["l_sit_straddle", "v_sit", "progresa"],
+  // Puente
+  ["bridge_isometric", "bridge_push_up", "progresa"],
+  ["bridge_push_up", "bridge_walkover", "progresa"],
+  ...leverChainEdges("front_lever"),
+  ...leverChainEdges("back_lever"),
+];
+
+function denseProgressionLinks(exercise) {
+  const id = exercise?.id;
+  if (!id) return { prev: [], next: [], parallel: [] };
+  const prev = [];
+  const next = [];
+  const parallel = [];
+  denseProgressionEdges.forEach(([a, b, type]) => {
+    if (type === "progresa") {
+      if (a === id) next.push(b);
+      if (b === id) prev.push(a);
+    } else {
+      if (a === id) parallel.push(b);
+      else if (b === id) parallel.push(a);
+    }
+  });
+  const resolve = (list) => [...new Set(list)].map((xid) => denseExerciseById(xid)).filter(Boolean);
+  return { prev: resolve(prev), next: resolve(next), parallel: resolve(parallel) };
+}
+
+// Validator (self-tested): ids resolve, no self-edges, "progresa" is acyclic,
+// and within a family a "progresa" edge always climbs in level.
+function denseProgressionGraphIssues() {
+  const issues = [];
+  const adjacency = {};
+  denseProgressionEdges.forEach(([a, b, type]) => {
+    const ea = denseExerciseById(a);
+    const eb = denseExerciseById(b);
+    if (!ea || !eb) issues.push(`id desconocido: ${!ea ? a : b}`);
+    if (a === b) issues.push(`self-edge: ${a}`);
+    if (type !== "progresa" && type !== "paralela") issues.push(`tipo raro: ${type}`);
+    if (type === "progresa" && ea && eb) {
+      (adjacency[a] ||= []).push(b);
+      if (ea.family === eb.family) {
+        const la = denseProgressionLevelOf(ea);
+        const lb = denseProgressionLevelOf(eb);
+        if (la && lb && lb <= la) issues.push(`progresa no sube nivel: ${a}→${b}`);
+      }
+    }
+  });
+  const visiting = new Set();
+  const done = new Set();
+  const walk = (node) => {
+    if (done.has(node)) return;
+    if (visiting.has(node)) {
+      issues.push(`ciclo en progresa: ${node}`);
+      return;
+    }
+    visiting.add(node);
+    (adjacency[node] || []).forEach(walk);
+    visiting.delete(node);
+    done.add(node);
+  };
+  Object.keys(adjacency).forEach(walk);
+  return issues;
+}
+
 // ── Transfer engine phase 2: pattern/muscle vectors + propagation ────────
 // Metadata lives per FAMILY (with per-id overrides) so the whole catalog is
 // covered without touching every entry. Muscles axes: lats, upper_back,
@@ -1367,6 +1501,19 @@ function denseIsSpuriousMobilityPair(e, f) {
   return (e.category === "mobility" || f.category === "mobility") && e.family !== f.family;
 }
 
+// §3.2 — difficulty asymmetry (formula path only; hand-tuned overrides are
+// already directional). Same family: damp by relative level when the target
+// is HARDER. Any non-barbell source into a pure "weighted" lift gets an extra
+// damp — a pistol PR barely moves a 175 kg deadlift.
+function denseDifficultyAsymmetry(e, f) {
+  let factor = 1;
+  const le = denseProgressionLevelOf(e);
+  const lf = denseProgressionLevelOf(f);
+  if (e.family && e.family === f.family && le && lf && lf > le) factor *= Math.pow(le / lf, DENSE_TRANSFER_ASYM_EXP);
+  if (f.nature === "weighted" && e.nature !== "weighted") factor *= DENSE_TRANSFER_TO_BARBELL;
+  return factor;
+}
+
 function denseTransferCoefficient(e, f) {
   const override = densePairOverrides[`${e.id}>${f.id}`];
   if (override != null) return clamp(override * densePairK(e, f), 0, 0.9);
@@ -1379,7 +1526,7 @@ function denseTransferCoefficient(e, f) {
   // horizontal pull) still transfer through shared musculature.
   const pat = denseVecCos(A.patterns, B.patterns);
   const mus = denseVecCos(A.muscles, B.muscles);
-  const c = (0.55 * pat + 0.45 * mus) * denseModalityFactor(e, f) * (1 - (B.specificity ?? 0.3) * 0.7) * densePairK(e, f);
+  const c = (0.55 * pat + 0.45 * mus) * denseModalityFactor(e, f) * (1 - (B.specificity ?? 0.3) * 0.7) * densePairK(e, f) * denseDifficultyAsymmetry(e, f);
   return clamp(roundTo(c, 3), 0, 0.9);
 }
 
@@ -1554,6 +1701,7 @@ function denseTransferStep(entry, priorEntries) {
 // Editing or deleting any mark re-derives boosts, events and learned pairK —
 // no ghost state can survive. Returns the resulting boosts snapshot.
 function rebuildTransferState({ excludeId = null } = {}) {
+  denseLevelExpCache = null; // history changed → learned exponents change
   state.transfer = { boosts: {}, events: [], pairK: {}, pendingK: {} };
   const sorted = [...getDenseEntries()]
     .filter((entry) => entry.id !== excludeId)
@@ -2498,6 +2646,31 @@ function runDenseSelfTests() {
     } finally {
       state.transfer = savedTransfer;
     }
+  });
+
+  // Fase 2: grafo de progresión, asimetría por dificultad y exponente aprendido
+  test("grafo: validador sin issues (ids, ciclos, niveles)", () => denseProgressionGraphIssues().length === 0);
+  test("grafo: sissy ∥ NLE y cadena L-sit correcta", () => {
+    const sissy = denseProgressionLinks(denseExerciseById("sissy_squat"));
+    const lsit = denseProgressionLinks(denseExerciseById("l_sit"));
+    return (
+      sissy.parallel.some((ex) => ex.id === "natural_leg_extension") &&
+      lsit.prev.some((ex) => ex.id === "l_sit_one_leg") &&
+      lsit.next.some((ex) => ex.id === "l_sit_straddle")
+    );
+  });
+  test("asimetría: subir cuesta (NLE→sissy < sissy→NLE) y skill→barra descuenta", () => {
+    return (
+      C("natural_leg_extension", "sissy_squat") < C("sissy_squat", "natural_leg_extension") &&
+      C("pistol_squat", "deadlift") < C("deadlift", "pistol_squat")
+    );
+  });
+  test("exponente aprendido: pares directos de cuelgue lo empinan (clamp 3.4), sin pares = 2.2", () => {
+    denseLevelExpCache = null;
+    return (
+      Math.abs(denseFamilyEnduranceExp("cuelgue", "isometric_capacity") - 3.4) < 0.01 &&
+      denseFamilyEnduranceExp("knee_dominant", "bodyweight_capacity") === DENSE_LEVER_ENDURANCE_EXP
+    );
   });
 
   state.denseTrainingEntries = savedEntries;
@@ -5335,6 +5508,7 @@ function openDenseExerciseDetailModal(exerciseId) {
             </section>`
           : ""
       }
+      ${denseProgressionSectionHtml(exercise)}
       <section class="exercise-detail-section">
         <div class="section-subhead">
           <strong>Mis marcas</strong>
@@ -5358,6 +5532,52 @@ function openDenseExerciseDetailModal(exerciseId) {
     </div>
   `;
   openModal();
+}
+
+// Fase 2 §3.4 — Ruta de progresión: where you come from, where you're going,
+// and the parallel branches, each with its best evidence (direct mark → best
+// value; leveled sibling → estimate; otherwise "sin datos"). Nodes navigate.
+function denseProgressionNodeChip(exercise) {
+  const entries = getDenseEntries().filter((entry) => entry.exercise_id === exercise.id && !entry.deleted_at);
+  let status = "sin datos";
+  let cls = "";
+  if (entries.length) {
+    const best = [...entries].sort((a, b) => denseEntryScore(b) - denseEntryScore(a))[0];
+    status = denseEntryValue(best);
+    cls = "is-direct";
+  } else {
+    const sibling = denseLeverSiblingEstimate(exercise, denseIsIsometric(exercise) ? "isometric_capacity" : "bodyweight_capacity");
+    if (sibling) {
+      status = denseIsIsometric(exercise) ? `≈ ${Math.max(1, Math.floor(sibling.value))}s est.` : `≈ ${roundTo(sibling.value, 1)}/min est.`;
+      cls = "is-estimated";
+    }
+  }
+  return `
+    <button class="progression-node ${cls}" type="button" data-action="open-dense-exercise-detail" data-exercise="${escapeAttr(exercise.id)}">
+      <strong>${escapeHtml(exercise.name)}</strong>
+      <span>${escapeHtml(status)}</span>
+    </button>
+  `;
+}
+
+function denseProgressionSectionHtml(exercise) {
+  const links = denseProgressionLinks(exercise);
+  if (!links.prev.length && !links.next.length && !links.parallel.length) return "";
+  const group = (label, icon, list) =>
+    list.length
+      ? `<div class="progression-group">
+          <span class="progression-group-label"><i data-lucide="${icon}"></i>${label}</span>
+          <div class="progression-node-list">${list.map(denseProgressionNodeChip).join("")}</div>
+        </div>`
+      : "";
+  return `
+    <section class="exercise-detail-section progression-map">
+      <div class="section-subhead"><strong>Ruta de progresión</strong><span>de dónde vienes y a dónde vas</span></div>
+      ${group("Vienes de", "corner-left-up", links.prev)}
+      ${group("Siguiente paso", "corner-right-up", links.next)}
+      ${group("Ramas paralelas", "git-branch", links.parallel)}
+    </section>
+  `;
 }
 
 function exerciseDetailRow(entry, index) {
@@ -7923,6 +8143,46 @@ function denseFamilyDifficultyFactor(exercise) {
   return Math.pow(entry / level, DENSE_LEVER_ENDURANCE_EXP);
 }
 
+// §3.3 — learned endurance exponent per (family, axis). Every pair of leveled
+// siblings with DIRECT marks on the same axis is an observation of how steeply
+// capacity really falls with difficulty for THIS athlete:
+//   e = ln(cap_easy / cap_hard) / ln(level_hard / level_easy)
+// Median of observations, prudent clamp; generic 2.2 until evidence exists.
+// Derived from history only (cache re-derived after every fold).
+function denseFamilyEnduranceExp(family, key) {
+  denseLevelExpCache ||= {};
+  const cacheKey = `${family}|${key}`;
+  if (cacheKey in denseLevelExpCache) return denseLevelExpCache[cacheKey];
+  const caps = [];
+  denseExerciseCatalog.forEach((sibling) => {
+    if (sibling.family !== family) return;
+    const level = denseProgressionLevelOf(sibling);
+    if (!level) return;
+    let best = 0;
+    getDenseEntries().forEach((entry) => {
+      if (entry.exercise_id === sibling.id && !entry.deleted_at) best = Math.max(best, Number(entry[key]) || 0);
+    });
+    if (best) caps.push({ level, best });
+  });
+  const observations = [];
+  for (let i = 0; i < caps.length; i++) {
+    for (let j = i + 1; j < caps.length; j++) {
+      const easy = caps[i].level < caps[j].level ? caps[i] : caps[j];
+      const hard = easy === caps[i] ? caps[j] : caps[i];
+      if (hard.level - easy.level < 0.1) continue; // too close: noise dominates the ratio
+      const exp = Math.log(easy.best / hard.best) / Math.log(hard.level / easy.level);
+      if (Number.isFinite(exp)) observations.push(exp);
+    }
+  }
+  let value = DENSE_LEVER_ENDURANCE_EXP;
+  if (observations.length) {
+    const sorted = [...observations].sort((a, b) => a - b);
+    const median = sorted.length % 2 ? sorted[(sorted.length - 1) / 2] : (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2;
+    value = clamp(median, 1.6, 3.4);
+  }
+  return (denseLevelExpCache[cacheKey] = roundTo(value, 3));
+}
+
 // Cross-estimate within a leveled progression family: your capacity at one
 // difficulty level implies a capacity at every other level via the endurance
 // curve (harder sibling → disproportionally shorter holds / fewer reps).
@@ -7933,6 +8193,7 @@ function denseFamilyDifficultyFactor(exercise) {
 function denseLeverSiblingEstimate(exercise, key) {
   const level = denseProgressionLevelOf(exercise);
   if (!level || !exercise.family) return null;
+  const enduranceExp = denseFamilyEnduranceExp(exercise.family, key);
   let best = null;
   denseExerciseCatalog.forEach((sibling) => {
     if (sibling.family !== exercise.family || sibling.id === exercise.id) return;
@@ -7940,7 +8201,7 @@ function denseLeverSiblingEstimate(exercise, key) {
     if (!siblingLevel) return;
     const capacity = denseBestCapacity(sibling.id, key);
     if (!capacity) return;
-    const scaled = capacity * Math.pow(siblingLevel / level, DENSE_LEVER_ENDURANCE_EXP);
+    const scaled = capacity * Math.pow(siblingLevel / level, enduranceExp);
     const gap = Math.abs(siblingLevel - level);
     if (!best || gap < best.gap - 0.001 || (Math.abs(gap - best.gap) <= 0.001 && scaled > best.value)) {
       best = { value: scaled, from: sibling, fromCapacity: capacity, gap };

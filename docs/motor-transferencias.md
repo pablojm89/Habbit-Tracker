@@ -64,6 +64,12 @@ clamp [0, 0.9]
 - `densePairK(e, f)`: multiplicador **personal aprendido** por par de patrones dominantes
   (`densePrimaryPattern`), guardado en `state.transfer.pairK["patrónA>patrónB"]`,
   clamp `[0.3, 2]`, inicial 1. Ver reconciliación.
+- **Asimetría por dificultad** (`denseDifficultyAsymmetry`, fase 2 §3.2, jul 2026):
+  solo en la ruta de fórmula (los overrides son direccionales a mano). Misma familia y
+  destino más duro → `×(nivel_origen/nivel_destino)^1.5` (`DENSE_TRANSFER_ASYM_EXP`);
+  cualquier fuente no-barra hacia un lift `weighted` puro → `×0.8`
+  (`DENSE_TRANSFER_TO_BARBELL`): un PR de pistol apenas mueve un peso muerto de 175 kg.
+  La fuerza baja por la progresión casi entera; sube con descuento.
 
 Matriz de referencia (self-tested): pull_up→chin_up 0.80 · pull→FL pull ~0.39 ·
 pull→ring_row ~0.29 · pull→bench 0 · bench→dips ~0.66 · military→HSPU 0.55 ·
@@ -195,6 +201,29 @@ Cuando varias hermanas tienen datos, manda la de **nivel más cercano** al objet
 dificultades (un test flojo del cuelgue pasivo a 1 mano quedaba ignorado frente al
 cuelgue activo bilateral, y el activo a 1 mano salía con objetivo mayor que el pasivo).
 Hallado en simulación de 6 semanas (jul 2026); self-test "hermana más cercana manda".
+
+**Exponente aprendido** (fase 2 §3.3): `denseFamilyEnduranceExp(family, key)` — cada
+par de hermanas niveladas con marcas directas en el mismo eje observa
+`e = ln(cap_fácil/cap_dura) / ln(nivel_duro/nivel_fácil)`; mediana de observaciones,
+clamp `[1.6, 3.4]`, gap mínimo de nivel 0.1 (pares casi iguales = ruido). Sin evidencia
+→ 2.2 genérico. Cache `denseLevelExpCache`, re-derivada en cada fold
+(`rebuildTransferState`): tus tests corrigen la curva curada, familia a familia.
+
+## 9.6 Grafo de progresión (fase 2 §3.1 + §3.4)
+
+`denseProgressionEdges` (junto al catálogo): aristas tipadas `["a", "b", "progresa" |
+"paralela"]` + cadenas de levers generadas (`leverChainEdges`). **`progresa`** = paso
+natural de la misma rama; **`paralela`** = rama distinta hacia el mismo patrón (sissy ∥
+NLE): transferencia fuerte pero nunca estimación 1:1 — cada rama con su nivel. De
+momento el grafo es **solo UI/semántica** (el motor sigue siendo vectorial).
+`denseProgressionLinks(ex)` resuelve prev/next/paralelas;
+`denseProgressionGraphIssues()` valida (ids, sin ciclos en `progresa`, dentro de una
+familia `progresa` siempre sube de nivel) y está self-testeado. UI: sección **"Ruta de
+progresión"** en el detalle del ejercicio (`denseProgressionSectionHtml`): vienes de /
+siguiente paso / ramas paralelas, cada nodo con su evidencia (marca directa en verde,
+estimación por nivel en ámbar, "sin datos") y navegable. Al añadir ejercicios: declarar
+sus aristas (ver `anadir-ejercicios.md`); la videoteca es la referencia de cadenas
+(`biblioteca-referencia.md`).
 
 Está cableado en un único resolvedor (tarjeta y formulario siempre coinciden):
 `denseFormTargetHoldPerRound`/`denseFormTargetRepsPerSet` (propio → hermana → default),

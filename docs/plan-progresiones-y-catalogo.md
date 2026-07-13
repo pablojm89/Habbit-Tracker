@@ -5,6 +5,17 @@
 > tarjeta de test filtrada por fuerza del par + rango en primer test, 5 self-tests
 > nuevos (57/57 OK). Versión `20260712-niveles-progresion-22`. Detalle en
 > `motor-transferencias.md` §9 y §9.5. Siguiente: §3 (medio plazo).
+>
+> **Estado (12 jul 2026, tarde): plan medio (§3) hecho salvo niveles aprendidos
+> completos** — §3.1 grafo declarativo (`denseProgressionEdges`, validado por
+> self-test) · §3.2 asimetría (misma familia hacia arriba `^1.5` + no-barra→barra
+> ×0.8) · §3.3 exponente de resistencia aprendido por familia de tus pares de tests
+> directos (`denseFamilyEnduranceExp`, clamp [1.6, 3.4]) · §3.4 UI "Ruta de
+> progresión" en el detalle · §3.5 parcial (pares revisados vía simulación; overrides
+> siguen vigentes). También: hermana de nivel más cercano manda (fix inversión) y
+> simulación de 6 semanas como herramienta de QA. 62/62 self-tests, versión
+> `20260712-fase2-grafo-24`. La videoteca está ya volcada y mapeada en
+> `biblioteca-referencia.md` como backlog priorizado de la fase 3 (§4).
 
 > Escrito el 12 jul 2026 tras auditar el caso reportado: *Natural Leg Extension sugiere
 > Sissy Squat a un nivel que lo trata como si fuera más fácil* (es al revés: sissy es

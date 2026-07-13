@@ -68,6 +68,11 @@ se tocan a mano).
    `denseProgressionFamilies` (recibe boosts en bloque) y `denseLeverProgressionLevel`
    (factor de palanca por progresión).
 
+7a. **Aristas del grafo de progresión** (`denseProgressionEdges`, junto al catálogo):
+   declara de dónde viene (`progresa`), a dónde va y sus ramas `paralela`. El
+   validador self-testeado exige ids reales, sin ciclos y que `progresa` suba de
+   nivel dentro de la familia. Cadenas de referencia: `biblioteca-referencia.md`.
+
 7b. **`progressionLevel` obligatorio si entra en una familia nivelada** (ver
    [motor-transferencias.md](motor-transferencias.md) §9.5: strict_pull, pushup,
    single_leg_squat, hinge_bodyweight, knee_dominant, hspu, handstand, toes_to_bar,

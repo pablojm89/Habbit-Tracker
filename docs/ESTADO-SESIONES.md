@@ -8,11 +8,11 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 > App: PWA de entrenamiento (Dense training). Vanilla JS sin build: `app.js` (~9000
 > líneas), `styles.css`, `index.html`, `sw.js`. Sincroniza a Google Sheets vía Apps Script.
 > Modo training-only (`TRAINING_ONLY = true`). Cache busting: string `?v=…` en `index.html`
-> **y** `sw.js` a la vez. **Última versión: `20260712-sim-fixes-23`.**
+> **y** `sw.js` a la vez. **Última versión: `20260712-fase2-grafo-24`.**
 
 ## Cómo trabajar aquí (imprescindible)
 
-- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **58 asserts**.
+- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **62 asserts**.
   Correr siempre tras tocar el motor.
 - **Simulación de entrenamiento** (nueva herramienta de QA): 6 semanas × 4 días con un
   atleta sintético que sigue las sugerencias reales de la app vía Playwright+Chromium
@@ -61,6 +61,21 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
   cuando el bloque no tiene historial (`denseEstimatedLoadSuggestion`).
 - `23b547b` e1RM efectivo: los fallos recalibran al instante.
 - `8618f72` Fix estrella de favorito que no se actualizaba en el picker.
+
+### Fase 2 — grafo, asimetría y niveles aprendidos (12 jul 2026, noche)
+- **§3.1 Grafo de progresión** (`denseProgressionEdges` + `leverChainEdges`): aristas
+  `progresa`/`paralela` declarativas, validador self-testeado
+  (`denseProgressionGraphIssues`). Solo UI/semántica; el motor sigue vectorial.
+- **§3.2 Asimetría** (`denseDifficultyAsymmetry`): misma familia hacia arriba
+  `×(la/lb)^1.5`; no-barra→`weighted` `×0.8`. Solo ruta de fórmula (overrides exentos).
+- **§3.3 Exponente aprendido** (`denseFamilyEnduranceExp`): mediana de pares de
+  hermanas con tests directos, clamp [1.6, 3.4]; cache re-derivada en cada fold.
+- **§3.4 UI "Ruta de progresión"** en detalle de ejercicio: vienes de / siguiente /
+  paralelas, nodos navegables con evidencia (directo verde · estimado ámbar · sin datos).
+- **Videoteca leída completa** y mapeada → `biblioteca-referencia.md` (backlog fase 3
+  priorizado: regresiones dips/dominadas, sissy full ROM, shrimp, curl isquio anillas,
+  one-arm toes to bar, muscle up).
+- +4 self-tests (62 total) · sim de regresión limpia (114 sets, 0 inversiones, 0 leaks).
 
 ### Simulación 6 semanas + fixes (12 jul 2026, tarde)
 - **`loadCloudConfig` re-activaba el sync desactivado** al recargar si endpoint/token
