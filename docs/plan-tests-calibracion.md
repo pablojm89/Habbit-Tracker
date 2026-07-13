@@ -44,7 +44,9 @@ más bajo de lo que parece. Dato real del usuario: **20 chins máximas → 5D7-8
 ### Día A — eje sin lastre + camino OAC
 | Test | Esquema exacto | Cómo |
 |---|---|---|
-| Chin-up sin lastre | **5D** | en tu caso: **5D7 u 5D8** (tus 20 máximas × ~0.37). Clavar los 5 minutos, última ronda RPE 8-9 |
+| **Max reps chin-up** | **serie única al fallo técnico** | FRESCO, lo primero del día. Es EL ancla: fija tu ratio real máximas↔densidad. ⚠️ La app aún no tiene esquema de serie única — apúntalo en las notas de la sesión y en el registro de abajo (feature "MAX" pendiente) |
+| — descanso 8-10 min — | | |
+| Chin-up sin lastre | **5D** | en tu caso: **5D7 u 5D8** (tus 20 máximas × ~0.37). Clavar los 5 minutos, última ronda RPE 8-9. Puede salir un pelín corto tras el máx: anótalo |
 | Archer chin-up | **5D por lado** | mismas cuentas con tus archers máximas por lado (p. ej. 5-6 máx → 5D2/lado) |
 | OAC | **2D** | 1 rep/min por lado (2/lado en total); si va sobrado, 2/min. **Par archer↔OAC** → exponente real de la familia |
 
@@ -104,6 +106,16 @@ mismo ejercicio, y tu posición respecto a los hitos (+BW/6, +BW/3).
 - **Reconciliación pairK**: los boosts pendientes se contrastan con realidad.
 - **Sigma empírica**: la confianza de las tarjetas pasa de fórmula a TU error real.
 - Corrección de niveles curados donde tu ratio real discrepe (sissy/NLE, etc.).
+
+## Feature pendiente (alta prioridad): esquema "MAX"
+
+La app solo modela bloques de densidad; falta un formato de **serie única al fallo**
+(reps máximas o hold máximo). Con él, el motor podría anclar la curva
+máximas↔densidad POR EJERCICIO y aprender los multiplicadores personales
+(hoy genéricos: 2D 0.9 · 5D 0.6 · 10D 0.33 · 20D 0.27 — el dato real del usuario
+en chins es 5D ≈ 0.37× máx, casi la mitad del 0.6 genérico sobre máximas).
+Diseñar en próxima sesión de motor: nuevo scheme "MAX", eje propio, sin tonnage
+de densidad, alimentando bodyweight/isometric_capacity y la curva personal.
 
 ## Registro
 
