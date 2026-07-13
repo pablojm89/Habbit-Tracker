@@ -5678,7 +5678,9 @@ button:active:not(:disabled),
   line-height: 1.2;
 }
 
-input,
+/* Checkbox/radio excluded: the generic width:100% + min-height stretched the
+   test-toggle checkbox into a giant box on iOS and crushed its label text. */
+input:not([type="checkbox"]):not([type="radio"]),
 select,
 textarea {
   width: 100%;
@@ -5691,7 +5693,7 @@ textarea {
   transition: border-color 0.14s ease, box-shadow 0.14s ease, background-color 0.14s ease;
 }
 
-input,
+input:not([type="checkbox"]):not([type="radio"]),
 select {
   min-height: 48px;
   padding: 0 14px;
@@ -7300,6 +7302,14 @@ button:focus-visible {
   margin-top: 1px;
   accent-color: #ffd166;
   flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  min-height: 0;
+}
+
+.transfer-note.dense-test-toggle span {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .transfer-note.is-warn {

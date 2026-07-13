@@ -20,16 +20,17 @@ Niveles relativos dentro de cada familia (pull_up = 1.0; pueden superar 1).
 - Máquina de dominadas asistidas: **sin entrada** — es la modalidad `assisted`
   añadida a `pull_up`/`chin_up` (contrapeso resta peso).
 
-### Cadena principal (`strict_pull`)
-`scapular_pull` 0.25 → `pull_up_feet_assisted` 0.35 → `pull_up_band_assisted` 0.5
-(nota: usar siempre la misma goma) → `pull_up_negative` 0.6 → `chin_up` 0.95 →
-`pull_up` 1.0 — **supinas siempre antes que pronas** (veredicto usuario; la arista
-chin→pull pasó de paralela a progresa). ∥ `l_pull_up` 1.1 (paralela, integra
-compresión).
+### Cadena principal (`strict_pull`) — corrección 13 jul
+El **eje del usuario son las CHIN-UPS** ("siempre hablo de chin ups aunque diga
+dominadas"): `scapular_pull` 0.25 → `pull_up_feet_assisted` 0.35 →
+`pull_up_band_assisted` 0.5 (misma goma siempre) → `pull_up_negative` 0.6 →
+**`chin_up` 0.95 (eje)**. Las pronas (`pull_up` 1.0) son **rama paralela** que le
+gusta menos ("suele dar más problemas a la gente"). ∥ `l_pull_up` 1.1.
 
-### Hito de lastre
-Antes de archer: dominada lastrada ≈ **+BW/6** (modalidad `weighted_calisthenics`
-de pull_up, no es nodo del grafo — queda como criterio de paso).
+### Hitos de lastre (declarados en `chin_up.milestones`, visibles en el detalle)
+- **+BW/6 de lastre en chin-up** → puerta a archer.
+- **+BW/3 de lastre en chin-up** → corre EN PARALELO a las negativas de OAC
+  (entre archer y OAC).
 
 ### Camino OAC (`one_arm_chin`)
 `archer_chin_up` 0.65 → `oac_negative` 0.8 → `one_arm_chin_up` 1.0, con dos

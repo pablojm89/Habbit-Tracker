@@ -8,11 +8,11 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 > App: PWA de entrenamiento (Dense training). Vanilla JS sin build: `app.js` (~9000
 > líneas), `styles.css`, `index.html`, `sw.js`. Sincroniza a Google Sheets vía Apps Script.
 > Modo training-only (`TRAINING_ONLY = true`). Cache busting: string `?v=…` en `index.html`
-> **y** `sw.js` a la vez. **Última versión: `20260713-s1-tiron-vertical-25`.**
+> **y** `sw.js` a la vez. **Última versión: `20260713-feedback-real-26`.**
 
 ## Cómo trabajar aquí (imprescindible)
 
-- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **65 asserts**.
+- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **68 asserts**.
   Correr siempre tras tocar el motor.
 - **Simulación de entrenamiento** (nueva herramienta de QA): 6 semanas × 4 días con un
   atleta sintético que sigue las sugerencias reales de la app vía Playwright+Chromium
@@ -61,6 +61,29 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
   cuando el bloque no tiene historial (`denseEstimatedLoadSuggestion`).
 - `23b547b` e1RM efectivo: los fallos recalibran al instante.
 - `8618f72` Fix estrella de favorito que no se actualizaba en el picker.
+
+### Feedback de uso real en iPhone (13 jul 2026)
+- **Checkbox del toggle de test gigante en iOS** (captura del usuario): la regla
+  genérica `input { width:100%; min-height:48px }` estiraba el checkbox y estrujaba
+  el texto a 1 letra/línea. Excluidos checkbox/radio de la regla + tamaño explícito.
+  Solo se manifestaba con lucide cargado/iOS — por eso el sim sandbox no lo vio.
+- **`bridge_isometric` sin `isometric: true`**: pedía reps en vez de tiempo. Único
+  caso en el catálogo; corregido.
+- **Holds capados a 55 s/ronda** (`denseCapHold`, `DENSE_MAX_HOLD_PER_ROUND` en el
+  bloque de constantes por TDZ): "81 s por minuto" era imposible.
+- **Strength levels honestos v1**: sin marca directa no se muestra la tabla; con
+  carga va en kg de e1RM; iso en segundos. Rediseño profundo pendiente CON el
+  usuario (benchmarks por ejercicio).
+- **Hitos del patrón** (`milestones` en catálogo + sección en detalle): chin-up
+  +BW/6 (puerta a archer) y +BW/3 (paralelo a negativas OAC); jefferson curl y
+  seated GM ⅓×BW en 5D10 (especialización) y ½×BW (nivelazo).
+- **Columna protegida** (`transferIn: "none"` en jefferson, straddle jefferson y
+  seated GM): cero transferencia entrante, ni de su familia ni por overrides —
+  escalada progresiva siempre (decisión del usuario).
+- **S1 corregida**: el eje son las CHIN-UPS (pronas = rama paralela que le gusta
+  menos); camino OAC ancla en chin; hito +BW/3 paralelo a negativas.
+- **Batería de tests de calibración** propuesta en `plan-tests-calibracion.md`
+  (T1–T5, pares por familia para aprender exponentes reales). +3 self-tests (68).
 
 ### S1 Tirón vertical — primera sesión de patrón (13 jul 2026)
 - 8 altas con veredicto del usuario: `scapular_pull` 0.25 · `pull_up_feet_assisted`

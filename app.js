@@ -267,6 +267,9 @@ const DENSE_TRANSFER_TO_BARBELL = 0.8;
 // Fase 2 §3.3 — learned per-family endurance exponent (from direct sibling
 // tests) replaces the generic 2.2 once the family has real paired evidence.
 let denseLevelExpCache = null;
+// A dense round is one minute: hold targets are capped below it (transition
+// margin included). TDZ: lives here because render-path helpers read it.
+const DENSE_MAX_HOLD_PER_ROUND = 55;
 // Fase 4 — aprendizaje: mínimo de observaciones para usar sigma empírica y
 // clamp del bias de pendiente de la curva personal por ejercicio.
 const DENSE_CALIBRATION_MIN_OBS = 4;
@@ -394,6 +397,11 @@ const denseExerciseCatalog = [
     allowedNatures: ["bodyweight", "weighted"],
     bodyweightContributionPct: 45,
     tonnageFactor: 0.75,
+    transferIn: "none",
+    milestones: [
+      { label: "⅓ × peso corporal en 5D10", note: "especialización del patrón" },
+      { label: "½ × peso corporal en 5D10", note: "nivelazo" },
+    ],
     alpha: 0.1,
     icon: "fold-horizontal",
   },
@@ -430,6 +438,7 @@ const denseExerciseCatalog = [
     category: "mobility",
     family: "bridge",
     nature: "skill",
+    isometric: true,
     allowedNatures: ["skill", "bodyweight"],
     bodyweightContributionPct: 55,
     progressionLevel: 0.55,
@@ -777,6 +786,10 @@ const denseExerciseCatalog = [
     allowedNatures: ["bodyweight", "weighted_calisthenics", "assisted"],
     bodyweightContributionPct: 100,
     progressionLevel: 0.95,
+    milestones: [
+      { label: "+⅙ × peso corporal de lastre", note: "puerta a archer chin-up" },
+      { label: "+⅓ × peso corporal de lastre", note: "paralelo a negativas de OAC" },
+    ],
     tonnageFactor: 1,
     alpha: 0.14,
     icon: "arrow-up-to-line",
@@ -916,6 +929,13 @@ const denseExerciseCatalog = [
     allowedNatures: ["weighted", "bodyweight"],
     bodyweightContributionPct: 30,
     tonnageFactor: 0.7,
+    // Movilidad de columna bajo carga: escalada progresiva SIEMPRE, sin
+    // atajos por transferencia de otros ejercicios (decisión del usuario).
+    transferIn: "none",
+    milestones: [
+      { label: "⅓ × peso corporal en 5D10", note: "especialización del patrón" },
+      { label: "½ × peso corporal en 5D10", note: "nivelazo" },
+    ],
     alpha: 0.1,
     icon: "fold-vertical",
     video: "https://youtu.be/3viTkX-WR9I",
@@ -1185,6 +1205,7 @@ const denseExerciseCatalog = [
     allowedNatures: ["weighted", "bodyweight"],
     bodyweightContributionPct: 30,
     tonnageFactor: 0.7,
+    transferIn: "none",
     alpha: 0.13,
     icon: "fold-vertical",
     video: "https://youtu.be/xuKeTXLtHtM",
@@ -1395,11 +1416,14 @@ const denseProgressionEdges = [
   ["pull_up_feet_assisted", "pull_up_band_assisted", "progresa"],
   ["pull_up_band_assisted", "pull_up_negative", "progresa"],
   ["pull_up_negative", "chin_up", "progresa"],
-  // supinas siempre antes que pronas (veredicto usuario)
-  ["chin_up", "pull_up", "progresa"],
-  ["lat_pulldown", "pull_up", "paralela"],
-  ["pull_up", "l_pull_up", "paralela"],
-  // hito antes de archer: dominada lastrada ≈ +BW/6 (modalidad, no nodo)
+  // El eje del usuario son las CHIN-UPS; las pronas son rama paralela que le
+  // gusta menos (suele dar más problemas). Hitos de lastre en chin_up.
+  ["chin_up", "pull_up", "paralela"],
+  ["lat_pulldown", "chin_up", "paralela"],
+  ["chin_up", "l_pull_up", "paralela"],
+  // hito antes de archer: chin-up lastrada ≈ +BW/6 (modalidad, no nodo);
+  // +BW/3 de chin lastrada corre en paralelo a las negativas de OAC.
+  ["chin_up", "archer_chin_up", "progresa"],
   ["pull_up", "archer_chin_up", "progresa"],
   ["archer_chin_up", "oac_negative", "progresa"],
   ["oac_negative", "oac_finger_assisted", "paralela"],
@@ -1640,6 +1664,9 @@ function denseDifficultyAsymmetry(e, f) {
 }
 
 function denseTransferCoefficient(e, f) {
+  // Progressive-escalation exercises (loaded spine mobility) accept NO
+  // incoming transfer, ever — not even from their own family or overrides.
+  if (f.transferIn === "none") return 0;
   const override = densePairOverrides[`${e.id}>${f.id}`];
   if (override != null) return clamp(override * densePairK(e, f), 0, 0.9);
   const famOverride = denseFamilyPairOverrides[`${e.family}>${f.family}`];
@@ -2815,6 +2842,30 @@ function runDenseSelfTests() {
   });
   test("S1: el suelo del factor de dificultad protege el default de pull_up", () => {
     return denseFamilyDifficultyFactor(denseExerciseById("pull_up")) >= 0.25 && denseDefaultRpm(denseExerciseById("pull_up"), "5D") >= 1;
+  });
+
+  // Feedback de uso real (13 jul): bridge iso, caps de hold, columna protegida, hitos
+  test("bridge isométrico ES isométrico y su objetivo va en segundos capados (≤55s/ronda)", () => {
+    const bridge = denseExerciseById("bridge_isometric");
+    add({ id: "bi1", exercise_id: "bridge_isometric", exercise_name: "Bridge Isometrico", scheme: "10D", date: "2026-06-27", created_at: "2026-06-27T10:00:00Z", nature: "skill", total_hold_seconds: 300, hold_seconds_per_round: 30, isometric_capacity: 250 });
+    const hold = Number(denseFormTargetHoldPerRound(bridge, "2D", null)) || 0;
+    return denseIsIsometric(bridge) && hold > 0 && hold <= 55;
+  });
+  test("columna protegida: jefferson/seated GM sin transferencia entrante (ni de su familia)", () => {
+    return (
+      C("tiptoe_squat", "jefferson_curl") === 0 &&
+      C("cossack_squat", "seated_bent_leg_good_morning") === 0 &&
+      C("jefferson_curl", "straddle_jefferson_curl") === 0 &&
+      C("jefferson_curl", "deadlift") === 0
+    );
+  });
+  test("strength levels honestos: sin marca no hay tabla; con e1RM va en kg; hitos declarados", () => {
+    return (
+      denseExerciseLevels(denseExerciseById("sissy_squat"), null).length === 0 &&
+      denseExerciseLevels(denseExerciseById("bench_press"), { e1rm_kg: 100 })[1].value.includes("kg") &&
+      denseExerciseById("chin_up").milestones.length === 2 &&
+      denseExerciseById("jefferson_curl").milestones.length === 2
+    );
   });
 
   state.denseTrainingEntries = savedEntries;
@@ -5666,10 +5717,15 @@ function openDenseExerciseDetailModal(exerciseId) {
           }
         </div>
       </section>
-      <section class="exercise-detail-levels">
-        <strong>Strength levels</strong>
-        ${denseExerciseLevels(exercise, best).map((item) => `<div><span>${escapeHtml(item.label)}</span><b>${escapeHtml(item.value)}</b></div>`).join("")}
-      </section>
+      ${denseMilestonesSectionHtml(exercise)}
+      ${(() => {
+        const levels = denseExerciseLevels(exercise, best);
+        if (!levels.length) return "";
+        return `<section class="exercise-detail-levels">
+          <strong>Strength levels</strong>
+          ${levels.map((item) => `<div><span>${escapeHtml(item.label)}</span><b>${escapeHtml(item.value)}</b></div>`).join("")}
+        </section>`;
+      })()}
       <div class="modal-actions">
         <button class="text-button" type="button" data-action="open-dense-exercise-modal" data-exercise="${escapeAttr(exercise.id)}"><i data-lucide="plus"></i>Registrar</button>
       </div>
@@ -5738,15 +5794,57 @@ function exerciseDetailRow(entry, index) {
   `;
 }
 
+// Honest v1 (revisión jul 2026): only with a DIRECT best mark, and on the
+// right axis per nature — e1RM kg for loaded work, seconds for holds, reps
+// otherwise. Without data the old generic ladder was nonsense on most
+// exercises; a deeper benchmark-based redesign is pending with the user.
 function denseExerciseLevels(exercise, best) {
-  const base = best?.total_reps || best?.total_hold_seconds || Math.max(1, denseDefaultTotalReps(exercise, denseAllowedSchemes(exercise)[0]) || 1);
-  const unit = best?.total_hold_seconds ? "s" : "reps";
-  return [
-    { label: "Lv 1 Base", value: `${Math.max(1, Math.round(base * 0.7))} ${unit}` },
-    { label: "Lv 2 Solid", value: `${Math.max(1, Math.round(base))} ${unit}` },
-    { label: "Lv 3 Strong", value: `${Math.max(1, Math.round(base * 1.2))} ${unit}` },
-    { label: "Lv 4 Elite", value: `${Math.max(1, Math.round(base * 1.45))} ${unit}` },
-  ];
+  if (!best) return [];
+  let base;
+  let unit;
+  let steps;
+  if (Number(best.e1rm_kg) > 0) {
+    base = Number(best.e1rm_kg);
+    unit = "kg e1RM";
+    steps = [0.85, 1, 1.1, 1.25];
+  } else if (best.total_hold_seconds) {
+    base = Number(best.total_hold_seconds);
+    unit = "s";
+    steps = [0.7, 1, 1.2, 1.45];
+  } else if (best.total_reps) {
+    base = Number(best.total_reps);
+    unit = "reps";
+    steps = [0.7, 1, 1.2, 1.45];
+  } else {
+    return [];
+  }
+  const labels = ["Lv 1 Base", "Lv 2 Solid", "Lv 3 Strong", "Lv 4 Elite"];
+  return steps.map((step, index) => ({ label: labels[index], value: `${Math.max(1, Math.round(base * step))} ${unit}` }));
+}
+
+// "Hitos del patrón" declared on catalog entries (e.g. chin-up +BW/6 antes de
+// archer; jefferson curl ⅓×BW en 5D10) — shown in the detail modal.
+function denseMilestonesSectionHtml(exercise) {
+  const milestones = exercise.milestones || [];
+  if (!milestones.length) return "";
+  return `
+    <section class="exercise-detail-section">
+      <div class="section-subhead"><strong>Hitos del patrón</strong><span>criterios de paso</span></div>
+      <div class="exercise-detail-list">
+        ${milestones
+          .map(
+            (milestone) => `
+              <article class="exercise-detail-row">
+                <span class="tiny-icon"><i data-lucide="flag"></i></span>
+                <div><strong>${escapeHtml(milestone.label)}</strong><span>${escapeHtml(milestone.note || "")}</span></div>
+                <b></b>
+              </article>
+            `,
+          )
+          .join("")}
+      </div>
+    </section>
+  `;
 }
 
 function saveDenseTrainingForm(form) {
@@ -8184,16 +8282,16 @@ function denseDefaultHoldPerRound(exercise, scheme) {
   const multiplier = bodyweightMultipliers[denseSchemeBase(scheme)];
   if (!multiplier) return "";
   const isoCapacity = state.denseEstimates?.[exercise.id]?.isometric_capacity;
-  if (isoCapacity) return Math.max(1, Math.floor(denseBoosted(exercise.id, isoCapacity) * multiplier));
+  if (isoCapacity) return denseCapHold(Math.max(1, Math.floor(denseBoosted(exercise.id, isoCapacity) * multiplier)));
   const minutes = denseSchemeMinutes(scheme) || 1;
   const latestIso = [...getDenseEntries()]
     .filter((entry) => entry.exercise_id === exercise.id && entry.isometric_capacity)
     .sort((a, b) => (b.created_at || b.date || "").localeCompare(a.created_at || a.date || ""))[0];
-  if (latestIso?.isometric_capacity) return Math.max(1, Math.floor(denseBoosted(exercise.id, latestIso.isometric_capacity) * multiplier));
+  if (latestIso?.isometric_capacity) return denseCapHold(Math.max(1, Math.floor(denseBoosted(exercise.id, latestIso.isometric_capacity) * multiplier)));
   const latestSameScheme = [...getDenseEntries()]
     .filter((entry) => entry.exercise_id === exercise.id && entry.scheme === scheme && (entry.hold_seconds_per_round || entry.total_hold_seconds))
     .sort((a, b) => (b.created_at || b.date || "").localeCompare(a.created_at || a.date || ""))[0];
-  if (latestSameScheme) return Math.max(1, Math.round(Number(latestSameScheme.hold_seconds_per_round) || Number(latestSameScheme.total_hold_seconds) / minutes));
+  if (latestSameScheme) return denseCapHold(Math.max(1, Math.round(Number(latestSameScheme.hold_seconds_per_round) || Number(latestSameScheme.total_hold_seconds) / minutes)));
   // No history yet: seed a sensible starter hold so fresh isometrics (e.g. a new
   // cuelgue) aren't left empty. Scaled by density like a modest capacity of ~38s,
   // and by the family difficulty level (a one-hand hang seeds far shorter).
@@ -8375,23 +8473,31 @@ function denseFormTargetRepsPerSet(exercise, scheme, suggestion) {
   return denseDefaultRepsPerSet(exercise, scheme);
 }
 
+// A dense round lasts one minute: a hold target can never exceed it (real
+// ceiling ~55s leaves transition time). "81s/ronda" was nonsense on screen.
+function denseCapHold(seconds) {
+  const value = Number(seconds);
+  if (!Number.isFinite(value)) return seconds;
+  return Math.min(value, DENSE_MAX_HOLD_PER_ROUND);
+}
+
 // Same idea for isometric hold seconds per round.
 function denseFormTargetHoldPerRound(exercise, scheme, suggestion) {
   if (suggestion && suggestion.type === "hold" && suggestion.scheme === scheme && suggestion.holdSecondsPerRound) {
-    return suggestion.holdSecondsPerRound;
+    return denseCapHold(suggestion.holdSecondsPerRound);
   }
   const capacity = denseBestCapacity(exercise.id, "isometric_capacity");
   const multiplier = bodyweightMultipliers[denseSchemeBase(scheme)];
-  if (capacity && multiplier) return Math.max(1, Math.floor(capacity * multiplier));
+  if (capacity && multiplier) return denseCapHold(Math.max(1, Math.floor(capacity * multiplier)));
   // No direct history at this progression: scale a sibling lever level through
   // the endurance curve (30s tuck ≈ 14s adv tuck ≈ 3s full, not 30s everywhere).
   const sibling = denseLeverSiblingEstimate(exercise, "isometric_capacity");
   if (sibling && multiplier) {
     // Trust the sibling evidence even when tiny (1s): discarding it here used
     // to fall through to a HIGHER generic default, inverting difficulty.
-    return Math.max(1, Math.floor(sibling.value * multiplier));
+    return denseCapHold(Math.max(1, Math.floor(sibling.value * multiplier)));
   }
-  return denseDefaultHoldPerRound(exercise, scheme);
+  return denseCapHold(denseDefaultHoldPerRound(exercise, scheme));
 }
 
 // ── Same-day autoregulation ──────────────────────────────────────────────
