@@ -22,14 +22,30 @@ la app como marcas normales.
 3. Los **pares de la misma familia** (mismo día, frescura comparable) son lo valioso:
    dan tu curva real de dificultad. Anclas sueltas calibran e1RM y curva personal.
 
-## T1 — Tirón (pares: strict_pull · cuelgue) ← ÚNICA ACTIVA
-| Test | Esquema sugerido | Para qué |
+## T1 — Tirón (nivel avanzado: lastre + camino OAC) ← ÚNICA ACTIVA
+
+> Rediseñada el 13 jul: las negativas fuera (a este nivel no discriminan nada).
+> Notación: `5D` (bodyweight) = EMOM 5', eliges reps/min y las mantienes.
+> `5D3` (lastre) = EMOM 5' con 3 reps fijas al minuto, mismo lastre todo el rato.
+
+### Día A — eje sin lastre + camino OAC
+| Test | Esquema exacto | Cómo |
 |---|---|---|
-| Chin-up | 5D | ancla del eje (tu progresión principal) |
-| Dominada negativa | 5D | **par** con chin (gap 0.35 de nivel → exponente strict_pull) |
-| Archer chin-up | 5D (por lado) | ancla one_arm_chin |
-| Cuelgue activo | 10D hold | ancla cuelgue |
-| Cuelgue pasivo 1 mano | 10D hold | **par** con activo → exponente cuelgue |
+| Chin-up sin lastre | **5D** | elige un reps/min que puedas CLAVAR los 5 minutos y que la última ronda salga dura (RPE 8-9). Orientación: ~60% de tus chins máximas seguidas |
+| Archer chin-up | **5D por lado** | mismo criterio, contando por lado |
+| OAC | **2D** | 1 rep/min por lado (2/lado en total); si va sobrado, 2/min. **Par archer↔OAC** → exponente real de la familia |
+
+### Día B (48h después) — lastre (dibuja tu curva personal reps↔%1RM)
+| Test | Esquema exacto | Cómo |
+|---|---|---|
+| Chin-up lastrada media | **5D3** | el lastre de tus series de 4-6 reps · 3/min × 5' = 15 reps con margen justo |
+| Chin-up lastrada pesada | **5D1** | lastre cercano a tu 2-3RM · 5 singles EMOM. Junto al 5D3, estos dos puntos con rangos distintos calibran TU curva de fuerza |
+| (opcional) Cuelgue activo | 10D hold | ancla cuelgue |
+| (opcional) Cuelgue pasivo 1 mano | 10D hold | **par** con activo → exponente cuelgue |
+
+Con esto la app aprende: exponente one_arm_chin (archer↔OAC), e1RM real de chin
+lastrada + pendiente de tu curva (5D1 vs 5D3), unificación bodyweight↔lastre del
+mismo ejercicio, y tu posición respecto a los hitos (+BW/6, +BW/3).
 
 ## T2 — Empuje (pares: pushup · hspu) — EN ESPERA hasta revisar T1
 | Test | Esquema | Para qué |
