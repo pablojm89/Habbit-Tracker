@@ -107,15 +107,22 @@ mismo ejercicio, y tu posición respecto a los hitos (+BW/6, +BW/3).
 - **Sigma empírica**: la confianza de las tarjetas pasa de fórmula a TU error real.
 - Corrección de niveles curados donde tu ratio real discrepe (sissy/NLE, etc.).
 
-## Feature pendiente (alta prioridad): esquema "MAX"
+## Feature pendiente (alta prioridad): "MAX" medible y deducible
 
-La app solo modela bloques de densidad; falta un formato de **serie única al fallo**
-(reps máximas o hold máximo). Con él, el motor podría anclar la curva
-máximas↔densidad POR EJERCICIO y aprender los multiplicadores personales
-(hoy genéricos: 2D 0.9 · 5D 0.6 · 10D 0.33 · 20D 0.27 — el dato real del usuario
-en chins es 5D ≈ 0.37× máx, casi la mitad del 0.6 genérico sobre máximas).
-Diseñar en próxima sesión de motor: nuevo scheme "MAX", eje propio, sin tonnage
-de densidad, alimentando bodyweight/isometric_capacity y la curva personal.
+Diseño acordado con el usuario (13 jul 2026), para la próxima sesión de motor:
+
+1. **Esquema "MAX"** (serie única al fallo técnico, reps u hold): eje propio, sin
+   tonnage de densidad, alimenta capacidades y la curva personal.
+2. **Multiplicadores personales aprendidos** por ejercicio (con prior de familia):
+   cada PAR de la misma época {máx real ↔ bloque casi al fallo} observa
+   `m_base = rpm_bloque / max_reps`. Genéricos actuales 2D 0.9 · 5D 0.6 · 10D 0.33 ·
+   20D 0.27; dato real del usuario en chins: 5D ≈ 0.37× — casi la mitad.
+3. **Deducción bidireccional**: una vez sembrada la conexión, NO hace falta repetir
+   el máx de una vez — un `2D` (o cualquier bloque) llevado **casi al fallo**
+   (esfuerzo VH/fallo) basta para concluir el "Max estimado" invirtiendo el
+   multiplicador; y un máx nuevo recoloca los objetivos de todos los bloques.
+   Solo marcas cerca del fallo cuentan como evidencia (una N/H no dice nada del máx).
+4. Mostrar "Max estimado · conf." en el detalle del ejercicio junto al mejor real.
 
 ## Registro
 
