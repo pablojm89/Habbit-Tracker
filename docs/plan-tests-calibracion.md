@@ -46,7 +46,7 @@ más bajo de lo que parece. Dato real del usuario: **20 chins máximas → 5D7-8
 |---|---|---|
 | **Max reps chin-up** | **serie única al fallo técnico** | FRESCO, lo primero del día. Es EL ancla: fija tu ratio real máximas↔densidad. ⚠️ La app aún no tiene esquema de serie única — apúntalo en las notas de la sesión y en el registro de abajo (feature "MAX" pendiente) |
 | — descanso 8-10 min — | | |
-| Chin-up sin lastre | **5D** | en tu caso: **5D7 u 5D8** (tus 20 máximas × ~0.37). Clavar los 5 minutos, última ronda RPE 8-9. Puede salir un pelín corto tras el máx: anótalo |
+| Chin-up sin lastre | **5D** | con tu máx real (23,5): **5D8** (23,5 × ~0,37 ≈ 8,7 → empieza por abajo). Clavar los 5 minutos, última ronda RPE 8-9. Puede salir un pelín corto tras el máx: anótalo |
 | Archer chin-up | **5D por lado** | mismas cuentas con tus archers máximas por lado (p. ej. 5-6 máx → 5D2/lado) |
 | OAC | **2D** | 1 rep/min por lado (2/lado en total); si va sobrado, 2/min. **Par archer↔OAC** → exponente real de la familia |
 
@@ -142,7 +142,7 @@ distintos del prior) para revisarlos juntos.
 
 | Batería | Fecha | Notas |
 |---|---|---|
-| T1 | — | |
+| T1 | en curso | **Máx chin-up: 23,5 reps (fallo en la 24) — 13 jul 2026.** No registrado en la app (sin esquema MAX aún): retro-cargar como primera marca MAX cuando exista la feature. Implicación: 5D estimado ≈ 23,5 × 0,37 ≈ **5D8** (confirma el rango 7-8 que decía el usuario; probar 5D8). Su ratio previo declarado (20 máx ≈ 5D7-8 → 0,35-0,4×) queda pendiente de confirmar con el 5D real |
 | T2 | — | |
 | T3 | — | |
 | T4 | — | |
