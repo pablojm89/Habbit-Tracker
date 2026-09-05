@@ -8,7 +8,7 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 > App: PWA de entrenamiento (Dense training). Vanilla JS sin build: `app.js` (~9000
 > líneas), `styles.css`, `index.html`, `sw.js`. Sincroniza a Google Sheets vía Apps Script.
 > Modo training-only (`TRAINING_ONLY = true`). Cache busting: string `?v=…` en `index.html`
-> **y** `sw.js` a la vez. **Última versión: `20260905-reps-por-serie-35`.**
+> **y** `sw.js` a la vez. **Última versión: `20260905-form-alto-36`.**
 
 ## Cómo trabajar aquí (imprescindible)
 
@@ -63,6 +63,8 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 - `8618f72` Fix estrella de favorito que no se actualizaba en el picker.
 
 ### Reps por serie con casillas (5 sep 2026)
+- El formulario de set (`dense-set`, con o sin buscador) también ocupa ~96 % de alto en
+  móvil con el `.modal-body` como único scroller (mismas reglas que el cajón; v36).
 - El campo de texto "5,5,4" no servía en iOS (el teclado numérico no tiene coma). Ahora
   una casilla numérica por serie (`repsDone1..N`, `denseRepsDoneBoxesHtml`), con el objetivo
   como placeholder: en blanco = serie clavada. `denseReadRepsDone` devuelve `[]` si no se

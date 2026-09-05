@@ -7576,7 +7576,7 @@ body[data-density="compact"] .workout-exercise-icon {
 /* ── Cajón del buscador de ejercicios: casi a pantalla completa en móvil ─── */
 @media (max-width: 760px) {
   .modal-card[data-modal-kind="workout-exercise-picker"],
-  .modal-card[data-modal-kind="dense-set"]:has(.dense-exercise-picker) {
+  .modal-card[data-modal-kind="dense-set"] {
     height: calc(100dvh - 16px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
     max-height: calc(100dvh - 16px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
     display: flex;
@@ -7584,13 +7584,13 @@ body[data-density="compact"] .workout-exercise-icon {
   }
 
   .modal:has([data-modal-kind="workout-exercise-picker"]),
-  .modal:has([data-modal-kind="dense-set"] .dense-exercise-picker) {
+  .modal:has([data-modal-kind="dense-set"]) {
     margin-top: calc(8px + env(safe-area-inset-top, 0px));
     margin-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
   }
 
   .modal-card[data-modal-kind="workout-exercise-picker"] .modal-body,
-  .modal-card[data-modal-kind="dense-set"]:has(.dense-exercise-picker) .modal-body {
+  .modal-card[data-modal-kind="dense-set"] .modal-body {
     flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
@@ -7601,7 +7601,7 @@ body[data-density="compact"] .workout-exercise-icon {
 @media (max-width: 760px) {
   /* La lista del cajón crece entera; el scroll lo hace el cuerpo del cajón. */
   .modal-card[data-modal-kind="workout-exercise-picker"] .exercise-picker-list,
-  .modal-card[data-modal-kind="dense-set"]:has(.dense-exercise-picker) .exercise-picker-list {
+  .modal-card[data-modal-kind="dense-set"] .exercise-picker-list {
     max-height: none;
     overflow: visible;
   }
@@ -7611,12 +7611,12 @@ body[data-density="compact"] .workout-exercise-icon {
   /* Un solo contenedor de scroll en los cajones con buscador: la tarjeta no
      scrollea (evita el doble scroll anidado que se traba en iOS); el cuerpo sí. */
   .modal-card[data-modal-kind="workout-exercise-picker"],
-  .modal-card[data-modal-kind="dense-set"]:has(.dense-exercise-picker) {
+  .modal-card[data-modal-kind="dense-set"] {
     overflow: hidden;
   }
 
   .modal-card[data-modal-kind="workout-exercise-picker"] .modal-body,
-  .modal-card[data-modal-kind="dense-set"]:has(.dense-exercise-picker) .modal-body {
+  .modal-card[data-modal-kind="dense-set"] .modal-body {
     touch-action: pan-y;
     overscroll-behavior: contain;
   }
@@ -7645,13 +7645,13 @@ html.has-modal body {
   /* El <dialog> tampoco es scroller en los cajones con buscador (UA default
      overflow:auto): un solo contenedor de scroll, el .modal-body. */
   .modal:has([data-modal-kind="workout-exercise-picker"]),
-  .modal:has([data-modal-kind="dense-set"] .dense-exercise-picker) {
+  .modal:has([data-modal-kind="dense-set"]) {
     overflow: hidden;
   }
 
   /* Fallback vh para WebKit sin dvh (iOS < 15.4); dvh gana cuando existe. */
   .modal-card[data-modal-kind="workout-exercise-picker"],
-  .modal-card[data-modal-kind="dense-set"]:has(.dense-exercise-picker) {
+  .modal-card[data-modal-kind="dense-set"] {
     height: calc(100vh - 16px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
     height: calc(100dvh - 16px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
   }
