@@ -8,11 +8,11 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 > App: PWA de entrenamiento (Dense training). Vanilla JS sin build: `app.js` (~9000
 > líneas), `styles.css`, `index.html`, `sw.js`. Sincroniza a Google Sheets vía Apps Script.
 > Modo training-only (`TRAINING_ONLY = true`). Cache busting: string `?v=…` en `index.html`
-> **y** `sw.js` a la vez. **Última versión: `20260905-modo-fuerza-29`.**
+> **y** `sw.js` a la vez. **Última versión: `20260905-peso-corporal-30`.**
 
 ## Cómo trabajar aquí (imprescindible)
 
-- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **79 asserts**.
+- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **81 asserts**.
   Correr siempre tras tocar el motor.
 - **Simulación de entrenamiento** (nueva herramienta de QA): 6 semanas × 4 días con un
   atleta sintético que sigue las sugerencias reales de la app vía Playwright+Chromium
@@ -61,6 +61,12 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
   cuando el bloque no tiene historial (`denseEstimatedLoadSuggestion`).
 - `23b547b` e1RM efectivo: los fallos recalibran al instante.
 - `8618f72` Fix estrella de favorito que no se actualizaba en el picker.
+
+### Control de peso corporal (5 sep 2026)
+- Aviso diario al abrir la app ("¿Cuánto pesas hoy?", con "Hoy no"), tarjeta en la
+  vista de entreno con media 7 d, objetivo (subir/bajar/mantener) y veredicto con
+  consejo de alimentación/actividad según el ritmo semanal (mínimos cuadrados 28 d).
+  Reglas en `BODYWEIGHT_GOAL_RULES`; doc `docs/peso-corporal.md`. +2 self-tests (81).
 
 ### Modo Fuerza clásica + catálogo de gimnasio (5 sep 2026)
 - **Esquemas `S`** (`S5x5`, `S3x8-12`…) con descanso explícito, reps reales por

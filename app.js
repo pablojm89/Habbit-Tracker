@@ -206,6 +206,15 @@ const strengthRestOptions = [45, 60, 90, 120, 180, 300];
 const DENSE_STRENGTH_DEFAULT_REST = 180;
 const denseRirByEffort = { VE: 5, E: 4, N: 2, H: 1, VH: 0, fallo: 0, no_llego: 0 };
 
+// ── Peso corporal: objetivo y ritmo semanal razonable (kg/semana) ─────────
+// gain: +0.2…+0.6 (volumen limpio) · lose: −1.0…−0.25 (definición sostenible)
+// · maintain: ±0.3. Fuera de rango → consejo de alimentación / actividad.
+const BODYWEIGHT_GOAL_RULES = {
+  gain: { label: "Subir", min: 0.2, max: 0.6, icon: "trending-up" },
+  lose: { label: "Bajar", min: -1.0, max: -0.25, icon: "trending-down" },
+  maintain: { label: "Mantener", min: -0.3, max: 0.3, icon: "move-right" },
+};
+
 // ── Phase 5: calibration kit ─────────────────────────────────────────────
 // Six anchor tests that unlock ~80% of the transfer engine. Each anchors a
 // pattern latent and pins sigma low on its exercise.
@@ -3039,6 +3048,45 @@ function runDenseSelfTests() {
     const next = denseProgressionSuggestion(denseExerciseById("db_bench_press"), "normal", "S5x5");
     return next && next.direction === "hold" && Number(next.weightPerDumbbellKg) === 30 && /falt(ó|aron)/.test(next.reason) && !denseStrengthApplies(denseExerciseById("back_lever_full_pull"));
   });
+  // Control de peso corporal
+  test("peso: tendencia por mínimos cuadrados y veredicto por objetivo (subir lento → come más)", () => {
+    const savedLogs = state.bodyweightLogs;
+    const savedGoal = state.settings.bodyweightGoal;
+    try {
+      state.bodyweightLogs = {};
+      for (let i = 0; i < 21; i += 1) state.bodyweightLogs[dateKey(addDays(selectedDate, -20 + i))] = roundTo(80 + i * 0.01, 2);
+      const trend = bodyweightTrend();
+      const slow = bodyweightVerdict(trend, { mode: "gain" });
+      const keepOk = bodyweightVerdict(trend, { mode: "maintain" });
+      const loseBad = bodyweightVerdict(trend, { mode: "lose" });
+      return (
+        trend && Math.abs(trend.ratePerWeek - 0.07) < 0.02 && trend.loggedToday &&
+        slow.tone === "amber" && /kcal/i.test(slow.advice) &&
+        keepOk.tone === "green" &&
+        loseBad.tone === "amber" && /alimentación|cardio/i.test(loseBad.advice)
+      );
+    } finally {
+      state.bodyweightLogs = savedLogs;
+      state.settings.bodyweightGoal = savedGoal;
+    }
+  });
+  test("peso: con 2 pesos no hay veredicto; el modal guarda peso + objetivo", () => {
+    const savedLogs = state.bodyweightLogs;
+    const savedGoal = state.settings.bodyweightGoal;
+    try {
+      state.bodyweightLogs = { [dateKey(addDays(selectedDate, -1))]: 80, [dateKey(selectedDate)]: 80.2 };
+      const pending = bodyweightVerdict(bodyweightTrend(), { mode: "gain" });
+      openBodyweightModal();
+      const form = document.querySelector("#bodyweightForm");
+      form.querySelector("[name='weightKg']").value = "81.3";
+      form.querySelector("input[name='goalMode'][value='lose']").checked = true;
+      saveBodyweightForm(form);
+      return pending.tone === "neutral" && state.bodyweightLogs[dateKey(selectedDate)] === 81.3 && state.settings.bodyweightGoal.mode === "lose";
+    } finally {
+      state.bodyweightLogs = savedLogs;
+      state.settings.bodyweightGoal = savedGoal;
+    }
+  });
   test("S: timer en modo descanso — 5 series × 3:00 = 900 s y vuelve a EMOM al elegir 5D", () => {
     setQuickTimerRest(180);
     quickTimerState.rounds = 5;
@@ -3073,6 +3121,7 @@ try {
 }
 
 render();
+setTimeout(maybePromptBodyweight, 400);
 queueInitialCloudRestore();
 
 function render() {
@@ -3867,6 +3916,7 @@ function renderMesocycle() {
         ${renderWeeklyFailureCard(weekDayKeys, isCurrentWeek)}
         ${renderTestSuggestionCard()}
       </section>
+      <section class="workout-widget" aria-label="Peso corporal">${renderBodyweightCard()}</section>
 
       <div class="day-carousel" data-day-carousel>
         <div class="day-carousel-track">
@@ -4984,6 +5034,8 @@ function handleClick(event) {
   if (action === "open-habit-modal") openHabitModal(target.dataset.id);
   if (action === "open-day-note") openDayModal();
   if (action === "open-quick-timer") openQuickTimerModal();
+  if (action === "open-bodyweight") openBodyweightModal();
+  if (action === "skip-bodyweight-today") skipBodyweightToday();
   if (action === "start-exercise-timer") startExerciseTimer(target.dataset.exercise);
   if (action === "quick-timer-scheme") setQuickTimerScheme(target.dataset.scheme);
   if (action === "quick-timer-rest") setQuickTimerRest(Number(target.dataset.seconds));
@@ -5026,6 +5078,9 @@ function handleChange(event) {
   if (event.target.matches("#importFile")) importJson(event.target.files?.[0]);
   if (event.target.matches("#denseTrainingForm input[name='natureChoice']")) updateDenseNatureSelection(event.target);
   if (event.target.matches("#denseTrainingForm input[name='formatChoice']")) updateDenseFormatSelection(event.target);
+  if (event.target.matches("#bodyweightForm input[name='goalMode']")) {
+    event.target.closest("form").querySelectorAll(".readiness-option").forEach((option) => option.classList.toggle("is-selected", option.contains(event.target)));
+  }
   if (event.target.matches("#denseTrainingForm input[name='scheme']")) updateDenseStrengthTotal(event.target.closest("#denseTrainingForm"));
   if (event.target.matches("#denseTrainingForm input[name='scheme'], #denseTrainingForm input[name='restSeconds']")) updateDenseSchemeSelection(event.target);
   if (event.target.matches("#denseTrainingForm input[name='readiness']")) updateDenseReadinessSelection(event.target);
@@ -5085,6 +5140,10 @@ function handleSubmit(event) {
   if (event.target.id === "denseTrainingForm") {
     event.preventDefault();
     saveDenseTrainingForm(event.target);
+  }
+  if (event.target.id === "bodyweightForm") {
+    event.preventDefault();
+    saveBodyweightForm(event.target);
   }
   if (event.target.id === "denseFeedbackForm") {
     event.preventDefault();
@@ -9798,6 +9857,187 @@ function thresholdCard(label, value, active) {
       <strong>${escapeHtml(String(value))}</strong>
     </article>
   `;
+}
+
+// ── Control de peso corporal ──────────────────────────────────────────────
+function bodyweightGoal() {
+  const goal = state.settings.bodyweightGoal || {};
+  return BODYWEIGHT_GOAL_RULES[goal.mode] ? goal : { mode: "" };
+}
+
+function bodyweightLogRows() {
+  return Object.entries(state.bodyweightLogs || {})
+    .map(([date, value]) => ({ date, value: Number(value) }))
+    .filter((row) => Number.isFinite(row.value) && row.value > 0)
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+// Trend: 7-day smoothed current weight + weekly rate by least squares over the
+// last 28 days (needs ≥3 logs spanning ≥7 days; daily noise rules otherwise).
+function bodyweightTrend(referenceKey = dateKey(selectedDate)) {
+  const rows = bodyweightLogRows().filter((row) => row.date <= referenceKey);
+  if (!rows.length) return null;
+  const latest = rows[rows.length - 1];
+  const dayIndex = (key) => Math.round((parseDate(key) - parseDate(rows[0].date)) / 86400000);
+  const refIndex = dayIndex(referenceKey);
+  const recent = rows.filter((row) => refIndex - dayIndex(row.date) <= 6);
+  const current = recent.length ? recent.reduce((sum, row) => sum + row.value, 0) / recent.length : latest.value;
+  const window = rows.filter((row) => dayIndex(latest.date) - dayIndex(row.date) <= 27);
+  const span = window.length ? dayIndex(window[window.length - 1].date) - dayIndex(window[0].date) : 0;
+  let ratePerWeek = null;
+  if (window.length >= 3 && span >= 7) {
+    const xs = window.map((row) => dayIndex(row.date));
+    const ys = window.map((row) => row.value);
+    const mx = xs.reduce((sum, x) => sum + x, 0) / xs.length;
+    const my = ys.reduce((sum, y) => sum + y, 0) / ys.length;
+    const sxx = xs.reduce((sum, x) => sum + (x - mx) ** 2, 0);
+    const sxy = xs.reduce((sum, x, i) => sum + (x - mx) * (ys[i] - my), 0);
+    ratePerWeek = sxx ? (sxy / sxx) * 7 : 0;
+  }
+  return {
+    current,
+    latest: latest.value,
+    latestDate: latest.date,
+    ratePerWeek,
+    logs: window.length,
+    spanDays: span,
+    loggedToday: rows.some((row) => row.date === referenceKey),
+    daysSince: refIndex - dayIndex(latest.date),
+  };
+}
+
+// Verdict vs goal, with a concrete food/activity nudge when off track.
+function bodyweightVerdict(trend = bodyweightTrend(), goal = bodyweightGoal()) {
+  const rule = BODYWEIGHT_GOAL_RULES[goal.mode];
+  if (!rule) return { tone: "neutral", icon: "target", title: "Sin objetivo", advice: "Elige subir, bajar o mantener para que la app valore tu tendencia." };
+  if (!trend) return { tone: "neutral", icon: "scale", title: "Sin pesos aún", advice: "Registra tu peso al abrir la app: con una semana de datos empieza a valorar." };
+  if (trend.ratePerWeek === null) {
+    return { tone: "neutral", icon: "hourglass", title: "Acumulando datos", advice: `${trend.logs} peso${trend.logs === 1 ? "" : "s"} en ${trend.spanDays} día${trend.spanDays === 1 ? "" : "s"}: aún no hay tendencia fiable. Sigue registrando; en una semana te digo cómo vas.` };
+  }
+  const rate = trend.ratePerWeek;
+  const fmt = `${rate > 0 ? "+" : ""}${roundTo(rate, 2)} kg/sem`;
+  if (goal.mode === "gain") {
+    if (rate < rule.min) {
+      return rate <= 0
+        ? { tone: "amber", icon: "utensils", title: `No subes (${fmt})`, advice: "Come más: añade ~300 kcal/día (más carbohidrato y proteína en las comidas grandes) y revisa en una semana." }
+        : { tone: "amber", icon: "utensils", title: `Vas lento (${fmt})`, advice: "Subes menos del mínimo lógico (+0,2 kg/sem): añade ~200 kcal/día y revisa en una semana." };
+    }
+    if (rate > rule.max) return { tone: "amber", icon: "alert-triangle", title: `Demasiado rápido (${fmt})`, advice: "Por encima de +0,6 kg/sem buena parte es grasa: recorta ~200 kcal/día y mantén el entreno." };
+    return { tone: "green", icon: "check-circle-2", title: `Va bien (${fmt})`, advice: "Ritmo de volumen limpio. Sigue igual y revisa cada semana." };
+  }
+  if (goal.mode === "lose") {
+    if (rate > rule.max) {
+      return rate >= 0
+        ? { tone: "amber", icon: "apple", title: `No bajas (${fmt})`, advice: "Te mantienes o subes: cuida la alimentación (−300 kcal/día, prioriza proteína y verdura) o añade 8-10k pasos / cardio suave." }
+        : { tone: "amber", icon: "apple", title: `Vas lento (${fmt})`, advice: "Bajas menos de 0,25 kg/sem: ajusta −150/200 kcal/día o añade algo de cardio." };
+    }
+    if (rate < rule.min) return { tone: "amber", icon: "alert-triangle", title: `Demasiado rápido (${fmt})`, advice: "Más de 1 kg/sem compromete fuerza y masa: sube ~200 kcal/día y protege la proteína." };
+    return { tone: "green", icon: "check-circle-2", title: `Va bien (${fmt})`, advice: "Ritmo de definición sostenible. Mantén la proteína alta y el entreno de fuerza." };
+  }
+  if (rate > rule.max) return { tone: "amber", icon: "trending-up", title: `Subiendo (${fmt})`, advice: "Querías mantener: recorta ~150 kcal/día o añade pasos, y revisa en una semana." };
+  if (rate < rule.min) return { tone: "amber", icon: "trending-down", title: `Bajando (${fmt})`, advice: "Querías mantener: añade ~150 kcal/día, sobre todo alrededor del entreno." };
+  return { tone: "green", icon: "check-circle-2", title: `Estable (${fmt})`, advice: "Peso estable dentro del margen. Perfecto para rendir." };
+}
+
+function renderBodyweightCard() {
+  const goal = bodyweightGoal();
+  const trend = bodyweightTrend();
+  const verdict = bodyweightVerdict(trend, goal);
+  const rule = BODYWEIGHT_GOAL_RULES[goal.mode];
+  const weightTxt = trend ? `${roundTo(trend.current, 1)} kg` : "— kg";
+  const when = !trend ? "sin registros" : trend.loggedToday ? "hoy" : trend.daysSince === 1 ? "ayer" : `hace ${trend.daysSince} d`;
+  const meta = trend && trend.logs > 1 ? `${when} · media 7 d · ${trend.logs} pesos en 4 sem` : when;
+  return `
+    <article class="bodyweight-card is-${escapeAttr(verdict.tone)}">
+      <div class="bodyweight-head">
+        <div>
+          <strong>${escapeHtml(weightTxt)}</strong>
+          <small>${escapeHtml(meta)}</small>
+        </div>
+        <span class="mini-tag ${rule ? "is-green" : "is-amber"}"><i data-lucide="${rule ? rule.icon : "target"}"></i>${escapeHtml(rule ? rule.label : "Sin objetivo")}</span>
+      </div>
+      <div class="bodyweight-verdict">
+        <span class="tiny-icon"><i data-lucide="${verdict.icon}"></i></span>
+        <div><strong>${escapeHtml(verdict.title)}</strong><span>${escapeHtml(verdict.advice)}</span></div>
+      </div>
+      <div class="bodyweight-actions">
+        <button class="text-button is-hot" type="button" data-action="open-bodyweight"><i data-lucide="scale"></i>${trend?.loggedToday ? "Corregir peso de hoy" : "Registrar peso de hoy"}</button>
+        <button class="text-button" type="button" data-action="open-bodyweight" data-goal="1"><i data-lucide="target"></i>Objetivo</button>
+      </div>
+    </article>
+  `;
+}
+
+function openBodyweightModal({ prompt = false } = {}) {
+  const goal = bodyweightGoal();
+  const trend = bodyweightTrend();
+  const today = dateKey(selectedDate);
+  const current = state.bodyweightLogs?.[today] || latestKnownBodyweight(today) || "";
+  const verdict = trend && trend.ratePerWeek !== null && goal.mode ? bodyweightVerdict(trend, goal) : null;
+  nodes.modalCard.dataset.modalKind = "bodyweight";
+  nodes.modalEyebrow.textContent = prompt ? "Primera apertura del día" : "Peso corporal";
+  nodes.modalTitle.textContent = prompt ? "¿Cuánto pesas hoy?" : "Peso y objetivo";
+  nodes.modalBody.innerHTML = `
+    <form id="bodyweightForm" class="dense-feedback-form">
+      <input type="hidden" name="date" value="${escapeAttr(today)}" />
+      <label class="field is-full">
+        <span>Peso de hoy (kg) · ${escapeHtml(formatMonthDay(selectedDate))}</span>
+        <input name="weightKg" type="number" inputmode="decimal" step="0.1" min="30" max="250" value="${escapeAttr(String(current))}" placeholder="p. ej. 80.4" />
+      </label>
+      <fieldset class="readiness-field is-full">
+        <legend>Objetivo</legend>
+        <div class="readiness-grid">
+          ${Object.entries(BODYWEIGHT_GOAL_RULES)
+            .map(
+              ([mode, rule]) => `
+                <label class="readiness-option ${goal.mode === mode ? "is-selected" : ""}">
+                  <input type="radio" name="goalMode" value="${mode}" ${goal.mode === mode ? "checked" : ""} />
+                  <span>${escapeHtml(rule.label)}</span>
+                </label>`,
+            )
+            .join("")}
+        </div>
+      </fieldset>
+      <p class="transfer-note"><i data-lucide="info"></i>Pésate en las mismas condiciones (al levantarte, tras el baño). La app valora la media de 7 días y la tendencia de 4 semanas, no el número de un día.</p>
+      ${verdict ? `<p class="transfer-note ${verdict.tone === "amber" ? "is-warn" : ""}"><i data-lucide="${verdict.icon}"></i>${escapeHtml(verdict.title)} — ${escapeHtml(verdict.advice)}</p>` : ""}
+      <div class="modal-actions">
+        ${prompt ? `<button class="text-button" type="button" data-action="skip-bodyweight-today">Hoy no</button>` : ""}
+        <button class="text-button is-hot" type="submit"><i data-lucide="save"></i>Guardar</button>
+      </div>
+    </form>
+  `;
+  openModal();
+}
+
+function saveBodyweightForm(form) {
+  const data = Object.fromEntries(new FormData(form).entries());
+  const kg = Number(String(data.weightKg || "").replace(",", "."));
+  const date = data.date || dateKey(selectedDate);
+  const validKg = Number.isFinite(kg) && kg >= 30 && kg <= 250;
+  state.bodyweightLogs ||= {};
+  if (validKg) state.bodyweightLogs[date] = roundTo(kg, 1);
+  if (BODYWEIGHT_GOAL_RULES[data.goalMode]) {
+    const previous = state.settings.bodyweightGoal || {};
+    state.settings.bodyweightGoal = { mode: data.goalMode, since: previous.mode === data.goalMode ? previous.since || date : date };
+  }
+  state.settings.bodyweightPromptedOn = dateKey(new Date());
+  closeModal();
+  saveAndRender(validKg ? "Peso guardado" : "Objetivo guardado");
+}
+
+function skipBodyweightToday() {
+  state.settings.bodyweightPromptedOn = dateKey(new Date());
+  closeModal();
+  saveState();
+}
+
+// First open of the day: ask for today's weight once (never under automation).
+function maybePromptBodyweight() {
+  if (navigator.webdriver || location.search.includes("selftest") || location.search.includes("noprompt")) return;
+  const today = dateKey(new Date());
+  if (state.bodyweightLogs?.[today] || state.settings.bodyweightPromptedOn === today) return;
+  if (nodes.modal.open) return;
+  openBodyweightModal({ prompt: true });
 }
 
 function bodyweightTrendRows(limit = 14) {
