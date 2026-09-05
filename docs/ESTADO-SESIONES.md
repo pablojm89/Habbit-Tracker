@@ -8,7 +8,7 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 > App: PWA de entrenamiento (Dense training). Vanilla JS sin build: `app.js` (~9000
 > líneas), `styles.css`, `index.html`, `sw.js`. Sincroniza a Google Sheets vía Apps Script.
 > Modo training-only (`TRAINING_ONLY = true`). Cache busting: string `?v=…` en `index.html`
-> **y** `sw.js` a la vez. **Última versión: `20260905-selectores-33`.**
+> **y** `sw.js` a la vez. **Última versión: `20260905-feedback-chips-34`.**
 
 ## Cómo trabajar aquí (imprescindible)
 
@@ -63,6 +63,9 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 - `8618f72` Fix estrella de favorito que no se actualizaba en el picker.
 
 ### Selectores Modalidad/Formato desincronizados (5 sep 2026)
+- Mismo patrón en el feedback post-set ("Respecto a lo esperado"): la opción por defecto
+  llevaba `.is-selected` estático y el resaltado dependía de `:has()`; al pulsar otra
+  quedaban dos marcadas. Handler JS acotado al `fieldset` (v34).
 - Reproducido con `probe-selectors.js`: tras cada cambio de Modalidad el chip marcado y el
   resaltado divergían. Causa: los restauradores de esfuerzo/readiness hacían el toggle de
   `.is-selected` sobre TODOS los `.readiness-option` del formulario, y Modalidad/Formato

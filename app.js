@@ -5090,6 +5090,11 @@ function handleChange(event) {
   if (event.target.matches("#importFile")) importJson(event.target.files?.[0]);
   if (event.target.matches("#denseTrainingForm input[name='natureChoice']")) updateDenseNatureSelection(event.target);
   if (event.target.matches("#denseTrainingForm input[name='formatChoice']")) updateDenseFormatSelection(event.target);
+  if (event.target.matches("#denseFeedbackForm input[name='expectedComparison']")) {
+    // JS-driven highlight (like every other chip group): the default option kept
+    // a static .is-selected, so two chips lit up and the tap "did nothing".
+    (event.target.closest("fieldset") || event.target.closest("form")).querySelectorAll(".feedback-option").forEach((option) => option.classList.toggle("is-selected", option.contains(event.target)));
+  }
   if (event.target.matches("#bodyweightForm input[name='goalMode']")) {
     event.target.closest("form").querySelectorAll(".readiness-option").forEach((option) => option.classList.toggle("is-selected", option.contains(event.target)));
   }
