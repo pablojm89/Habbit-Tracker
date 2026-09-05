@@ -8,11 +8,11 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 > App: PWA de entrenamiento (Dense training). Vanilla JS sin build: `app.js` (~9000
 > líneas), `styles.css`, `index.html`, `sw.js`. Sincroniza a Google Sheets vía Apps Script.
 > Modo training-only (`TRAINING_ONLY = true`). Cache busting: string `?v=…` en `index.html`
-> **y** `sw.js` a la vez. **Última versión: `20260713-toggle-blindado-28`.**
+> **y** `sw.js` a la vez. **Última versión: `20260905-modo-fuerza-29`.**
 
 ## Cómo trabajar aquí (imprescindible)
 
-- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **71 asserts**.
+- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **79 asserts**.
   Correr siempre tras tocar el motor.
 - **Simulación de entrenamiento** (nueva herramienta de QA): 6 semanas × 4 días con un
   atleta sintético que sigue las sugerencias reales de la app vía Playwright+Chromium
@@ -61,6 +61,22 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
   cuando el bloque no tiene historial (`denseEstimatedLoadSuggestion`).
 - `23b547b` e1RM efectivo: los fallos recalibran al instante.
 - `8618f72` Fix estrella de favorito que no se actualizaba en el picker.
+
+### Modo Fuerza clásica + catálogo de gimnasio (5 sep 2026)
+- **Esquemas `S`** (`S5x5`, `S3x8-12`…) con descanso explícito, reps reales por
+  serie opcionales y e1RM por Epley + RIR del esfuerzo (N = 2). Mismo `e1rm_kg`
+  que la densidad: transferencias/analytics intactos. Doc: `docs/modo-fuerza.md`.
+- Selector **Formato** (Densidad | Fuerza) en el formulario; resolución: switch >
+  plan > última marca > `defaultScheme` del catálogo > dense. Chips de descanso,
+  cronómetro en modo descanso (`quickTimerState.roundSeconds`).
+- Sugerencias S: estimación desde e1RM sin marca; progresión lineal (+2,5 % /
+  mantener / −5 % con techo honesto) y doble progresión en rangos.
+- **20 básicos de gym** (brazos, empuje, espalda, pierna) con id-metas; básicos
+  existentes abren en Fuerza si no hay historial (5x5 en barra).
+- Fixes de paso: zoom automático de iOS al enfocar inputs (root 15px → fuente
+  mínima 16px en inputs/textarea/buscador); highlight de chips `.scheme-option`
+  scoped a su grid (los chips de descanso comparten la clase); semántica de fallo en fuerza (24/25 reps = repetir carga, no −5 %). +8 self-tests (79).
+- **Regla de cierre**: cada tanda termina con **merge a main** (Pages sirve main).
 
 ### Toggle de test blindado (13 jul 2026, noche)
 - El checkbox nativo seguía explotando en iOS (capturas del usuario) pese al fix CSS

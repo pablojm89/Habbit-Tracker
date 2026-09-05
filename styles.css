@@ -5693,17 +5693,21 @@ textarea {
   transition: border-color 0.14s ease, box-shadow 0.14s ease, background-color 0.14s ease;
 }
 
+/* ≥16px on every focusable field: iOS Safari auto-zooms into inputs with a
+   smaller font (root is 15px, so 1rem alone still zoomed) and the pinch back
+   out is painful. This keeps pinch-zoom available for everything else. */
 input:not([type="checkbox"]):not([type="radio"]),
 select {
   min-height: 48px;
   padding: 0 14px;
-  font-size: 1rem;
+  font-size: max(1rem, 16px);
 }
 
 textarea {
   min-height: 96px;
   padding: 12px 14px;
   resize: vertical;
+  font-size: max(1rem, 16px);
 }
 
 input::placeholder,
@@ -6955,7 +6959,7 @@ button:focus-visible {
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.05);
-  font-size: 0.9rem;
+  font-size: 16px; /* never below 16px: iOS zooms into smaller inputs on focus */
   transition: border-color var(--dur) var(--ease), background-color var(--dur) var(--ease);
 }
 
