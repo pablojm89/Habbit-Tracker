@@ -4127,13 +4127,43 @@ function denseRestFieldMarkup(defaults) {
   `;
 }
 
+// One numeric box per set (numeric keypad has no comma on iOS). The target
+// reps sit as placeholder: leave a box empty = that set hit the target.
+function denseRepsDoneBoxesHtml(scheme, values = []) {
+  const parts = denseStrengthParts(scheme);
+  if (!parts) return "";
+  return Array.from({ length: parts.sets }, (_, index) => {
+    const value = values[index];
+    return `<input type="number" inputmode="numeric" min="0" max="100" step="1" name="repsDone${index + 1}" value="${value ? escapeAttr(String(value)) : ""}" placeholder="${parts.reps}" aria-label="Reps serie ${index + 1}" />`;
+  }).join("");
+}
+
 function denseRepsDoneField(defaults) {
+  const values = denseParseRepsDone(defaults.repsDone);
   return `
-    <label class="field is-full">
-      <span>Reps por serie (real, opcional)</span>
-      <input type="text" inputmode="numeric" name="repsDone" value="${escapeAttr(defaults.repsDone || "")}" placeholder="p. ej. 5,5,5,4,4 — vacío = todas hechas" />
-    </label>
+    <div class="field is-full reps-done-field">
+      <span>Reps por serie (deja en blanco las que clavaste)</span>
+      <div class="reps-done-grid" data-reps-done>${denseRepsDoneBoxesHtml(defaults.scheme, values)}</div>
+    </div>
   `;
+}
+
+// Read the per-set boxes: [] when untouched (all sets = target), else every set
+// with blanks filled by the target reps.
+function denseReadRepsDone(form, scheme) {
+  const parts = denseStrengthParts(scheme);
+  if (!parts || !form) return [];
+  const boxes = [...form.querySelectorAll("[name^='repsDone']")];
+  if (!boxes.some((box) => String(box.value).trim() !== "")) return [];
+  return boxes.map((box) => positiveNumber(box.value) || parts.reps);
+}
+
+// Rebuild the boxes when the scheme (sets count) changes, keeping typed values.
+function denseSyncRepsDoneBoxes(form, scheme) {
+  const grid = form?.querySelector("[data-reps-done]");
+  if (!grid) return;
+  const current = [...grid.querySelectorAll("input")].map((box) => box.value);
+  grid.innerHTML = denseRepsDoneBoxesHtml(scheme, current);
 }
 
 // Recovery only makes sense with wellness input (readiness / session fatigue).
@@ -5127,7 +5157,7 @@ function handleInput(event) {
   if (event.target.matches("#denseTrainingForm [name='repsPerSet']")) {
     updateDenseTotalFromRepsPerSet(event.target);
   }
-  if (event.target.matches("#denseTrainingForm [name='repsDone']")) {
+  if (event.target.matches("#denseTrainingForm [name^='repsDone']")) {
     updateDenseStrengthTotal(event.target.closest("#denseTrainingForm"));
   }
   if (event.target.matches("[data-action-input='quick-timer-rounds']")) {
@@ -6242,7 +6272,7 @@ function saveDenseTrainingForm(form) {
   // Modo Fuerza (esquema S): series × reps + descanso; reps reales por serie
   // opcionales ("5,5,4"). Sin reps/min.
   const strength = denseStrengthParts(scheme);
-  const repsDone = strength ? denseParseRepsDone(data.repsDone) : [];
+  const repsDone = strength ? denseReadRepsDone(form, scheme) : [];
   const restSeconds = strength ? positiveNumber(data.restSeconds) || DENSE_STRENGTH_DEFAULT_REST : 0;
   const targetRepsPerMin = isometric
     ? 0
@@ -7157,7 +7187,8 @@ function applyDenseFormTargets(form, { resetStaleLoad = false } = {}) {
   if (repsPerSetInput) repsPerSetInput.value = denseFormTargetRepsPerSet(exercise, scheme, suggestion) || "";
   // Modo Fuerza: total = series × reps objetivo (o las reps reales tecleadas).
   const strength = denseStrengthParts(scheme);
-  const repsDone = strength ? denseParseRepsDone(form.querySelector("[name='repsDone']")?.value) : [];
+  if (strength) denseSyncRepsDoneBoxes(form, scheme);
+  const repsDone = strength ? denseReadRepsDone(form, scheme) : [];
   const reps = strength
     ? repsDone.length
       ? repsDone.reduce((sum, value) => sum + value, 0)
@@ -7251,7 +7282,7 @@ function updateDenseStrengthTotal(form) {
   const parts = denseStrengthParts(scheme);
   const totalInput = form.querySelector("[name='totalReps']");
   if (!parts || !totalInput) return;
-  const done = denseParseRepsDone(form.querySelector("[name='repsDone']")?.value);
+  const done = denseReadRepsDone(form, scheme);
   totalInput.value = done.length ? done.reduce((sum, reps) => sum + reps, 0) : parts.sets * parts.reps;
 }
 

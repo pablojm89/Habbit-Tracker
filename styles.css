@@ -7656,3 +7656,23 @@ html.has-modal body {
     height: calc(100dvh - 16px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
   }
 }
+
+
+/* Reps reales por serie (modo Fuerza): una casilla por set */
+.reps-done-field > span {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.reps-done-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(52px, 1fr));
+  gap: 6px;
+}
+
+.reps-done-grid input {
+  min-height: 44px;
+  padding: 0 6px;
+  text-align: center;
+  font-weight: 800;
+}
