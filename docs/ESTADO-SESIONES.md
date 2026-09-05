@@ -8,7 +8,7 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 > App: PWA de entrenamiento (Dense training). Vanilla JS sin build: `app.js` (~9000
 > líneas), `styles.css`, `index.html`, `sw.js`. Sincroniza a Google Sheets vía Apps Script.
 > Modo training-only (`TRAINING_ONLY = true`). Cache busting: string `?v=…` en `index.html`
-> **y** `sw.js` a la vez. **Última versión: `20260905-auditoria-31`.**
+> **y** `sw.js` a la vez. **Última versión: `20260905-cajon-scroll-32`.**
 
 ## Cómo trabajar aquí (imprescindible)
 
@@ -61,6 +61,17 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
   cuando el bloque no tiene historial (`denseEstimatedLoadSuggestion`).
 - `23b547b` e1RM efectivo: los fallos recalibran al instante.
 - `8618f72` Fix estrella de favorito que no se actualizaba en el picker.
+
+### Scroll del cajón del buscador en iOS (5 sep 2026)
+- El usuario: "no funciona bien deslizar al buscar ejercicios". No reproducible en
+  headless (el gesto táctil sintético de Chromium no genera `touchmove`; solo rueda) —
+  se atacaron las causas conocidas en Safari: (1) un solo scroller (tarjeta y `<dialog>`
+  con `overflow:hidden`, scroll solo en `.modal-body`, `touch-action:pan-y`,
+  `overscroll-behavior:contain`); (2) `html.has-modal { overflow:hidden }` mientras hay
+  modal (scroll-chaining de la página de fondo), con listener `close` nativo para no
+  dejar la página bloqueada; (3) sin `backdrop-filter` en la tarjeta del cajón en móvil
+  (blur 42px sobre 100+ tarjetas = tirones); (4) fallback `vh` para WebKit sin `dvh`.
+  Guard adicional: los swipes de tarjeta/vista nunca arrancan dentro de un modal.
 
 ### Auditoría completa de la app (5 sep 2026)
 - **Bug grave (TDZ al arrancar)**: `render()` corría en la línea ~3120 con ~20 `const`

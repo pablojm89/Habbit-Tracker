@@ -2407,6 +2407,9 @@ function snapViewPanelBack(panel) {
 
 function onSwipePointerDown(event) {
   if (event.pointerType === "mouse" && event.button !== 0) return;
+  // Never start card/view swipes from inside a modal (picker, set form…):
+  // the pointermove handler would preventDefault and kill vertical scrolling.
+  if (event.target.closest("dialog, .modal")) return;
   const card = event.target.closest(".swipe-wrap > .today-workout-card");
   // Only grab the delete gesture when the swipe starts from the card's right
   // edge (or the card is already open). The middle stays free for day/tab swipes.
@@ -2629,6 +2632,8 @@ if ("serviceWorker" in navigator) {
     window.location.reload();
   });
 }
+// Native close (Esc / backdrop) bypasses closeModal(): never leave the page locked.
+nodes.modal.addEventListener("close", () => document.documentElement.classList.remove("has-modal"));
 nodes.todayChip.addEventListener("click", () => {
   selectedDate = startOfDay(new Date());
   state.settings.selectedDate = dateKey(selectedDate);
@@ -7670,6 +7675,9 @@ function calendarCell(day, habit, anchor) {
 
 function openModal() {
   nodes.modal.showModal();
+  // Lock the page behind the sheet: on iOS the body otherwise scroll-chains
+  // under the modal and the drawer feels stuck / jumps.
+  document.documentElement.classList.add("has-modal");
   refreshIcons();
 }
 
@@ -7682,6 +7690,7 @@ function closeModal() {
     saveState();
   }
   delete nodes.modalCard.dataset.modalKind;
+  document.documentElement.classList.remove("has-modal");
   nodes.modal.close();
 }
 

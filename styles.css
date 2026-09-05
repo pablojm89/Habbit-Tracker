@@ -7606,3 +7606,53 @@ body[data-density="compact"] .workout-exercise-icon {
     overflow: visible;
   }
 }
+
+@media (max-width: 760px) {
+  /* Un solo contenedor de scroll en los cajones con buscador: la tarjeta no
+     scrollea (evita el doble scroll anidado que se traba en iOS); el cuerpo sí. */
+  .modal-card[data-modal-kind="workout-exercise-picker"],
+  .modal-card[data-modal-kind="dense-set"]:has(.dense-exercise-picker) {
+    overflow: hidden;
+  }
+
+  .modal-card[data-modal-kind="workout-exercise-picker"] .modal-body,
+  .modal-card[data-modal-kind="dense-set"]:has(.dense-exercise-picker) .modal-body {
+    touch-action: pan-y;
+    overscroll-behavior: contain;
+  }
+}
+
+@media (max-width: 760px) {
+  /* Blur de 42px sobre una hoja casi completa con 100+ tarjetas = scroll a
+     tirones en iOS. En móvil el cajón es opaco; el ::backdrop mantiene el blur. */
+  .modal-card[data-modal-kind="workout-exercise-picker"] {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background:
+      radial-gradient(130% 60% at 50% -8%, rgba(168, 230, 53, 0.1), transparent 55%),
+      linear-gradient(180deg, #171a15, #0f110d);
+  }
+}
+
+/* Page behind a modal never scrolls (iOS scroll-chaining under the sheet). */
+html.has-modal,
+html.has-modal body {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+@media (max-width: 760px) {
+  /* El <dialog> tampoco es scroller en los cajones con buscador (UA default
+     overflow:auto): un solo contenedor de scroll, el .modal-body. */
+  .modal:has([data-modal-kind="workout-exercise-picker"]),
+  .modal:has([data-modal-kind="dense-set"] .dense-exercise-picker) {
+    overflow: hidden;
+  }
+
+  /* Fallback vh para WebKit sin dvh (iOS < 15.4); dvh gana cuando existe. */
+  .modal-card[data-modal-kind="workout-exercise-picker"],
+  .modal-card[data-modal-kind="dense-set"]:has(.dense-exercise-picker) {
+    height: calc(100vh - 16px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    height: calc(100dvh - 16px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  }
+}
