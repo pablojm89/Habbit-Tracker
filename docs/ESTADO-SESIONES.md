@@ -8,7 +8,7 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 > App: PWA de entrenamiento (Dense training). Vanilla JS sin build: `app.js` (~9000
 > líneas), `styles.css`, `index.html`, `sw.js`. Sincroniza a Google Sheets vía Apps Script.
 > Modo training-only (`TRAINING_ONLY = true`). Cache busting: string `?v=…` en `index.html`
-> **y** `sw.js` a la vez. **Última versión: `20260905-cajon-scroll-32`.**
+> **y** `sw.js` a la vez. **Última versión: `20260905-selectores-33`.**
 
 ## Cómo trabajar aquí (imprescindible)
 
@@ -61,6 +61,14 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
   cuando el bloque no tiene historial (`denseEstimatedLoadSuggestion`).
 - `23b547b` e1RM efectivo: los fallos recalibran al instante.
 - `8618f72` Fix estrella de favorito que no se actualizaba en el picker.
+
+### Selectores Modalidad/Formato desincronizados (5 sep 2026)
+- Reproducido con `probe-selectors.js`: tras cada cambio de Modalidad el chip marcado y el
+  resaltado divergían. Causa: los restauradores de esfuerzo/readiness hacían el toggle de
+  `.is-selected` sobre TODOS los `.readiness-option` del formulario, y Modalidad/Formato
+  comparten esa clase. Ahora `denseRestoreRadio` y `updateDenseReadinessSelection` acotan
+  el toggle a su `fieldset`. Además cambiar de modalidad conservaba mal el formato (con
+  historial S volvía a Densidad): el formato mostrado pasa a override antes del re-render.
 
 ### Scroll del cajón del buscador en iOS (5 sep 2026)
 - El usuario: "no funciona bien deslizar al buscar ejercicios". No reproducible en

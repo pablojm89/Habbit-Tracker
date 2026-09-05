@@ -5751,6 +5751,10 @@ function updateDenseNatureSelection(input) {
     effort: form.querySelector("input[name='effort']:checked")?.value,
     readiness: form.querySelector("input[name='readiness']:checked")?.value,
   };
+  // Changing modality must not silently change the format (Densidad/Fuerza):
+  // carry the currently shown format over as an explicit choice.
+  const currentFormat = form.querySelector("input[name='formatChoice']:checked")?.value;
+  if (currentFormat && !denseFormFormatOverride) denseFormFormatOverride = currentFormat;
   denseFormNatureOverride = input.value;
   nodes.modalBody.innerHTML = denseSetModalBodyHtml();
   const next = nodes.modalBody.querySelector("#denseTrainingForm");
@@ -5761,14 +5765,7 @@ function updateDenseNatureSelection(input) {
     if (notes && preserve.notes) notes.value = preserve.notes;
     const rom = next.querySelector("[name='romCm']");
     if (rom && preserve.romCm) rom.value = preserve.romCm;
-    ["effort", "readiness"].forEach((name) => {
-      if (!preserve[name]) return;
-      const radio = next.querySelector(`input[name='${name}'][value='${preserve[name]}']`);
-      if (!radio) return;
-      radio.checked = true;
-      const optionClass = name === "effort" ? ".effort-option" : ".readiness-option";
-      next.querySelectorAll(optionClass).forEach((option) => option.classList.toggle("is-selected", option.contains(radio)));
-    });
+    ["effort", "readiness"].forEach((name) => denseRestoreRadio(next, name, preserve[name]));
   }
   refreshIcons();
   updateDenseHoldEstimate(next);
@@ -7220,7 +7217,8 @@ function updateDenseSchemeSelection(input) {
 function updateDenseReadinessSelection(input) {
   const form = input.closest("#denseTrainingForm");
   if (!form) return;
-  form.querySelectorAll(".readiness-option").forEach((option) => option.classList.toggle("is-selected", option.contains(input)));
+  const scope = input.closest("fieldset") || form;
+  scope.querySelectorAll(".readiness-option").forEach((option) => option.classList.toggle("is-selected", option.contains(input)));
   applyDenseFormTargets(form);
 }
 
@@ -7271,16 +7269,21 @@ function updateDenseFormatSelection(input) {
     if (bw && preserve.bodyweightKg) bw.value = preserve.bodyweightKg;
     const notes = next.querySelector("[name='notes']");
     if (notes && preserve.notes) notes.value = preserve.notes;
-    ["effort", "readiness"].forEach((name) => {
-      if (!preserve[name]) return;
-      const radio = next.querySelector(`input[name='${name}'][value='${preserve[name]}']`);
-      if (radio) {
-        radio.checked = true;
-        radio.closest("label")?.classList.add("is-selected");
-      }
-    });
+    ["effort", "readiness"].forEach((name) => denseRestoreRadio(next, name, preserve[name]));
   }
   refreshIcons();
+}
+
+// Re-check a radio after a form re-render and move the highlight ONLY within
+// its own fieldset: modality/format chips share .readiness-option with the
+// readiness picker, so a form-wide toggle used to un-highlight them.
+function denseRestoreRadio(form, name, value) {
+  if (!value) return;
+  const radio = form.querySelector(`input[name='${name}'][value='${value}']`);
+  if (!radio) return;
+  radio.checked = true;
+  const scope = radio.closest("fieldset") || form;
+  scope.querySelectorAll(".readiness-option, .effort-option").forEach((option) => option.classList.toggle("is-selected", option.contains(radio)));
 }
 
 // ── Mobility ROM (range of motion) ───────────────────────────────────────
