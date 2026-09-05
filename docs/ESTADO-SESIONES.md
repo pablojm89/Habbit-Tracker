@@ -8,7 +8,7 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 > App: PWA de entrenamiento (Dense training). Vanilla JS sin build: `app.js` (~9000
 > líneas), `styles.css`, `index.html`, `sw.js`. Sincroniza a Google Sheets vía Apps Script.
 > Modo training-only (`TRAINING_ONLY = true`). Cache busting: string `?v=…` en `index.html`
-> **y** `sw.js` a la vez. **Última versión: `20260905-peso-corporal-30`.**
+> **y** `sw.js` a la vez. **Última versión: `20260905-auditoria-31`.**
 
 ## Cómo trabajar aquí (imprescindible)
 
@@ -61,6 +61,34 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
   cuando el bloque no tiene historial (`denseEstimatedLoadSuggestion`).
 - `23b547b` e1RM efectivo: los fallos recalibran al instante.
 - `8618f72` Fix estrella de favorito que no se actualizaba en el picker.
+
+### Auditoría completa de la app (5 sep 2026)
+- **Bug grave (TDZ al arrancar)**: `render()` corría en la línea ~3120 con ~20 `const`
+  declaradas después; con la pestaña *Balance* persistida la app arrancaba EN BLANCO
+  ("Cannot access 'denseRatioPairs' before initialization"). El primer `render()` vive
+  ahora al FINAL del fichero (`// ── Boot`). Cubierto por el nuevo `qa-audit.js`
+  (arranque bajo cada modo × pestaña × densidad persistidos).
+- **Bug latente**: `closeModal` solo pausaba el timer si el título era "Quick Timer";
+  el timer por ejercicio ("Cronómetro · X") seguía pitando en segundo plano. Ahora
+  cualquier título `Cronómetro…` pausa al cerrar.
+- **Limpieza**: 26 funciones muertas del legacy hábitos/mesociclo eliminadas (−359
+  líneas), una a una con `node --check` por paso (un borrado por llaves recortó el
+  fichero a la mitad: NUNCA hacer brace-matching casero sobre app.js).
+- **Coherencia de idioma**: formulario, feedback, timer y cabeceras de analytics en
+  castellano (quedaban en inglés: "Scheme completed", "How did that session go?",
+  "Personal records", "Push vs Pull"…). Resumen del set con volumen honesto por
+  modalidad (antes reps × peso corporal incluso en barra).
+- Herramienta nueva `qa-audit.js` (scratchpad): arranque persistido, click-crawl de
+  todas las acciones no destructivas por pantalla, flujo plan→registro→edición→borrado,
+  detección de overflow/clipping. Resultado: verde.
+- **Backlog de mejoras** (no hechas): esquema MAX; niveles de fuerza por benchmarks;
+  ritmo de peso personalizado; render() re-pinta 36 paneles en cada cambio
+  (rendimiento aceptable hoy, vigilar); `renderDenseTraining` es un stub vacío.
+- **Peso a Analítica** (petición del usuario): nueva pestaña **Peso** (tarjeta de control +
+  tendencia `dcLineChart` en la ventana + últimos registros); la tarjeta ya no está en la
+  pantalla principal. `renderWeightAnalytics` funciona sin marcas de entreno.
+- **Cajón del buscador de ejercicios** casi a pantalla completa en móvil (96 % dvh, pegado
+  arriba) para `workout-exercise-picker` y el set-modal con picker; cuerpo scrollable.
 
 ### Control de peso corporal (5 sep 2026)
 - Aviso diario al abrir la app ("¿Cuánto pesas hoy?", con "Hoy no"), tarjeta en la

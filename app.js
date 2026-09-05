@@ -303,6 +303,7 @@ const trainingAnalyticsTabs = [
   ["strength", "Fuerza", "trophy"],
   ["recovery", "Recovery", "heart-pulse"],
   ["balance", "Balance", "scale"],
+  ["weight", "Peso", "gauge"],
 ];
 
 const trainingAnalyticsWindows = [
@@ -3120,8 +3121,9 @@ try {
   console.warn("transfer rebuild failed", error);
 }
 
-render();
-setTimeout(maybePromptBodyweight, 400);
+// (initial render moved to the end of the file — see bottom — so every
+// top-level const is initialized before the first paint; a persisted screen
+// such as the Balance tab used to hit a TDZ crash and boot blank.)
 queueInitialCloudRestore();
 
 function render() {
@@ -3651,10 +3653,6 @@ function denseTestSuggestions() {
   });
 }
 
-function denseTestSuggestion() {
-  return denseTestSuggestions()[0] || null;
-}
-
 function denseTestSuggestionRow(suggestion, { lead = false } = {}) {
   const daysLabel = suggestion.days >= 999 ? "sin test directo" : `${suggestion.days}d sin test`;
   const title = `${lead ? "Testea esta semana: " : ""}${suggestion.exercise.name} · ${suggestion.scheme}`;
@@ -3869,7 +3867,7 @@ function renderMesocycle() {
           <div class="workout-day-badges">
             <span class="workout-score"><strong>${entries.length}</strong><small>sets</small></span>
             <button class="icon-button" type="button" data-action="go-today" title="Hoy" aria-label="Hoy"><i data-lucide="calendar-clock"></i></button>
-            <button class="icon-button" type="button" data-action="open-quick-timer" title="Tools" aria-label="Tools"><i data-lucide="timer"></i></button>
+            <button class="icon-button" type="button" data-action="open-quick-timer" title="Cronómetro" aria-label="Cronómetro"><i data-lucide="timer"></i></button>
           </div>
         </div>
 
@@ -3916,7 +3914,6 @@ function renderMesocycle() {
         ${renderWeeklyFailureCard(weekDayKeys, isCurrentWeek)}
         ${renderTestSuggestionCard()}
       </section>
-      <section class="workout-widget" aria-label="Peso corporal">${renderBodyweightCard()}</section>
 
       <div class="day-carousel" data-day-carousel>
         <div class="day-carousel-track">
@@ -4016,7 +4013,7 @@ function denseTrainingFormMarkup(defaults, { includePicker = false, modal = fals
         <input type="hidden" name="exerciseId" value="${escapeAttr(defaults.exerciseId)}" />
         <input type="hidden" name="nature" value="${escapeAttr(nature)}" />
         <fieldset class="scheme-picker-field is-full">
-          <legend>${strength ? "Series × reps" : modal ? "Scheme completed" : "Esquema Dense"}</legend>
+          <legend>${strength ? "Series × reps" : modal ? "Esquema realizado" : "Esquema Dense"}</legend>
           <div class="scheme-option-grid">
             ${formSchemes.map((scheme) => denseSchemeOption(scheme, defaults.scheme)).join("")}
           </div>
@@ -4029,14 +4026,14 @@ function denseTrainingFormMarkup(defaults, { includePicker = false, modal = fals
         ${denseHoldFields(activeExercise, defaults)}
         ${denseLoadFields(activeExercise, defaults)}
         <fieldset class="effort-picker-field is-full">
-          <legend>Effort</legend>
+          <legend>Esfuerzo</legend>
           <div class="effort-option-grid">
             ${denseEffortOptions.map(([value, label]) => denseEffortOption(value, label, defaults.effort, modal)).join("")}
           </div>
         </fieldset>
         <label class="field is-full">
-          <span>Notes ${modal ? "(optional)" : ""}</span>
-          <textarea name="notes" placeholder="${modal ? "Any thoughts on this session..." : "ROM, tempo, anillas altas, pies elevados, molestias, si las reps son por lado..."}">${escapeHtml(defaults.notes || "")}</textarea>
+          <span>Notas ${modal ? "(opcional)" : ""}</span>
+          <textarea name="notes" placeholder="${modal ? "Sensaciones, técnica, molestias..." : "ROM, tempo, anillas altas, pies elevados, molestias, si las reps son por lado..."}">${escapeHtml(defaults.notes || "")}</textarea>
         </label>
       </div>
       <div class="dense-actions">
@@ -4053,7 +4050,16 @@ function denseTrainingFormMarkup(defaults, { includePicker = false, modal = fals
 function denseSetModalSummary(exercise, defaults) {
   const total = Number(defaults.totalReps || 0);
   const bodyweight = Number(defaults.bodyweightKg || 0);
-  const volume = total && bodyweight ? `${Math.round(total * bodyweight)} kg volume` : denseExerciseHint(exercise);
+  // Volumen honesto por modalidad: carga externa × reps en barra/mancuerna,
+  // (peso + lastre) en lastre, y peso corporal × % de contribución en BW.
+  const external = Number(defaults.externalLoadKg || 0) || Number(defaults.weightPerDumbbellKg || 0) * 2;
+  const perRep =
+    exercise.nature === "weighted"
+      ? external
+      : exercise.nature === "weighted_calisthenics"
+        ? bodyweight + Number(defaults.addedLoadKg || 0)
+        : (bodyweight * (exercise.bodyweightContributionPct ?? 100)) / 100;
+  const volume = total && perRep ? `${Math.round(total * perRep)} kg movidos` : denseExerciseHint(exercise);
   const strength = denseStrengthParts(defaults.scheme);
   const headline = strength
     ? `${denseStrengthSchemeLabel(defaults.scheme)} · descanso ${denseFormatRest(defaults.restSeconds || DENSE_STRENGTH_DEFAULT_REST)}`
@@ -4174,6 +4180,7 @@ function renderTrainingAnalytics() {
 }
 
 function renderTrainingAnalyticsTab(tab, entries) {
+  if (tab === "weight") return renderWeightAnalytics();
   if (!entries.length) return renderEmptyAnalytics();
   if (tab === "progress") return renderProgressAnalytics(entries);
   if (tab === "volume") return renderVolumeAnalytics(entries);
@@ -4255,7 +4262,7 @@ function renderProgressAnalytics(entries) {
         .join("")}</article>`;
     })()}
 
-    ${dcCollapse("trophy", "Personal records", "toca para ver", `${prEvents.length}`, prEvents.length ? prEvents.slice(0, 8).map(dcPrRow).join("") : `<p class="dc-empty-note">Sin PRs en esta ventana.</p>`)}
+    ${dcCollapse("trophy", "Récords personales", "toca para ver", `${prEvents.length}`, prEvents.length ? prEvents.slice(0, 8).map(dcPrRow).join("") : `<p class="dc-empty-note">Sin PRs en esta ventana.</p>`)}
     ${dcCollapse("zap", "Effort — easier than before", "misma marca o mejor, menos esfuerzo", `${easier.length}`, easier.length ? easier.map((row) => `<div class="dc-pr-row"><div><strong>${escapeHtml(row.name)}</strong><small><em>Dense</em> ${escapeHtml(row.scheme)}</small></div><span>${escapeHtml(String(row.date || "").slice(5))}</span></div>`).join("") : `<p class="dc-empty-note">Aún nada aquí: repite una marca con menos esfuerzo y aparecerá.</p>`)}
 
     <div class="dc-section-head"><strong>Health</strong></div>
@@ -4439,9 +4446,9 @@ function renderStrengthAnalytics(entries) {
     effortSeries.push({ short: `${day.getMonth() + 1}/${day.getDate()}`, value: avgEffort ? Math.round(avgEffort * 10) : 0 });
   }
   return `
-    ${dcBarTrendCard("Personal records", prEvents.length, 0, prByDay, "")}
+    ${dcBarTrendCard("Récords personales", prEvents.length, 0, prByDay, "")}
 
-    <div class="dc-section-head"><strong>Relative strength</strong><span>PR / peso corporal</span></div>
+    <div class="dc-section-head"><strong>Fuerza relativa</strong><span>PR / peso corporal</span></div>
     <article class="analytics-card">
       ${
         relRows.length
@@ -4450,7 +4457,7 @@ function renderStrengthAnalytics(entries) {
       }
     </article>
 
-    <div class="dc-section-head"><strong>Per-exercise progression</strong><span>tendencia de tu mejor señal</span></div>
+    <div class="dc-section-head"><strong>Progresión por ejercicio</strong><span>tendencia de tu mejor señal</span></div>
     <article class="analytics-card">
       <div class="dc-chip-row">
         ${progressable.map((exercise) => `<button class="dc-chip ${exercise.id === selectedId ? "is-active" : ""}" type="button" data-action="set-analytics-exercise" data-exercise="${escapeAttr(exercise.id)}">${escapeHtml(exercise.name)}</button>`).join("")}
@@ -4458,7 +4465,7 @@ function renderStrengthAnalytics(entries) {
       ${progressionChart}
     </article>
 
-    <div class="dc-section-head"><strong>Effort progress</strong><span>esfuerzo medio diario (RPE ×10)</span></div>
+    <div class="dc-section-head"><strong>Evolución del esfuerzo</strong><span>esfuerzo medio diario (RPE ×10)</span></div>
     <article class="analytics-card">${dcLineChart(effortSeries, { legend: false })}</article>
   `;
 }
@@ -4545,11 +4552,11 @@ function renderRecoveryAnalytics(entries) {
 }
 
 const denseRatioPairs = [
-  { name: "Push-Pull Balance", sub: "empuje / tirón", a: "push", b: "pull", target: 1.0 },
-  { name: "Vertical Balance", sub: "empuje vertical / tirón vertical", a: "vertical_push", b: "vertical_pull", target: 0.9 },
-  { name: "Horizontal Balance", sub: "empuje horizontal / tirón horizontal", a: "horizontal_push", b: "horizontal_pull", target: 1.0 },
-  { name: "Squat-Hinge Balance", sub: "squat / bisagra de cadera", a: "squat", b: "hinge", target: 1.1 },
-  { name: "Unilateral Ratio", sub: "pierna unilateral / squat", a: "unilateral_leg", b: "squat", target: 0.45 },
+  { name: "Balance empuje-tirón", sub: "empuje / tirón", a: "push", b: "pull", target: 1.0 },
+  { name: "Balance vertical", sub: "empuje vertical / tirón vertical", a: "vertical_push", b: "vertical_pull", target: 0.9 },
+  { name: "Balance horizontal", sub: "empuje horizontal / tirón horizontal", a: "horizontal_push", b: "horizontal_pull", target: 1.0 },
+  { name: "Balance squat-bisagra", sub: "squat / bisagra de cadera", a: "squat", b: "hinge", target: 1.1 },
+  { name: "Ratio unilateral", sub: "pierna unilateral / squat", a: "unilateral_leg", b: "squat", target: 0.45 },
 ];
 
 function dcRatioCard(pair, patternMap) {
@@ -4589,15 +4596,15 @@ function renderBalanceAnalytics(entries) {
   const rows = densePatternRows(entries).slice(0, 8);
   const maxSets = Math.max(...rows.map((row) => row.sets), 1);
   return `
-    <div class="dc-section-head"><strong>Current ratios</strong><span>sets equivalentes en la ventana</span></div>
+    <div class="dc-section-head"><strong>Ratios actuales</strong><span>sets equivalentes en la ventana</span></div>
     ${denseRatioPairs.map((pair) => dcRatioCard(pair, patternMap)).join("")}
 
-    <div class="dc-section-head"><strong>Movement pattern balance</strong></div>
-    ${dcBipolarCard("Push vs Pull", "Push", patternMap.push?.sets || 0, patternMap.push?.reps || 0, "Pull", patternMap.pull?.sets || 0, patternMap.pull?.reps || 0, 1.0)}
-    ${dcBipolarCard("Squat vs Hinge", "Squat", patternMap.squat?.sets || 0, patternMap.squat?.reps || 0, "Hinge", patternMap.hinge?.sets || 0, patternMap.hinge?.reps || 0, 1.1)}
+    <div class="dc-section-head"><strong>Balance de patrones</strong></div>
+    ${dcBipolarCard("Empuje vs Tirón", "Empuje", patternMap.push?.sets || 0, patternMap.push?.reps || 0, "Tirón", patternMap.pull?.sets || 0, patternMap.pull?.reps || 0, 1.0)}
+    ${dcBipolarCard("Squat vs Bisagra", "Squat", patternMap.squat?.sets || 0, patternMap.squat?.reps || 0, "Bisagra", patternMap.hinge?.sets || 0, patternMap.hinge?.reps || 0, 1.1)}
     ${dcBipolarCard("Superior vs Inferior", "Superior", upperSets, upperReps, "Inferior", catSets.legs || 0, catReps.legs || 0, 1.2)}
 
-    ${dcCollapse("bar-chart-3", "Pattern breakdown", "sets por patrón", `${rows.length}`, `<div class="analytics-bars">${rows.map((row) => analyticsBar(patternLabel(row.pattern), row.sets, maxSets, `${roundTo(row.reps, 0)} reps`)).join("")}</div>`)}
+    ${dcCollapse("bar-chart-3", "Desglose por patrón", "sets por patrón", `${rows.length}`, `<div class="analytics-bars">${rows.map((row) => analyticsBar(patternLabel(row.pattern), row.sets, maxSets, `${roundTo(row.reps, 0)} reps`)).join("")}</div>`)}
   `;
 }
 
@@ -4775,7 +4782,7 @@ function renderDensePrs() {
       if (!total) return "";
       const max = Math.max(...weeks.map((w) => w.count), 1);
       return `
-        <div class="dc-section-head"><strong>PR timeline</strong><span>${total} PRs · 12 semanas</span></div>
+        <div class="dc-section-head"><strong>Cronología de PRs</strong><span>${total} PRs · 12 semanas</span></div>
         <article class="analytics-card">
           <div class="recovery-sparkline is-pr-timeline">
             ${weeks.map((w) => `<span style="height:${w.count ? Math.max(14, (w.count / max) * 100) : 4}%" title="${escapeAttr(`sem ${w.label}: ${w.count} PR${w.count === 1 ? "" : "s"}`)}"></span>`).join("")}
@@ -5336,8 +5343,8 @@ function openDayModal() {
 
 function openQuickTimerModal() {
   syncQuickTimerFromForm();
-  nodes.modalEyebrow.textContent = "Tools";
-  nodes.modalTitle.textContent = "Quick Timer";
+  nodes.modalEyebrow.textContent = "Herramientas";
+  nodes.modalTitle.textContent = "Cronómetro";
   renderQuickTimerModalBody();
   openModal();
 }
@@ -5369,7 +5376,7 @@ function startExerciseTimer(exerciseId) {
   }
   state.settings.denseSelectedExerciseId = exercise.id;
   resetQuickTimer(false);
-  nodes.modalEyebrow.textContent = "Tools";
+  nodes.modalEyebrow.textContent = "Herramientas";
   nodes.modalTitle.textContent = `Cronómetro · ${exercise.name}`;
   renderQuickTimerModalBody();
   openModal();
@@ -5387,11 +5394,11 @@ function renderQuickTimerModalBody() {
         <span>${
           restMode
             ? `Descanso ${Math.min(quickTimerState.currentRound, quickTimerState.rounds)} / ${quickTimerState.rounds} · ${denseFormatRest(quickTimerState.roundSeconds)} entre series`
-            : `Round ${Math.min(quickTimerState.currentRound, quickTimerState.rounds)} / ${quickTimerState.rounds}${quickTimerState.holdSeconds ? ` · ${quickTimerState.holdSeconds}s hold` : ""}`
+            : `Ronda ${Math.min(quickTimerState.currentRound, quickTimerState.rounds)} / ${quickTimerState.rounds}${quickTimerState.holdSeconds ? ` · ${quickTimerState.holdSeconds}s hold` : ""}`
         }</span>
       </div>
       <section>
-        <p class="timer-label">Choose scheme</p>
+        <p class="timer-label">Bloque de densidad</p>
         <div class="timer-option-grid">
           ${bodyweightSchemes.map((scheme) => timerOptionButton("quick-timer-scheme", scheme, scheme, !restMode && quickTimerState.scheme === scheme)).join("")}
         </div>
@@ -5403,19 +5410,19 @@ function renderQuickTimerModalBody() {
         </div>
       </section>
       <label class="field">
-        <span>${restMode ? "Series" : "Custom rounds"}</span>
+        <span>${restMode ? "Series" : "Rondas"}</span>
         <input data-action-input="quick-timer-rounds" type="number" min="1" max="120" value="${escapeAttr(quickTimerState.rounds)}" />
       </label>
       ${
         restMode
           ? ""
           : `<section>
-        <p class="timer-label">Hold per round</p>
+        <p class="timer-label">Hold por ronda</p>
         <div class="timer-option-grid is-hold">
           ${[0, 5, 10, 20, 30, 40, 60].map((seconds) => timerOptionButton("quick-timer-hold", seconds, seconds ? `${seconds}s` : "Off", quickTimerState.holdSeconds === seconds)).join("")}
         </div>
         <label class="field timer-custom-hold">
-          <span>Hold custom (s)</span>
+          <span>Hold a medida (s)</span>
           <input data-action-input="quick-timer-hold-custom" type="number" min="0" max="600" step="1" value="${escapeAttr(quickTimerState.holdSeconds || "")}" placeholder="ej. 23" />
         </label>
       </section>`
@@ -5428,12 +5435,12 @@ function renderQuickTimerModalBody() {
         ${
           quickTimerState.running
             ? `<button class="text-button is-hot" type="button" data-action="quick-timer-pause"><i data-lucide="pause"></i>Pausar</button>`
-            : `<button class="text-button is-hot" type="button" data-action="quick-timer-start"><i data-lucide="play"></i>Start timer</button>`
+            : `<button class="text-button is-hot" type="button" data-action="quick-timer-start"><i data-lucide="play"></i>Iniciar</button>`
         }
         <button class="text-button" type="button" data-action="quick-timer-reset"><i data-lucide="rotate-ccw"></i>Reset</button>
       </div>
       <button class="text-button timer-wide-button ${quickTimerState.metronome ? "is-hot" : ""}" type="button" data-action="quick-timer-metronome">
-        <i data-lucide="music"></i>${quickTimerState.metronome ? "Metronome on" : "Use metronome instead"}
+        <i data-lucide="music"></i>${quickTimerState.metronome ? "Metrónomo activo" : "Usar metrónomo"}
       </button>
       <button class="text-button timer-wide-button" type="button" data-action="apply-timer-hold">
         <i data-lucide="clipboard-check"></i>Aplicar hold al registro
@@ -5489,12 +5496,6 @@ function setQuickTimerScheme(scheme) {
 function setQuickTimerRest(seconds) {
   quickTimerState.roundSeconds = clamp(Math.round(Number(seconds) || DENSE_STRENGTH_DEFAULT_REST), 10, 900);
   quickTimerState.holdSeconds = 0;
-  resetQuickTimer(false);
-  renderQuickTimerModalBody();
-}
-
-function setQuickTimerRounds(value) {
-  quickTimerState.rounds = clamp(Math.round(Number(value) || denseSchemeMinutes(quickTimerState.scheme) || 1), 1, 120);
   resetQuickTimer(false);
   renderQuickTimerModalBody();
 }
@@ -5704,7 +5705,7 @@ function denseSetModalBodyHtml() {
       ${denseTrainingFormMarkup(denseFormDefaults(), {
         includePicker: denseSetModalContext.includePicker,
         modal: true,
-        submitLabel: denseSetModalContext.editing ? "Update set" : "Save set",
+        submitLabel: denseSetModalContext.editing ? "Actualizar set" : "Guardar set",
       })}
     </div>
   `;
@@ -5726,7 +5727,7 @@ function openDenseTrainingModal({ exerciseId = "", entryId = "", failure = false
   // A stale saved query used to leave the picker filtered/empty on open.
   if (denseSetModalContext.includePicker) state.settings.denseExerciseSearch = "";
   nodes.modalCard.dataset.modalKind = "dense-set";
-  nodes.modalEyebrow.textContent = denseSetModalContext.editing ? "Editing set" : denseFailureSetMode ? "Set al fallo" : "New set";
+  nodes.modalEyebrow.textContent = denseSetModalContext.editing ? "Editando set" : denseFailureSetMode ? "Set al fallo" : "Nuevo set";
   nodes.modalTitle.textContent = exercise.name;
   nodes.modalBody.innerHTML = denseSetModalBodyHtml();
   openModal();
@@ -6086,7 +6087,7 @@ function openDenseExerciseDetailModal(exerciseId) {
         const levels = denseExerciseLevels(exercise, best);
         if (!levels.length) return "";
         return `<section class="exercise-detail-levels">
-          <strong>Strength levels</strong>
+          <strong>Niveles de fuerza</strong>
           ${levels.map((item) => `<div><span>${escapeHtml(item.label)}</span><b>${escapeHtml(item.value)}</b></div>`).join("")}
         </section>`;
       })()}
@@ -6349,8 +6350,8 @@ function saveDenseTrainingForm(form) {
 function openDenseFeedbackModal(entryId) {
   const entry = getDenseEntries().find((item) => item.id === entryId);
   if (!entry) return;
-  nodes.modalEyebrow.textContent = "Post set";
-  nodes.modalTitle.textContent = "How did that session go?";
+  nodes.modalEyebrow.textContent = "Tras el set";
+  nodes.modalTitle.textContent = "¿Cómo ha ido?";
   nodes.modalBody.innerHTML = `
     <form id="denseFeedbackForm" class="dense-feedback-form">
       <input type="hidden" name="entryId" value="${escapeAttr(entry.id)}" />
@@ -6362,7 +6363,7 @@ function openDenseFeedbackModal(entryId) {
         </div>
       </div>
       <label class="field is-full">
-        <span>Fatigue level</span>
+        <span>Nivel de fatiga</span>
         <input name="sessionFatigue" type="range" min="1" max="10" value="${escapeAttr(entry.session_fatigue || 5)}" />
       </label>
       <div class="feedback-scale">
@@ -6371,11 +6372,11 @@ function openDenseFeedbackModal(entryId) {
         <span>10</span>
       </div>
       <fieldset class="feedback-picker-field">
-        <legend>Compared to what was expected</legend>
+        <legend>Respecto a lo esperado</legend>
         <div class="feedback-option-grid">
-          ${feedbackOption("easier", "Easier than expected", entry.expected_comparison)}
-          ${feedbackOption("as_expected", "As expected", entry.expected_comparison || "as_expected")}
-          ${feedbackOption("harder", "Harder than expected", entry.expected_comparison)}
+          ${feedbackOption("easier", "Más fácil de lo esperado", entry.expected_comparison)}
+          ${feedbackOption("as_expected", "Como esperaba", entry.expected_comparison || "as_expected")}
+          ${feedbackOption("harder", "Más duro de lo esperado", entry.expected_comparison)}
         </div>
       </fieldset>
       <div class="modal-actions">
@@ -7614,107 +7615,6 @@ function closeChoicePopovers() {
   document.querySelectorAll(".choice-field.is-open").forEach((field) => field.classList.remove("is-open"));
 }
 
-function habitModalSection(title, summary, body, open = false) {
-  return `
-    <details class="habit-config-section" ${open ? "open" : ""}>
-      <summary>
-        <span>
-          <strong>${escapeHtml(title)}</strong>
-          <small>${escapeHtml(summary)}</small>
-        </span>
-        <i data-lucide="chevron-down"></i>
-      </summary>
-      <div class="habit-config-body">
-        ${body}
-      </div>
-    </details>
-  `;
-}
-
-function habitIconPicker(value) {
-  const options = ensureOption(habitIconOptions, "icon", value, {
-    icon: value || "circle",
-    label: "Personalizado",
-    hint: "icono actual",
-  });
-
-  return `
-    <fieldset class="field picker-field is-full">
-      <legend>Icono (identidad visual del hábito)</legend>
-      <div class="option-grid icon-option-grid">
-        ${options
-          .map(
-            (option) => `
-              <label class="option-card ${option.icon === value ? "is-selected" : ""}">
-                <input type="radio" name="icon" value="${escapeAttr(option.icon)}" ${option.icon === value ? "checked" : ""} />
-                <span class="option-icon"><i data-lucide="${option.icon}"></i></span>
-                <span>
-                  <strong>${escapeHtml(option.label)}</strong>
-                  <small>${escapeHtml(option.hint)}</small>
-                </span>
-              </label>
-            `,
-          )
-          .join("")}
-      </div>
-    </fieldset>
-  `;
-}
-
-function habitColorPicker(value) {
-  const options = ensureOption(habitColorOptions, "color", value, {
-    color: value || "#68d66f",
-    label: "Actual",
-    hint: "color personalizado",
-  });
-
-  return `
-    <fieldset class="field picker-field is-full">
-      <legend>Color (tono emocional y categoría visual)</legend>
-      <div class="option-grid color-option-grid">
-        ${options
-          .map(
-            (option) => `
-              <label class="option-card color-option ${option.color === value ? "is-selected" : ""}" style="--option-color:${option.color}">
-                <input type="radio" name="color" value="${escapeAttr(option.color)}" ${option.color === value ? "checked" : ""} />
-                <span class="color-swatch"></span>
-                <span>
-                  <strong>${escapeHtml(option.label)}</strong>
-                  <small>${escapeHtml(option.hint)}</small>
-                </span>
-              </label>
-            `,
-          )
-          .join("")}
-      </div>
-    </fieldset>
-  `;
-}
-
-function habitStatPicker(value) {
-  return `
-    <fieldset class="field picker-field is-full">
-      <legend>Stat (qué atributo sube cuando lo cumples)</legend>
-      <div class="option-grid stat-option-grid">
-        ${statCatalog
-          .map(
-            (stat) => `
-              <label class="option-card stat-option ${stat.id === value ? "is-selected" : ""}" style="--option-color:${stat.color}">
-                <input type="radio" name="stat" value="${stat.id}" ${stat.id === value ? "checked" : ""} />
-                <span class="option-icon"><i data-lucide="${stat.icon}"></i></span>
-                <span>
-                  <strong>${stat.name}</strong>
-                  <small>${escapeHtml(stat.hint)}</small>
-                </span>
-              </label>
-            `,
-          )
-          .join("")}
-      </div>
-    </fieldset>
-  `;
-}
-
 function field(label, name, value, type = "text", options = []) {
   if (type === "select") {
     return `
@@ -7774,7 +7674,9 @@ function openModal() {
 }
 
 function closeModal() {
-  if (nodes.modalTitle.textContent === "Quick Timer") pauseQuickTimer(false);
+  // Any timer modal (generic or per-exercise "Cronómetro · X"): stop the clock
+  // on close, or it keeps ticking and beeping in the background.
+  if (/^Cronómetro/.test(nodes.modalTitle.textContent || "")) pauseQuickTimer(false);
   if (nodes.modalCard.dataset.modalKind === "dense-set") {
     delete state.settings.denseDraftEntryId;
     saveState();
@@ -8060,25 +7962,6 @@ function latestDenseEntryForExercise(exerciseId, scheme = "") {
   return [...getDenseEntries()]
     .filter((entry) => entry.exercise_id === exerciseId && !entry.deleted_at && (!scheme || entry.scheme === scheme))
     .sort((a, b) => (b.created_at || b.date || "").localeCompare(a.created_at || a.date || ""))[0] || null;
-}
-
-function denseQuickExercises() {
-  const favorites = denseExerciseFavorites()
-    .map((id) => denseExerciseById(id))
-    .filter(Boolean);
-  const recent = denseExerciseLibrary({ sort: "recent" }).filter((exercise) => denseExerciseStats(exercise.id).count > 0);
-  const fallback = denseExerciseLibrary({ sort: "az" }).slice(0, 6);
-  const unique = new Map();
-  [...favorites, ...recent, ...fallback].forEach((exercise) => {
-    if (exercise?.id && !unique.has(exercise.id)) unique.set(exercise.id, exercise);
-  });
-  return [...unique.values()].slice(0, 6);
-}
-
-function denseEffortBadge(effort) {
-  const labels = { VE: "Muy fácil", E: "Fácil", N: "Normal", H: "Difícil", VH: "Muy difícil", fallo: "Fallo" };
-  const value = effort || "N";
-  return `<span class="effort-badge" style="--effort-color:${denseEffortColor(value)}">${escapeHtml(labels[value] || value)}</span>`;
 }
 
 // Bottom line of a logged card: "5D7 (35 reps)" or "5D15 (75s TUT)"
@@ -8514,29 +8397,6 @@ function plannedExercisesForDate(day) {
         : null;
     })
     .filter(Boolean);
-}
-
-function currentMesocycleSessionForDate(day) {
-  const weekIndex = Math.min(state.mesocycle.weeks.length - 1, Math.max(0, Math.floor(daysBetween(parseDate(state.mesocycle.startDate), day) / 7)));
-  const week = state.mesocycle.weeks[weekIndex] || state.mesocycle.weeks[0];
-  if (!week?.sessions?.length) return null;
-  const dayIndex = (day.getDay() + 6) % 7;
-  if (dayIndex <= 1) return week.sessions[0];
-  if (dayIndex <= 3) return week.sessions[1] || week.sessions[0];
-  if (dayIndex <= 5) return week.sessions[2] || week.sessions[0];
-  return null;
-}
-
-function denseExerciseFromPlannedName(name = "") {
-  const normalized = name.toLowerCase();
-  if (normalized.includes("domin")) return denseExerciseById("pull_up");
-  if (normalized.includes("remo")) return denseExerciseById("ring_row");
-  if (normalized.includes("press militar")) return denseExerciseById("seated_db_overhead_press");
-  if (normalized.includes("press") || normalized.includes("banca")) return denseExerciseById("floor_push_up");
-  if (normalized.includes("sentadilla") || normalized.includes("squat")) return denseExerciseById("air_squat");
-  if (normalized.includes("zancada") || normalized.includes("split")) return denseExerciseById("pistol_squat");
-  if (normalized.includes("movilidad") || normalized.includes("cadera")) return denseExerciseById("seated_bent_leg_good_morning");
-  return null;
 }
 
 function denseExerciseById(id) {
@@ -9776,16 +9636,6 @@ function densePatternRows(entries) {
   return Object.values(densePatternMap(entries)).sort((a, b) => b.sets - a.sets);
 }
 
-function denseLoadByDay(entries) {
-  const map = entries.reduce((days, entry) => {
-    const key = entry.date || "sin fecha";
-    days[key] ||= { date: key, load: 0 };
-    days[key].load += denseEquivalentSets(entry) * (entry.effort_value || 5);
-    return days;
-  }, {});
-  return Object.values(map).sort((a, b) => String(a.date).localeCompare(String(b.date))).slice(-14);
-}
-
 function analyticsDetailRow(title, value, detail, icon, expandedDetail = "") {
   return `
     <details class="analytics-detail-row">
@@ -9803,60 +9653,11 @@ function analyticsDetailRow(title, value, detail, icon, expandedDetail = "") {
   `;
 }
 
-function recoveryFeedbackDetails(entries) {
-  const withFeedback = entries.filter((entry) => entry.session_fatigue || entry.expected_comparison || entry.session_notes);
-  if (!withFeedback.length) return "Aún no hay feedback post-entreno. Al guardar una marca nueva aparecerá el modal de fatiga y comparación.";
-  return withFeedback
-    .slice(-4)
-    .reverse()
-    .map((entry) => `${entry.date} · ${entry.exercise_name} · fatiga ${entry.session_fatigue || "-"} · ${denseExpectedComparisonLabel(entry.expected_comparison)}${entry.session_notes ? ` · ${entry.session_notes}` : ""}`)
-    .join(" / ");
-}
-
 function denseExpectedComparisonLabel(value) {
   if (value === "easier") return "más fácil";
   if (value === "harder") return "más duro";
   if (value === "as_expected") return "esperado";
   return "sin comparar";
-}
-
-function effortImprovementCount(entries) {
-  const byExercise = entries.reduce((map, entry) => {
-    map[entry.exercise_id] ||= [];
-    map[entry.exercise_id].push(entry);
-    return map;
-  }, {});
-  return Object.values(byExercise).reduce((count, exerciseEntries) => {
-    const sorted = exerciseEntries.sort((a, b) => String(a.created_at || a.date || "").localeCompare(String(b.created_at || b.date || "")));
-    const previous = sorted[sorted.length - 2];
-    const latest = sorted[sorted.length - 1];
-    if (!previous || !latest) return count;
-    const sameOrBetter = denseEntryScore(latest) >= denseEntryScore(previous);
-    const easier = (latest.effort_value || 5) < (previous.effort_value || 5);
-    return count + (sameOrBetter && easier ? 1 : 0);
-  }, 0);
-}
-
-function denseLevelUpCount(entries) {
-  const best = new Map();
-  return [...entries]
-    .sort((a, b) => String(a.created_at || a.date || "").localeCompare(String(b.created_at || b.date || "")))
-    .reduce((count, entry) => {
-      const key = `${entry.exercise_id}:${entry.scheme}`;
-      const score = denseEntryScore(entry);
-      const previousBest = best.get(key) || 0;
-      best.set(key, Math.max(previousBest, score));
-      return count + (score && score > previousBest ? 1 : 0);
-    }, 0);
-}
-
-function thresholdCard(label, value, active) {
-  return `
-    <article class="threshold-card ${active ? "is-active" : ""}">
-      <span>${escapeHtml(label)}</span>
-      <strong>${escapeHtml(String(value))}</strong>
-    </article>
-  `;
 }
 
 // ── Control de peso corporal ──────────────────────────────────────────────
@@ -9968,6 +9769,40 @@ function renderBodyweightCard() {
   `;
 }
 
+// Analytics → Peso: la tarjeta de control + tendencia en la ventana + últimos registros.
+function renderWeightAnalytics() {
+  const win = state.settings.trainingAnalyticsWindow || "70";
+  const days = win === "all" ? 365 : Number(win) || 70;
+  const rows = bodyweightTrendRows(Math.max(days, 14));
+  const recent = bodyweightLogRows().slice(-10).reverse();
+  const chart = rows.length > 1
+    ? `<article class="analytics-card">
+        <div class="dc-cns-head"><div><strong>${roundTo(rows[rows.length - 1].value, 1)} kg</strong><span>${rows[rows.length - 1].value - rows[0].value >= 0 ? "+" : ""}${roundTo(rows[rows.length - 1].value - rows[0].value, 1)} kg en la ventana · ${rows.length} pesos</span></div></div>
+        ${dcLineChart(
+          rows.map((row) => ({ short: String(row.date).slice(5), value: row.range > 0 ? Math.round(((row.value - row.min) / row.range) * 80) + 10 : 50 })),
+          { legend: false, height: 110 },
+        )}
+      </article>`
+    : `<p class="dc-empty-note">Registra tu peso varios días para ver la tendencia.</p>`;
+  return `
+    ${renderBodyweightCard()}
+    <div class="dc-section-head"><strong>Tendencia</strong><span>ventana ${win === "all" ? "completa" : `${days} días`}</span></div>
+    ${chart}
+    <div class="dc-section-head"><strong>Últimos registros</strong><span>${recent.length ? `${recent.length} más recientes` : "—"}</span></div>
+    ${
+      recent.length
+        ? `<article class="analytics-card"><div class="exercise-detail-list">${recent
+            .map((row, index) => {
+              const previous = recent[index + 1];
+              const delta = previous ? row.value - previous.value : 0;
+              return `<article class="exercise-detail-row"><span class="tiny-icon"><i data-lucide="gauge"></i></span><div><strong>${roundTo(row.value, 1)} kg</strong><span>${escapeHtml(formatShortDate(parseDate(row.date)))}</span></div><b>${previous ? `${delta >= 0 ? "+" : ""}${roundTo(delta, 1)}` : ""}</b></article>`;
+            })
+            .join("")}</div></article>`
+        : ""
+    }
+  `;
+}
+
 function openBodyweightModal({ prompt = false } = {}) {
   const goal = bodyweightGoal();
   const trend = bodyweightTrend();
@@ -10053,13 +9888,6 @@ function bodyweightTrendRows(limit = 14) {
   return rows.map((row) => ({ ...row, min, range }));
 }
 
-function balanceDetailRow(label, leftValue = 0, rightValue = 0, detail) {
-  const hasData = Number(leftValue) > 0 || Number(rightValue) > 0;
-  const ratio = hasData && Number(rightValue) ? Number(leftValue) / Number(rightValue) : 0;
-  const status = !hasData ? "no data" : ratio >= 0.8 && ratio <= 1.2 ? "balanced" : "needs attention";
-  return analyticsDetailRow(label, status, detail, status === "balanced" ? "check-circle-2" : "alert-circle");
-}
-
 function consistencyDays(limit = 28) {
   return rangeDays(addDays(selectedDate, -limit + 1), selectedDate).map((day) => {
     const key = dateKey(day);
@@ -10078,25 +9906,6 @@ function trainingCurrentStreak(days) {
     streak += 1;
   }
   return streak;
-}
-
-function mostLoggedExerciseName(entries) {
-  const counts = entries.reduce((map, entry) => {
-    map[entry.exercise_name] = (map[entry.exercise_name] || 0) + 1;
-    return map;
-  }, {});
-  return Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || "-";
-}
-
-function weekdayCompletionRows(entries) {
-  const labels = ["L", "M", "X", "J", "V", "S", "D"];
-  const rows = labels.map((label) => ({ label, count: 0 }));
-  entries.forEach((entry) => {
-    const day = parseDate(entry.date);
-    const index = (day.getDay() + 6) % 7;
-    rows[index].count += 1;
-  });
-  return rows;
 }
 
 function analyticsStatCard(label, value, detail, icon) {
@@ -10135,32 +9944,6 @@ function denseDailyTrend(metricFn, days = 7) {
     out.push({ key, short: `${day.getMonth() + 1}/${day.getDate()}`, value: buckets[key] || 0 });
   }
   return out;
-}
-
-// Vertical bar trend chart (matches the reference tonnage/blocks trend)
-function analyticsTrendChart(title, total, points, unit = "") {
-  if (!points.length) return "";
-  const max = Math.max(...points.map((p) => p.value), 1);
-  const bars = points
-    .map((p) => {
-      const h = p.value > 0 ? Math.max(6, Math.round((p.value / max) * 100)) : 0;
-      return `
-        <div class="trend-bar ${p.value > 0 ? "is-on" : ""}" title="${escapeAttr(p.short)}: ${roundTo(p.value, 1)}${unit}">
-          <span class="trend-bar-track"><i style="height:${h}%"></i></span>
-          <em>${escapeHtml(p.short)}</em>
-        </div>
-      `;
-    })
-    .join("");
-  return `
-    <article class="analytics-card analytics-trend">
-      <div class="trend-head">
-        <strong>${escapeHtml(String(total))}${escapeHtml(unit)}</strong>
-        <span>${escapeHtml(title)}</span>
-      </div>
-      <div class="trend-chart">${bars}</div>
-    </article>
-  `;
 }
 
 // ── DENSE-style analytics toolkit ────────────────────────────────────────
@@ -10514,22 +10297,6 @@ function dcBipolarCard(title, leftLabel, leftSets, leftReps, rightLabel, rightSe
   `;
 }
 
-function ratioRow(label, leftValue = 0, rightValue = 0, leftLabel, rightLabel, target) {
-  const ratio = rightValue ? leftValue / rightValue : 0;
-  const display = ratio ? roundTo(ratio, 2) : "-";
-  const balance = ratio ? clamp(Math.round((1 - Math.min(Math.abs(1 - ratio), 1)) * 100), 0, 100) : 0;
-  return `
-    <div class="ratio-row">
-      <div>
-        <strong>${escapeHtml(label)}</strong>
-        <span>${escapeHtml(leftLabel)} ${roundTo(leftValue || 0, 1)} · ${escapeHtml(rightLabel)} ${roundTo(rightValue || 0, 1)} · target ${escapeHtml(target)}</span>
-      </div>
-      <div class="ratio-meter"><i style="width:${Math.max(5, balance)}%"></i></div>
-      <b>${display}</b>
-    </div>
-  `;
-}
-
 function patternLabel(pattern) {
   return (
     {
@@ -10869,69 +10636,11 @@ function densePrRows() {
     }));
 }
 
-function denseEntryCard(entry) {
-  const isPr = denseEntryIsPr(entry);
-  const metrics = [];
-  const romTxt = denseRomText(entry);
-  if (romTxt) metrics.push(`${romTxt} rango`);
-  if (entry.total_hold_seconds) metrics.push(`${entry.total_hold_seconds}s TUT`);
-  if (entry.hold_seconds_per_round) metrics.push(`${entry.hold_seconds_per_round}s/ronda`);
-  if (entry.reps_per_min) metrics.push(`${entry.reps_per_min} rpm`);
-  if (entry.e1rm_kg) metrics.push(`e1RM ${formatKg(entry.e1rm_kg)}`);
-  if (entry.relative_strength) metrics.push(`${entry.relative_strength}x BW`);
-  if (entry.tonnage_kg) metrics.push(`${Math.round(entry.tonnage_kg)} kg tonnage`);
-
-  return `
-    <article class="dense-entry-card">
-      <div class="dense-entry-main">
-        ${denseExerciseIconMarkup(entry.exercise_id, { color: denseNatureColor(entry.nature) })}
-        <div>
-          <strong>${escapeHtml(entry.exercise_name)}</strong>
-          <span>${escapeHtml(entry.date)} · ${escapeHtml(entry.scheme)} · ${escapeHtml(entry.effort)}</span>
-        </div>
-        <button class="icon-button" type="button" data-action="load-dense-entry" data-entry="${escapeAttr(entry.id)}" title="Editar marca" aria-label="Editar ${escapeAttr(entry.exercise_name)}">
-          <i data-lucide="edit-3"></i>
-        </button>
-      </div>
-      <div class="dense-entry-stats">
-        ${metrics.slice(0, 4).map((item) => `<span class="mini-tag">${escapeHtml(item)}</span>`).join("")}
-      </div>
-      <p class="tiny-copy">${escapeHtml(entry.notes || "Sin nota")}</p>
-    </article>
-  `;
-}
-
 function selectedExerciseLogEntries(exerciseId, limit = 5) {
   return [...getDenseEntries()]
     .filter((entry) => entry.exercise_id === exerciseId && !entry.deleted_at)
     .sort((a, b) => (b.created_at || b.date || "").localeCompare(a.created_at || a.date || ""))
     .slice(0, limit);
-}
-
-function renderSelectedExerciseLog(exerciseId) {
-  const exercise = denseExerciseById(exerciseId);
-  const entries = selectedExerciseLogEntries(exerciseId, 5);
-  return `
-    <section class="dense-selected-log" aria-label="Últimos entrenos de ${escapeAttr(exercise.name)}">
-      <div class="section-subhead">
-        <strong>Últimos entrenos</strong>
-        <span>${entries.length ? `${entries.length} de ${denseExerciseStats(exerciseId).count} marcas` : "sin marcas todavía"}</span>
-      </div>
-      <div class="dense-selected-log-list">
-        ${
-          entries.length
-            ? entries.map((entry) => selectedExerciseLogRow(entry)).join("")
-            : `<article class="dense-selected-log-empty">
-                <span class="tiny-icon" style="--item-color:${denseCategoryColor(exercise.category)}"><i data-lucide="${exercise.icon || "dumbbell"}"></i></span>
-                <div>
-                  <strong>Primer registro pendiente</strong>
-                  <span>Cuando guardes ${escapeHtml(exercise.name)}, sus últimas marcas aparecerán aquí.</span>
-                </div>
-              </article>`
-        }
-      </div>
-    </section>
-  `;
 }
 
 function renderDenseProgressionSuggestion(exercise, suggestion = denseProgressionSuggestion(exercise)) {
@@ -11280,16 +10989,6 @@ function formatKg(value) {
   return `${roundTo(value, 1)}kg`;
 }
 
-function getSelectedTraining() {
-  let week = state.mesocycle.weeks.find((item) => item.id === state.settings.selectedWeekId) || state.mesocycle.weeks[0];
-  let session = week.sessions.find((item) => item.id === state.settings.selectedSessionId) || week.sessions[0];
-  if (!week.sessions.some((item) => item.id === session.id)) {
-    session = week.sessions[0];
-    state.settings.selectedSessionId = session.id;
-  }
-  return { week, session };
-}
-
 function getSessionLog(sessionId) {
   state.trainingLogs[sessionId] ||= { exercises: {}, note: "", updatedAt: new Date().toISOString() };
   return state.trainingLogs[sessionId];
@@ -11303,20 +11002,6 @@ function sessionDoneCount(sessionId) {
   const session = findSession(sessionId);
   if (!session) return 0;
   return session.exercises.filter((exercise) => exerciseDone(sessionId, exercise.id)).length;
-}
-
-function weekProgress(weekId) {
-  const week = state.mesocycle.weeks.find((item) => item.id === weekId);
-  if (!week) return 0;
-  const total = week.sessions.reduce((sum, session) => sum + session.exercises.length, 0);
-  const done = week.sessions.reduce((sum, session) => sum + sessionDoneCount(session.id), 0);
-  return total ? Math.round((done / total) * 100) : 0;
-}
-
-function trainingWeekScore() {
-  const total = state.mesocycle.weeks.reduce((weekSum, week) => weekSum + week.sessions.reduce((sum, session) => sum + session.exercises.length, 0), 0);
-  const done = state.mesocycle.weeks.reduce((weekSum, week) => weekSum + week.sessions.reduce((sum, session) => sum + sessionDoneCount(session.id), 0), 0);
-  return total ? Math.round((done / total) * 100) : 0;
 }
 
 function denseTrainingWeekScore() {
@@ -11403,10 +11088,6 @@ function weekStart(date) {
 function trainingWeekDays(date) {
   const start = weekStart(date);
   return rangeDays(start, addDays(start, 6));
-}
-
-function sameWeek(a, b) {
-  return dateKey(weekStart(a)) === dateKey(weekStart(b));
 }
 
 function trainingWeekIndex(date) {
@@ -11573,3 +11254,9 @@ function escapeHtml(value) {
 function escapeAttr(value) {
   return escapeHtml(value);
 }
+
+// ── Boot ──────────────────────────────────────────────────────────────────
+// Last statement on purpose: all top-level const/let above are initialized,
+// so no persisted screen can trip a temporal-dead-zone error on first paint.
+render();
+setTimeout(maybePromptBodyweight, 400);

@@ -28,7 +28,7 @@ silencia hasta mañana. Nunca salta bajo automatización (`navigator.webdriver`,
 | Mantener | ±0,3 kg/sem | deriva arriba/abajo: ajuste de ~150 kcal |
 
 ## UI
-- Tarjeta **Peso corporal** en la vista de entreno, bajo el resumen del día:
+- Tarjeta **Peso corporal** en **Analítica → pestaña Peso** (junto a la tendencia y los últimos registros; antes estaba en la vista de entreno):
   peso (media 7 d), etiqueta de objetivo, veredicto con consejo, botones
   "Registrar peso de hoy" / "Objetivo".
 - Modal `#bodyweightForm`: peso + objetivo (radios) + nota de método + veredicto
