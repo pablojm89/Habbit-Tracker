@@ -7597,3 +7597,12 @@ body[data-density="compact"] .workout-exercise-icon {
     -webkit-overflow-scrolling: touch;
   }
 }
+
+@media (max-width: 760px) {
+  /* La lista del cajón crece entera; el scroll lo hace el cuerpo del cajón. */
+  .modal-card[data-modal-kind="workout-exercise-picker"] .exercise-picker-list,
+  .modal-card[data-modal-kind="dense-set"]:has(.dense-exercise-picker) .exercise-picker-list {
+    max-height: none;
+    overflow: visible;
+  }
+}
