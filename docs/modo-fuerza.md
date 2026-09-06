@@ -75,7 +75,7 @@ de estado completo (backup íntegro), no en columnas propias.
 
 ## Pendiente
 
-- Esquema **MAX** (serie única al fallo) sigue diseñado en
+- ~~Esquema **MAX**~~ hecho (ver abajo). Rutinas reutilizables: ver `rutinas.md`. Antes:
   `plan-tests-calibracion.md`; con el modo S ya existe el sitio natural (S1xMAX).
 - Analytics: gráfica de e1RM por ejercicio ya mezcla dense y S (misma unidad);
   falta etiquetar el formato en el historial largo.

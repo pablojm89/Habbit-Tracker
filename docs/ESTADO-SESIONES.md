@@ -8,11 +8,11 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 > App: PWA de entrenamiento (Dense training). Vanilla JS sin build: `app.js` (~9000
 > líneas), `styles.css`, `index.html`, `sw.js`. Sincroniza a Google Sheets vía Apps Script.
 > Modo training-only (`TRAINING_ONLY = true`). Cache busting: string `?v=…` en `index.html`
-> **y** `sw.js` a la vez. **Última versión: `20260906-carga-tarjeta-40`.**
+> **y** `sw.js` a la vez. **Última versión: `20260906-rutinas-41`.**
 
 ## Cómo trabajar aquí (imprescindible)
 
-- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **86 asserts**.
+- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **91 asserts**.
   Correr siempre tras tocar el motor.
 - **Simulación de entrenamiento** (nueva herramienta de QA): 6 semanas × 4 días con un
   atleta sintético que sigue las sugerencias reales de la app vía Playwright+Chromium
@@ -53,6 +53,13 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
   fail-closed, LockService, hojas de transferencias. Auto-restore al arrancar vacío.
 
 ## Trabajo reciente por tema (con commits)
+
+### Banco de rutinas (6 sep 2026)
+- `state.denseRoutines`: rutinas con nombre + lista de items (misma forma que el plan del
+  día: ejercicio, modalidad, esquema opcional). Pestaña **Rutinas** en el cajón "Agregar
+  ejercicio o rutina": añadir una rutina completa al día de un toque, "guardar este día
+  como rutina", editor con orden/esquema/modalidad por ejercicio y buscador en modo rutina.
+  Doc en `rutinas.md`. +5 self-tests (91).
 
 ### Almacenamiento y bugs base
 - `bb36f7f` Apps Script endurecido (compresión, auth fail-closed, lock).

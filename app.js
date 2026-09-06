@@ -3178,6 +3178,44 @@ function runDenseSelfTests() {
     return total === 900 && quickTimerState.roundSeconds === 60 && quickTimerTotalSeconds() === 300;
   });
 
+  // ── Rutinas ──
+  test("rutinas: normalización (nombre, alias weighted_* → id unificado, esquema)", () => {
+    const routine = denseNormalizeRoutine({ name: "  Empuje A ", items: ["weighted_ring_dip", { exercise_id: "pull_up", scheme: "5D" }, null] });
+    return routine.name === "Empuje A" && routine.id.startsWith("rt_") && routine.items.length === 2 && routine.items[0].exercise_id === "ring_dip" && routine.items[0].nature === "weighted_calisthenics" && routine.items[1].scheme === "5D" && !("nature" in routine.items[1]);
+  });
+  test("rutinas: añadir al día concatena items de plan con esquema/modalidad válidos", () => {
+    const routine = denseNormalizeRoutine({ id: "rt_test", name: "Tirón", items: [{ exercise_id: "pull_up", nature: "weighted_calisthenics", scheme: "5D3" }, { exercise_id: "bench_press", scheme: "S5x5" }, { exercise_id: "no_existe" }] });
+    const key = "2031-01-01";
+    const saved = state.denseDayPlans;
+    state.denseDayPlans = { [key]: [{ exercise_id: "chin_up", source: "manual" }] };
+    const added = denseAppendRoutineToPlan(routine, key);
+    const plan = densePlanItemsForDate(new Date(2031, 0, 1));
+    const planned = plannedExercisesForDate(new Date(2031, 0, 1));
+    state.denseDayPlans = saved;
+    return added === 2 && plan.length === 3 && plan[1].source === "routine" && plan[1].routine_id === "rt_test" && plan[1].nature === "weighted_calisthenics" && plan[1].scheme === "5D3" && plan[2].scheme === "S5x5" && planned[1].nature === "weighted_calisthenics" && planned[1].plannedScheme === "5D3" && Boolean(routine.last_used_at);
+  });
+  test("rutinas: esquema no válido para la modalidad se descarta al planificar", () => {
+    const routine = denseNormalizeRoutine({ id: "rt_x", name: "X", items: [{ exercise_id: "pull_up", nature: "bodyweight", scheme: "5D3" }] });
+    const items = denseRoutinePlanItems(routine);
+    return items.length === 1 && !items[0].scheme && !items[0].nature;
+  });
+  test("rutinas: guardar el día como rutina = marcas (en orden) + programado sin marca", () => {
+    const key = "2031-01-02";
+    const savedPlans = state.denseDayPlans;
+    state.denseTrainingEntries = [];
+    add({ id: "r1", exercise_id: "pull_up", date: key, scheme: "5D", created_at: "2031-01-02T10:00:00Z" });
+    add({ id: "r2", exercise_id: "ring_dip", date: key, scheme: "5D3", nature: "weighted_calisthenics", created_at: "2031-01-02T09:00:00Z" });
+    state.denseDayPlans = { [key]: [{ exercise_id: "pull_up", source: "manual" }, { exercise_id: "back_squat", scheme: "S5x5" }] };
+    const items = denseDayRoutineItems(new Date(2031, 0, 2));
+    state.denseDayPlans = savedPlans;
+    state.denseTrainingEntries = [];
+    return items.length === 3 && items[0].exercise_id === "ring_dip" && items[0].nature === "weighted_calisthenics" && items[0].scheme === "5D3" && items[1].exercise_id === "pull_up" && items[2].exercise_id === "back_squat" && items[2].scheme === "S5x5";
+  });
+  test("rutinas: normalizeState conserva el banco y stateHasTrainingData lo cuenta", () => {
+    const normalized = normalizeState({ denseRoutines: [{ name: "Pierna", items: ["back_squat"] }, "basura"] });
+    return normalized.denseRoutines.length === 1 && normalized.denseRoutines[0].items[0].exercise_id === "back_squat" && stateHasTrainingData({ denseRoutines: normalized.denseRoutines }) && !stateHasTrainingData({ denseRoutines: [] });
+  });
+
   state.denseTrainingEntries = savedEntries;
   denseNeighborCache = null;
   rebuildTransferState();
@@ -5173,8 +5211,23 @@ function handleClick(event) {
   if (action === "load-dense-entry") loadDenseEntry(target.dataset.entry);
   if (action === "open-dense-entry-modal") openDenseTrainingModal({ entryId: target.dataset.entry });
   if (action === "open-dense-exercise-modal") openDenseTrainingModal({ exerciseId: target.dataset.exercise });
-  if (action === "open-workout-exercise-picker") openWorkoutExercisePickerModal();
+  if (action === "open-workout-exercise-picker") openWorkoutExercisePickerModal({ tab: target.dataset.tab || "" });
   if (action === "add-planned-exercise") addPlannedExerciseToSelectedDate(target.dataset.exercise, { isTest: target.dataset.test === "1", scheme: target.dataset.scheme || "" });
+  if (action === "set-workout-picker-tab") {
+    state.settings.workoutPickerTab = target.dataset.tab === "routines" ? "routines" : "exercises";
+    refreshDenseExercisePickerSurface();
+  }
+  if (action === "new-routine") startRoutineDraft();
+  if (action === "routine-from-day") startRoutineDraft({ items: denseDayRoutineItems(selectedDate) });
+  if (action === "open-routine-editor") openRoutineEditorModal();
+  if (action === "routine-pick-exercise") openWorkoutExercisePickerModal({ mode: "routine" });
+  if (action === "add-routine-exercise") routineDraftAddExercise(target.dataset.exercise);
+  if (action === "routine-item-move") routineItemMove(Number(target.dataset.index), Number(target.dataset.shift));
+  if (action === "routine-item-remove") routineItemRemove(Number(target.dataset.index));
+  if (action === "add-routine-to-day") addRoutineToSelectedDate(target.dataset.routine);
+  if (action === "edit-routine") startRoutineDraft({ routine: denseRoutineById(target.dataset.routine) });
+  if (action === "confirm-delete-routine") openRoutineDeleteConfirm(target.dataset.routine);
+  if (action === "delete-routine") deleteRoutine(target.dataset.routine);
   if (action === "open-failure-set-picker") openFailureSetPicker(target.dataset.group);
   if (action === "pick-failure-exercise") openDenseTrainingModal({ exerciseId: target.dataset.exercise, failure: true });
   if (action === "toggle-exercise-group") toggleExerciseGroup(target.dataset.group);
@@ -5218,6 +5271,9 @@ function handleChange(event) {
     log.updatedAt = new Date().toISOString();
     saveAndRender("Nota guardada");
   }
+  if (event.target.matches("#routineForm [data-routine-item]")) {
+    routineItemChange(Number(event.target.dataset.index), event.target.dataset.routineItem, event.target.value);
+  }
   if (event.target.matches("[data-action-input='dense-exercise-category']")) {
     state.settings.denseExerciseCategory = event.target.value;
     refreshDenseExercisePickerSurface();
@@ -5229,6 +5285,10 @@ function handleChange(event) {
 }
 
 function handleInput(event) {
+  if (event.target.matches("#routineForm [name='name']") && routineDraft) {
+    routineDraft.name = event.target.value;
+    routineDraft.dirty = true;
+  }
   if (event.target.matches("[data-action-input='dense-exercise-search']")) {
     state.settings.denseExerciseSearch = event.target.value;
     applyDenseExerciseSearch(event.target.value);
@@ -5251,6 +5311,10 @@ function handleInput(event) {
 }
 
 function handleSubmit(event) {
+  if (event.target.id === "routineForm") {
+    event.preventDefault();
+    saveRoutineDraft(event.target);
+  }
   if (event.target.id === "habitForm") {
     event.preventDefault();
     saveHabitForm(event.target);
@@ -5885,17 +5949,48 @@ function updateDenseNatureSelection(input) {
   updateDenseHoldEstimate(next);
 }
 
-function openWorkoutExercisePickerModal() {
+function openWorkoutExercisePickerModal({ mode = "plan", tab = "" } = {}) {
   state.settings.denseExerciseSearch = ""; // fresh search every open
+  workoutPickerMode = mode;
+  if (tab) state.settings.workoutPickerTab = tab;
   nodes.modalCard.dataset.modalKind = "workout-exercise-picker";
-  nodes.modalEyebrow.textContent = "Programar";
-  nodes.modalTitle.textContent = "Elegir ejercicio";
+  if (mode === "routine") {
+    nodes.modalEyebrow.textContent = routineDraft?.name ? `Rutina · ${routineDraft.name}` : "Nueva rutina";
+    nodes.modalTitle.textContent = "Añadir a la rutina";
+  } else {
+    nodes.modalEyebrow.textContent = "Programar";
+    nodes.modalTitle.textContent = "Ejercicio o rutina";
+  }
   nodes.modalBody.innerHTML = `
     <div class="workout-exercise-picker-modal">
-      ${workoutExercisePickerMarkup()}
+      ${workoutPickerShellMarkup()}
     </div>
   `;
   openModal();
+}
+
+// Contenido del cajón: en modo plan, pestañas Ejercicios | Rutinas; en modo
+// rutina, cabecera con el contador del borrador y vuelta al editor.
+function workoutPickerShellMarkup() {
+  if (workoutPickerMode === "routine") {
+    const count = routineDraft?.items?.length || 0;
+    return `
+      <div class="routine-pick-head">
+        <span><strong>${count}</strong> en la rutina${routineDraft?.name ? ` «${escapeHtml(routineDraft.name)}»` : ""}</span>
+        <button class="text-button is-hot" type="button" data-action="open-routine-editor"><i data-lucide="check"></i>Listo</button>
+      </div>
+      ${workoutExercisePickerMarkup()}
+    `;
+  }
+  const tab = state.settings.workoutPickerTab === "routines" ? "routines" : "exercises";
+  const routines = denseRoutines();
+  return `
+    <nav class="analytics-tab-strip picker-tab-strip" role="tablist" aria-label="Qué añadir">
+      <button class="analytics-tab ${tab === "exercises" ? "is-active" : ""}" type="button" role="tab" aria-selected="${tab === "exercises"}" data-action="set-workout-picker-tab" data-tab="exercises">Ejercicios</button>
+      <button class="analytics-tab ${tab === "routines" ? "is-active" : ""}" type="button" role="tab" aria-selected="${tab === "routines"}" data-action="set-workout-picker-tab" data-tab="routines">Rutinas${routines.length ? ` · ${routines.length}` : ""}</button>
+    </nav>
+    ${tab === "routines" ? workoutRoutinesMarkup() : workoutExercisePickerMarkup()}
+  `;
 }
 
 // Exercise families shown as a collapsible group of progressions in the picker.
@@ -5958,7 +6053,7 @@ function workoutExercisePickerMarkup() {
           </select>
         </label>
       </div>
-      <div class="picker-meta"><span>${exercises.length} ejercicio${exercises.length === 1 ? "" : "s"}</span><small>se añade como tarjeta del día</small></div>
+      <div class="picker-meta"><span>${exercises.length} ejercicio${exercises.length === 1 ? "" : "s"}</span><small>${workoutPickerMode === "routine" ? "se añade a la rutina" : "se añade como tarjeta del día"}</small></div>
       <div class="exercise-picker-list">
         ${denseWorkoutPickerListMarkup(exercises, search.trim().toLowerCase())}
       </div>
@@ -5968,6 +6063,7 @@ function workoutExercisePickerMarkup() {
 
 function denseWorkoutPickerListMarkup(exercises, query) {
   if (!exercises.length) return `<article class="exercise-pick-empty">No hay ejercicios con ese filtro.</article>`;
+  const pickAction = workoutPickerMode === "routine" ? "add-routine-exercise" : "add-planned-exercise";
   const items = [];
   const groups = {};
   exercises.forEach((exercise) => {
@@ -5984,7 +6080,7 @@ function denseWorkoutPickerListMarkup(exercises, query) {
   });
   return items
     .map((item) => {
-      if (item.type === "exercise") return denseExercisePickCard(item.exercise, "", "add-planned-exercise");
+      if (item.type === "exercise") return denseExercisePickCard(item.exercise, "", pickAction);
       const group = item.group;
       const children = [...group.children].sort((a, b) => (a.alpha || 0) - (b.alpha || 0));
       const expanded = expandedExerciseGroups.has(group.family) || Boolean(query);
@@ -5999,7 +6095,7 @@ function denseWorkoutPickerListMarkup(exercises, query) {
             </span>
             <i class="exercise-group-chevron" data-lucide="${expanded ? "chevron-up" : "chevron-down"}"></i>
           </button>
-          ${expanded ? `<div class="exercise-group-children">${children.map((exercise) => denseExercisePickCard(exercise, "", "add-planned-exercise")).join("")}</div>` : ""}
+          ${expanded ? `<div class="exercise-group-children">${children.map((exercise) => denseExercisePickCard(exercise, "", pickAction)).join("")}</div>` : ""}
         </div>
       `;
     })
@@ -6010,10 +6106,7 @@ function refreshDenseExercisePickerSurface() {
   if (nodes.modal.open && nodes.modalCard.dataset.modalKind === "workout-exercise-picker") {
     const shell = nodes.modalBody.querySelector(".workout-exercise-picker-modal");
     if (shell) {
-      shell.innerHTML = `
-        <p class="tiny-copy">Añade un ejercicio al día. Luego aparecerá como tarjeta programada para rellenarlo cuando entrenes.</p>
-        ${workoutExercisePickerMarkup()}
-      `;
+      shell.innerHTML = workoutPickerShellMarkup();
       refreshIcons();
       return;
     }
@@ -6058,6 +6151,358 @@ function addPlannedExerciseToSelectedDate(exerciseId, { isTest = false, scheme =
   state.settings.denseSelectedExerciseId = exercise.id;
   closeModal();
   saveAndRender(isTest ? `${exercise.name} añadido como test` : `${exercise.name} añadido`);
+}
+
+// ── Rutinas: banco de sesiones reutilizables ──────────────────────────────
+// state.denseRoutines = [{ id, name, items: [{ exercise_id, nature?, scheme?,
+// is_test? }], created_at, updated_at, last_used_at }]. Un item de rutina tiene
+// la misma forma que un item de plan (denseDayPlans v2), así que "añadir la
+// rutina al día" es concatenar. El borrador del editor vive en memoria hasta
+// guardar (sobrevive a cerrar el cajón: "Continuar borrador").
+let routineDraft = null;
+let workoutPickerMode = "plan"; // "plan": añade al día · "routine": añade al borrador
+
+function denseRoutines() {
+  return Array.isArray(state.denseRoutines) ? state.denseRoutines : [];
+}
+
+function denseRoutineId() {
+  return `rt_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function denseNormalizeRoutine(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const items = (Array.isArray(raw.items) ? raw.items : [])
+    .map(densePlanItem)
+    .filter(Boolean)
+    .map((item) => {
+      const baseId = denseExerciseAliases[item.exercise_id];
+      const clean = { exercise_id: baseId || item.exercise_id };
+      if (baseId) clean.nature = item.nature || "weighted_calisthenics";
+      else if (item.nature) clean.nature = item.nature;
+      if (item.scheme) clean.scheme = item.scheme;
+      if (item.is_test) clean.is_test = true;
+      return clean;
+    });
+  const created = raw.created_at || new Date().toISOString();
+  return {
+    id: String(raw.id || denseRoutineId()),
+    name: String(raw.name || "").trim() || "Rutina",
+    items,
+    created_at: created,
+    updated_at: raw.updated_at || created,
+    last_used_at: raw.last_used_at || "",
+  };
+}
+
+function denseRoutineById(id) {
+  return denseRoutines().find((routine) => routine.id === id) || null;
+}
+
+// [{ item, exercise }] resolviendo el catálogo; los ids retirados se omiten.
+function denseRoutineExercises(routine) {
+  return (routine?.items || []).map((item) => ({ item, exercise: findDenseExerciseById(item.exercise_id) })).filter((row) => row.exercise);
+}
+
+// Ejercicio "visto" con la modalidad del item (los esquemas dependen de ella).
+function denseRoutineItemExercise(item, exercise) {
+  const nature = item.nature && (exercise.allowedNatures || [exercise.nature]).includes(item.nature) ? item.nature : exercise.nature;
+  return nature === exercise.nature ? exercise : { ...exercise, nature };
+}
+
+function denseRoutinePlanItems(routine) {
+  return denseRoutineExercises(routine).map(({ item, exercise }) => {
+    const plan = { exercise_id: exercise.id, source: "routine", routine_id: routine.id };
+    const viewed = denseRoutineItemExercise(item, exercise);
+    if (viewed.nature !== exercise.nature) plan.nature = viewed.nature;
+    if (item.scheme && denseAllowedSchemes(viewed).includes(item.scheme)) plan.scheme = item.scheme;
+    if (item.is_test) plan.is_test = true;
+    return plan;
+  });
+}
+
+function denseAppendRoutineToPlan(routine, key) {
+  const items = denseRoutinePlanItems(routine);
+  if (!items.length) return 0;
+  state.denseDayPlans ||= {};
+  state.denseDayPlans[key] = [...(state.denseDayPlans[key] || []), ...items];
+  routine.last_used_at = new Date().toISOString();
+  return items.length;
+}
+
+function addRoutineToSelectedDate(routineId) {
+  const routine = denseRoutineById(routineId);
+  if (!routine) {
+    toast("No encuentro esa rutina");
+    return;
+  }
+  const added = denseAppendRoutineToPlan(routine, dateKey(selectedDate));
+  if (!added) {
+    toast("La rutina no tiene ejercicios válidos");
+    return;
+  }
+  closeModal();
+  saveAndRender(`${routine.name}: ${added} ejercicio${added === 1 ? "" : "s"} en el día`);
+}
+
+// Lo que hay en un día (marcas + programado sin marca, en orden) como items
+// de rutina — base de "guardar este día como rutina".
+function denseDayRoutineItems(date) {
+  const key = dateKey(date);
+  const entries = denseEntriesForDate(key).sort((a, b) => (a.created_at || "").localeCompare(b.created_at || ""));
+  const items = entries.map((entry) => {
+    const item = { exercise_id: entry.exercise_id };
+    if (entry.nature) item.nature = entry.nature;
+    if (entry.scheme) item.scheme = entry.scheme;
+    return item;
+  });
+  const loggedCounts = {};
+  entries.forEach((entry) => {
+    loggedCounts[entry.exercise_id] = (loggedCounts[entry.exercise_id] || 0) + 1;
+  });
+  densePlanItemsForDate(date).forEach((plan) => {
+    if (loggedCounts[plan.exercise_id] > 0) {
+      loggedCounts[plan.exercise_id] -= 1;
+      return;
+    }
+    const item = { exercise_id: plan.exercise_id };
+    if (plan.nature) item.nature = plan.nature;
+    if (plan.scheme) item.scheme = plan.scheme;
+    if (plan.is_test) item.is_test = true;
+    items.push(item);
+  });
+  return items.filter((item) => findDenseExerciseById(item.exercise_id));
+}
+
+function denseRoutineSummary(routine, max = 4) {
+  const names = denseRoutineExercises(routine).map(({ item, exercise }) => `${exercise.name}${item.scheme ? ` ${denseSchemeDisplay(item.scheme)}` : ""}`);
+  if (!names.length) return "Sin ejercicios";
+  const shown = names.slice(0, max).join(" · ");
+  return names.length > max ? `${shown} · +${names.length - max}` : shown;
+}
+
+function workoutRoutinesMarkup() {
+  const routines = [...denseRoutines()].sort((a, b) => (b.last_used_at || b.updated_at || "").localeCompare(a.last_used_at || a.updated_at || "") || a.name.localeCompare(b.name));
+  const dayItems = denseDayRoutineItems(selectedDate);
+  const draftPending = routineDraft && routineDraft.dirty;
+  return `
+    <section class="routine-bank">
+      <div class="routine-bank-actions">
+        <button class="workout-add-button" type="button" data-action="new-routine"><i data-lucide="plus"></i><span>Nueva rutina</span></button>
+        ${dayItems.length ? `<button class="text-button" type="button" data-action="routine-from-day"><i data-lucide="bookmark-plus"></i>Guardar este día como rutina (${dayItems.length})</button>` : ""}
+      </div>
+      ${draftPending ? `
+        <article class="routine-card is-draft">
+          <div class="routine-card-main">
+            <strong>Borrador sin guardar${routineDraft.name ? ` · ${escapeHtml(routineDraft.name)}` : ""}</strong>
+            <small>${escapeHtml(denseRoutineSummary(routineDraft))}</small>
+          </div>
+          <div class="routine-card-actions">
+            <button class="text-button is-hot" type="button" data-action="open-routine-editor"><i data-lucide="pencil"></i>Continuar</button>
+          </div>
+        </article>
+      ` : ""}
+      ${routines.length ? routines.map((routine) => routineCardMarkup(routine)).join("") : `<article class="exercise-pick-empty">Todavía no hay rutinas. Crea una con los ejercicios que sueles hacer y añádela al día de golpe.</article>`}
+    </section>
+  `;
+}
+
+function routineCardMarkup(routine) {
+  const count = denseRoutineExercises(routine).length;
+  return `
+    <article class="routine-card" data-routine="${escapeAttr(routine.id)}">
+      <div class="routine-card-main">
+        <strong>${escapeHtml(routine.name)} <small>${count} ejercicio${count === 1 ? "" : "s"}</small></strong>
+        <small>${escapeHtml(denseRoutineSummary(routine))}</small>
+      </div>
+      <div class="routine-card-actions">
+        <button class="text-button is-hot" type="button" data-action="add-routine-to-day" data-routine="${escapeAttr(routine.id)}"><i data-lucide="calendar-plus"></i>Añadir al día</button>
+        <button class="icon-button" type="button" data-action="edit-routine" data-routine="${escapeAttr(routine.id)}" title="Editar" aria-label="Editar ${escapeAttr(routine.name)}"><i data-lucide="pencil"></i></button>
+        <button class="icon-button is-danger" type="button" data-action="confirm-delete-routine" data-routine="${escapeAttr(routine.id)}" title="Eliminar" aria-label="Eliminar ${escapeAttr(routine.name)}"><i data-lucide="trash-2"></i></button>
+      </div>
+    </article>
+  `;
+}
+
+// ── Editor de rutina ─────────────────────────────────────────────────────
+function startRoutineDraft({ routine = null, items = null } = {}) {
+  const source = routine ? routine.items : items || [];
+  routineDraft = {
+    id: routine?.id || null,
+    name: routine?.name || "",
+    items: source.map((item) => ({ ...item })).filter((item) => findDenseExerciseById(item.exercise_id)),
+    dirty: !routine && Boolean(source.length),
+  };
+  openRoutineEditorModal();
+}
+
+function openRoutineEditorModal() {
+  if (!routineDraft) routineDraft = { id: null, name: "", items: [], dirty: false };
+  nodes.modalCard.dataset.modalKind = "routine-editor";
+  nodes.modalEyebrow.textContent = routineDraft.id ? "Editar rutina" : "Nueva rutina";
+  nodes.modalTitle.textContent = routineDraft.name || "Rutina";
+  nodes.modalBody.innerHTML = routineEditorMarkup();
+  openModal();
+}
+
+function refreshRoutineEditor() {
+  if (!(nodes.modal.open && nodes.modalCard.dataset.modalKind === "routine-editor")) return;
+  nodes.modalTitle.textContent = routineDraft?.name || "Rutina";
+  nodes.modalBody.innerHTML = routineEditorMarkup();
+  refreshIcons();
+}
+
+function routineEditorMarkup() {
+  const rows = denseRoutineExercises(routineDraft);
+  return `
+    <form id="routineForm" class="routine-editor">
+      <label class="field">
+        <span>Nombre</span>
+        <input name="name" type="text" maxlength="40" required autocomplete="off" placeholder="Empuje A · Pierna · Tirón pesado…" value="${escapeAttr(routineDraft.name)}" />
+      </label>
+      <div class="routine-items">
+        ${rows.length ? rows.map((row, index) => routineItemMarkup(row, index, rows.length)).join("") : `<p class="tiny-copy">Todavía no hay ejercicios. Añade los que sueles hacer en esta sesión, en orden.</p>`}
+      </div>
+      <button class="workout-add-button" type="button" data-action="routine-pick-exercise"><i data-lucide="plus"></i><span>Añadir ejercicio</span></button>
+      <p class="tiny-copy">Esquema «sugerido» = la app elige el bloque según tu historial al añadirla al día.</p>
+      <div class="modal-actions">
+        <button class="text-button" type="button" data-action="close-modal"><i data-lucide="x"></i>Cancelar</button>
+        <button class="text-button is-hot" type="submit"><i data-lucide="save"></i>Guardar rutina</button>
+      </div>
+    </form>
+  `;
+}
+
+function routineItemMarkup({ item, exercise }, index, count) {
+  const natures = exercise.allowedNatures?.length > 1 ? exercise.allowedNatures : null;
+  const viewed = denseRoutineItemExercise(item, exercise);
+  const schemes = denseAllowedSchemes(viewed);
+  return `
+    <article class="routine-item" style="--item-color:${denseCategoryColor(exercise.category)}">
+      ${denseExerciseIconMarkup(exercise, { className: "tiny-icon" })}
+      <div class="routine-item-main">
+        <strong>${index + 1}. ${escapeHtml(exercise.name)}</strong>
+        <div class="routine-item-controls">
+          <select data-routine-item="scheme" data-index="${index}" aria-label="Esquema">
+            <option value="" ${!item.scheme ? "selected" : ""}>Esquema sugerido</option>
+            ${schemes.map((scheme) => `<option value="${escapeAttr(scheme)}" ${item.scheme === scheme ? "selected" : ""}>${escapeHtml(denseSchemeDisplay(scheme))} · ${escapeHtml(denseFormatLabel(scheme))}</option>`).join("")}
+          </select>
+          ${natures ? `<select data-routine-item="nature" data-index="${index}" aria-label="Modalidad">${natures.map((nature) => `<option value="${escapeAttr(nature)}" ${viewed.nature === nature ? "selected" : ""}>${escapeHtml(denseNatureShort(nature))}</option>`).join("")}</select>` : ""}
+        </div>
+      </div>
+      <div class="routine-item-actions">
+        <button class="icon-button" type="button" data-action="routine-item-move" data-index="${index}" data-shift="-1" ${index === 0 ? "disabled" : ""} title="Subir" aria-label="Subir"><i data-lucide="chevron-up"></i></button>
+        <button class="icon-button" type="button" data-action="routine-item-move" data-index="${index}" data-shift="1" ${index === count - 1 ? "disabled" : ""} title="Bajar" aria-label="Bajar"><i data-lucide="chevron-down"></i></button>
+        <button class="icon-button is-danger" type="button" data-action="routine-item-remove" data-index="${index}" title="Quitar" aria-label="Quitar"><i data-lucide="x"></i></button>
+      </div>
+    </article>
+  `;
+}
+
+function routineDraftAddExercise(exerciseId) {
+  const exercise = findDenseExerciseById(exerciseId);
+  if (!exercise) {
+    toast("Ejercicio no válido");
+    return;
+  }
+  if (!routineDraft) routineDraft = { id: null, name: "", items: [], dirty: false };
+  routineDraft.items.push({ exercise_id: exercise.id });
+  routineDraft.dirty = true;
+  toast(`${exercise.name} · ${routineDraft.items.length} en la rutina`);
+  const head = nodes.modalBody.querySelector(".routine-pick-head strong");
+  if (head) head.textContent = String(routineDraft.items.length);
+}
+
+function routineItemMove(index, shift) {
+  const items = routineDraft?.items || [];
+  const next = index + shift;
+  if (!Number.isInteger(index) || next < 0 || next >= items.length || index < 0 || index >= items.length) return;
+  [items[index], items[next]] = [items[next], items[index]];
+  routineDraft.dirty = true;
+  refreshRoutineEditor();
+}
+
+function routineItemRemove(index) {
+  if (!routineDraft?.items?.[index]) return;
+  routineDraft.items.splice(index, 1);
+  routineDraft.dirty = true;
+  refreshRoutineEditor();
+}
+
+function routineItemChange(index, field, value) {
+  const item = routineDraft?.items?.[index];
+  if (!item) return;
+  if (field === "nature") {
+    if (value) item.nature = value;
+    else delete item.nature;
+    const exercise = findDenseExerciseById(item.exercise_id);
+    if (exercise && item.scheme && !denseAllowedSchemes(denseRoutineItemExercise(item, exercise)).includes(item.scheme)) delete item.scheme;
+  } else if (field === "scheme") {
+    if (value) item.scheme = value;
+    else delete item.scheme;
+  }
+  routineDraft.dirty = true;
+  refreshRoutineEditor();
+}
+
+function saveRoutineDraft(form) {
+  if (!routineDraft) return;
+  const name = String(form.querySelector("[name='name']")?.value || routineDraft.name || "").trim();
+  if (!name) {
+    toast("Ponle un nombre a la rutina");
+    form.querySelector("[name='name']")?.focus();
+    return;
+  }
+  if (!routineDraft.items.length) {
+    toast("Añade al menos un ejercicio");
+    return;
+  }
+  const now = new Date().toISOString();
+  const existing = routineDraft.id ? denseRoutineById(routineDraft.id) : null;
+  const routine = denseNormalizeRoutine({
+    id: routineDraft.id || denseRoutineId(),
+    name,
+    items: routineDraft.items,
+    created_at: existing?.created_at || now,
+    updated_at: now,
+    last_used_at: existing?.last_used_at || "",
+  });
+  state.denseRoutines = existing ? denseRoutines().map((row) => (row.id === routine.id ? routine : row)) : [...denseRoutines(), routine];
+  routineDraft = null;
+  saveState();
+  toast(`Rutina «${routine.name}» guardada`);
+  openWorkoutExercisePickerModal({ tab: "routines" });
+}
+
+function openRoutineDeleteConfirm(routineId) {
+  const routine = denseRoutineById(routineId);
+  if (!routine) return;
+  nodes.modalCard.dataset.modalKind = "confirm-delete";
+  nodes.modalEyebrow.textContent = "Eliminar";
+  nodes.modalTitle.textContent = "¿Eliminar rutina?";
+  nodes.modalBody.innerHTML = `
+    <div class="confirm-box">
+      <span class="tiny-icon" style="--item-color:var(--red)"><i data-lucide="trash-2"></i></span>
+      <div>
+        <strong>${escapeHtml(routine.name)}</strong>
+        <span>${escapeHtml(denseRoutineSummary(routine))}</span>
+      </div>
+    </div>
+    <p class="tiny-copy">Sólo se borra del banco de rutinas. Los días ya programados y las marcas no cambian.</p>
+    <div class="modal-actions">
+      <button class="text-button" type="button" data-action="open-workout-exercise-picker" data-tab="routines"><i data-lucide="x"></i>Cancelar</button>
+      <button class="text-button is-danger" type="button" data-action="delete-routine" data-routine="${escapeAttr(routine.id)}"><i data-lucide="trash-2"></i>Eliminar</button>
+    </div>
+  `;
+  openModal();
+}
+
+function deleteRoutine(routineId) {
+  const routine = denseRoutineById(routineId);
+  state.denseRoutines = denseRoutines().filter((row) => row.id !== routineId);
+  saveState();
+  if (routine) toast(`Rutina «${routine.name}» eliminada`);
+  openWorkoutExercisePickerModal({ tab: "routines" });
 }
 
 function openDenseDeleteConfirm(entryId) {
@@ -6761,6 +7206,7 @@ function createInitialState() {
     bodyweightLogs: {},
     denseEstimates: {},
     denseExerciseFavorites: [],
+    denseRoutines: [],
   });
 }
 
@@ -6778,6 +7224,7 @@ function normalizeState(input) {
     bodyweightLogs: {},
     denseEstimates: {},
     denseExerciseFavorites: [],
+    denseRoutines: [],
   };
   const merged = { ...base, ...input };
   merged.settings = {
@@ -6794,6 +7241,7 @@ function normalizeState(input) {
     trainingAnalyticsTab: "progress",
     trainingAnalyticsWindow: "70",
     trainingMode: "workout",
+    workoutPickerTab: "exercises",
     ...(input.settings || {}),
   };
   merged.habits = (merged.habits?.length ? merged.habits : habitDefaults).map((habit) => ({ ...habit, id: habit.id || slugify(habit.name) }));
@@ -6807,6 +7255,7 @@ function normalizeState(input) {
   merged.denseEstimates ||= {};
   merged.denseExerciseFavorites = Array.isArray(merged.denseExerciseFavorites) ? merged.denseExerciseFavorites : [];
   denseMigrateUnifiedExercises(merged);
+  merged.denseRoutines = (Array.isArray(merged.denseRoutines) ? merged.denseRoutines : []).map(denseNormalizeRoutine).filter(Boolean);
   return merged;
 }
 
@@ -6874,7 +7323,8 @@ function stateHasTrainingData(candidate = state) {
       Object.keys(candidate.denseDayPlans || {}).length ||
       Object.keys(candidate.bodyweightLogs || {}).length ||
       Object.keys(candidate.denseEstimates || {}).length ||
-      (candidate.denseExerciseFavorites || []).length,
+      (candidate.denseExerciseFavorites || []).length ||
+      (candidate.denseRoutines || []).length,
   );
 }
 
@@ -7865,7 +8315,9 @@ function calendarCell(day, habit, anchor) {
 }
 
 function openModal() {
-  nodes.modal.showModal();
+  // Chaining sheets (picker → editor → picker) keeps the dialog open; showModal
+  // on an already-open dialog throws in older WebKit.
+  if (!nodes.modal.open) nodes.modal.showModal();
   // Lock the page behind the sheet: on iOS the body otherwise scroll-chains
   // under the modal and the drawer feels stuck / jumps.
   document.documentElement.classList.add("has-modal");
@@ -8558,7 +9010,7 @@ function addWorkoutCard() {
   return `
     <button class="workout-add-button" type="button" data-action="open-workout-exercise-picker">
       <i data-lucide="plus"></i>
-      <span>Agregar ejercicio</span>
+      <span>Agregar ejercicio o rutina</span>
     </button>
   `;
 }
