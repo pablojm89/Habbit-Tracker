@@ -7130,8 +7130,9 @@ function denseSchemeOption(scheme, currentScheme) {
   const minutes = denseSchemeMinutes(scheme);
   const suffix = scheme.replace(/^\d+D/, "");
   const strength = denseStrengthParts(scheme);
+  // The bold label already reads "5×5"; keep the subtitle short so it fits.
   const detail = strength
-    ? `${strength.sets} series × ${strength.isRange ? `${strength.repsMin}-${strength.repsMax}` : strength.repsMin}`
+    ? `${strength.sets} series${strength.isRange ? " · rango" : ""}`
     : suffix
       ? `${minutes}m · ${suffix.replaceAll("-", "-")}/m`
       : `${minutes}m`;
