@@ -12,6 +12,11 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 
 ## Cómo trabajar aquí (imprescindible)
 
+- **Flujo de trabajo**: skill del proyecto `.claude/skills/bittracker-ship/SKILL.md`
+  (reproducir → cambio mínimo → verificar → versión → docs → commit → main) y `CLAUDE.md`
+  en la raíz con las reglas que se cargan siempre.
+- **QA en un comando**: `tools/qa/run.sh` (o `selftests` / `crawl` / `audit`). Los tres
+  scripts viven ya en el repo (`tools/qa/`), no en el scratchpad de la sesión.
 - **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **91 asserts**.
   Correr siempre tras tocar el motor.
 - **Simulación de entrenamiento** (nueva herramienta de QA): 6 semanas × 4 días con un
