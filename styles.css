@@ -7705,6 +7705,10 @@ html.has-modal body {
 
 /* Carga usada en la tarjeta del día */
 .workout-set-summary .set-load {
+  /* Inline in both densities: the blanket ".today-workout-card span { display:block }"
+     stretched the pill to a full line in Minimal. */
+  display: inline-block;
+  vertical-align: middle;
   margin-left: 6px;
   padding: 1px 7px;
   border-radius: 999px;
@@ -7887,4 +7891,10 @@ html.has-modal body {
     touch-action: pan-y;
     overscroll-behavior: contain;
   }
+}
+
+body[data-density="compact"] .workout-set-summary .set-load {
+  margin-left: 4px;
+  padding: 0 5px;
+  font-size: 0.56rem;
 }

@@ -8,7 +8,7 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 > App: PWA de entrenamiento (Dense training). Vanilla JS sin build: `app.js` (~9000
 > líneas), `styles.css`, `index.html`, `sw.js`. Sincroniza a Google Sheets vía Apps Script.
 > Modo training-only (`TRAINING_ONLY = true`). Cache busting: string `?v=…` en `index.html`
-> **y** `sw.js` a la vez. **Última versión: `20260906-rutinas-41`.**
+> **y** `sw.js` a la vez. **Última versión: `20260906-test-carga-42`.**
 
 ## Cómo trabajar aquí (imprescindible)
 
@@ -17,7 +17,7 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
   en la raíz con las reglas que se cargan siempre.
 - **QA en un comando**: `tools/qa/run.sh` (o `selftests` / `crawl` / `audit`). Los tres
   scripts viven ya en el repo (`tools/qa/`), no en el scratchpad de la sesión.
-- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **91 asserts**.
+- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **93 asserts**.
   Correr siempre tras tocar el motor.
 - **Simulación de entrenamiento** (nueva herramienta de QA): 6 semanas × 4 días con un
   atleta sintético que sigue las sugerencias reales de la app vía Playwright+Chromium
@@ -58,6 +58,20 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
   fail-closed, LockService, hojas de transferencias. Auto-restore al arrancar vacío.
 
 ## Trabajo reciente por tema (con commits)
+
+### Tests con carga ya configurados + píldora de carga en Minimal (6 sep 2026)
+- **e1RM cruzado por benchmarks** (`denseCrossE1rmEstimate`, `denseLadderPosition/Value`):
+  un ejercicio con carga sin ninguna marca propia (press militar con solo historial de
+  banca) ya no sale con objetivo "-" y formulario vacío. Se coloca el ejercicio relacionado
+  más fuerte (coef ≥ `DENSE_CROSS_E1RM_MIN_C` 0,25) en su escalera de benchmarks, se lee el
+  mismo escalón en la del ejercicio y se recorta por el vínculo (`0,85 + 0,15·c`).
+  `denseBestWeightedE1rmSource` = propio (`denseOwnWeightedE1rmSource`) → cruzado (flag
+  `cross`); `denseTargetSource` devuelve `transfer · Desde <fuente>` (σ 0,25, se abre como
+  test); los **niveles** solo usan evidencia propia. +18 benchmarks orientativos de básicos
+  de gym (mancuernas = carga total del par / BW).
+- Píldora de carga en la tarjeta: `display:inline-block` (el `span{display:block}` genérico
+  la estiraba a toda la línea en Minimal) + tamaño compacto.
+- +2 self-tests (93).
 
 ### Banco de rutinas (6 sep 2026)
 - `state.denseRoutines`: rutinas con nombre + lista de items (misma forma que el plan del

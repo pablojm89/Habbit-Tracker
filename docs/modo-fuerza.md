@@ -101,3 +101,22 @@ de estado completo (backup íntegro), no en columnas propias.
   e1RM/peso corporal en barra, e1RM del sistema o reps máximas en dominadas/fondos,
   reps/hold máximos en flexiones, pistol, OAC, handstand, L-sit, palancas. Escalera
   Base · Sólido · Fuerte · Élite con "tu nivel" y "siguiente".
+
+## e1RM cruzado por benchmarks (sep 2026)
+
+Un ejercicio con carga **sin ninguna marca propia** heredaba solo un *boost* (multiplicador)
+del motor de transferencias, así que la tarjeta decía "Transferencia" pero el objetivo era
+"-" y el formulario abría sin peso. Ahora `denseCrossE1rmEstimate(exercise)`:
+
+1. Toma los ejercicios con benchmark de eje `ratio`/`system` y coeficiente de transferencia
+   hacia el objetivo ≥ 0,25 que tengan e1RM propio (`denseOwnWeightedE1rmSource`).
+2. Coloca el de mayor coeficiente en su escalera (`denseLadderPosition`, escalón continuo:
+   Base = 1 … Élite = 4, por debajo proporcional) y lee ese mismo escalón en la escalera del
+   objetivo (`denseLadderValue`) × peso corporal.
+3. Recorta por la fuerza del vínculo: `× (0,85 + 0,15·c)`.
+
+`denseBestWeightedE1rmSource` devuelve `{ e1rm, entry: null, cross }`; las sugerencias
+(dense y S) explican "Nivel equivalente a tu Press banca (…, transferencia 50 %)"; la
+tarjeta muestra `Desde Press banca · conf baja` con rango ±25 % y el formulario abre como
+test con la carga escrita. Los niveles de fuerza del detalle ignoran el cruce (solo
+evidencia real). Ejercicios con `transferIn: "none"` (jefferson, GM sentado) quedan fuera.

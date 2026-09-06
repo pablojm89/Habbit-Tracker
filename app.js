@@ -242,6 +242,25 @@ const DENSE_STRENGTH_BENCHMARKS = {
   barbell_hip_thrust: { axis: "ratio", levels: [1.0, 1.5, 2.0, 2.5] },
   leg_press: { axis: "ratio", levels: [1.5, 2.5, 3.5, 4.5] },
   barbell_curl: { axis: "ratio", levels: [0.3, 0.45, 0.6, 0.75] },
+  // Básicos de gimnasio (orientativos; mancuernas = carga total del par / BW).
+  db_bench_press: { axis: "ratio", levels: [0.55, 0.8, 1.0, 1.2] },
+  incline_db_bench_press: { axis: "ratio", levels: [0.45, 0.65, 0.85, 1.05] },
+  seated_db_overhead_press: { axis: "ratio", levels: [0.35, 0.5, 0.65, 0.8] },
+  standing_db_overhead_press: { axis: "ratio", levels: [0.3, 0.45, 0.6, 0.75] },
+  lat_pulldown: { axis: "ratio", levels: [0.6, 0.85, 1.05, 1.25] },
+  seated_cable_row: { axis: "ratio", levels: [0.6, 0.85, 1.05, 1.25] },
+  db_row: { axis: "ratio", levels: [0.25, 0.4, 0.5, 0.6] },
+  db_biceps_curl: { axis: "ratio", levels: [0.2, 0.3, 0.4, 0.5] },
+  db_hammer_curl: { axis: "ratio", levels: [0.2, 0.3, 0.4, 0.5] },
+  cable_triceps_pushdown_v: { axis: "ratio", levels: [0.3, 0.45, 0.6, 0.75] },
+  cable_triceps_pushdown_rope: { axis: "ratio", levels: [0.3, 0.45, 0.6, 0.75] },
+  cable_overhead_triceps_extension: { axis: "ratio", levels: [0.25, 0.4, 0.5, 0.65] },
+  db_lateral_raise: { axis: "ratio", levels: [0.12, 0.2, 0.28, 0.36] },
+  cable_face_pull: { axis: "ratio", levels: [0.2, 0.35, 0.5, 0.65] },
+  machine_leg_extension: { axis: "ratio", levels: [0.5, 0.8, 1.0, 1.2] },
+  machine_leg_curl: { axis: "ratio", levels: [0.4, 0.65, 0.85, 1.05] },
+  db_lunge: { axis: "ratio", levels: [0.3, 0.5, 0.7, 0.9] },
+  calf_raise: { axis: "ratio", levels: [1.0, 1.5, 2.0, 2.5] },
   pull_up: { axis: "system", levels: [1.0, 1.17, 1.33, 1.5], reps: [3, 8, 15, 25] },
   chin_up: { axis: "system", levels: [1.0, 1.17, 1.33, 1.5], reps: [5, 10, 18, 28] },
   parallel_bar_dip: { axis: "system", levels: [1.0, 1.25, 1.5, 1.75], reps: [5, 12, 20, 30] },
@@ -332,6 +351,10 @@ let denseLevelExpCache = null;
 // A dense round is one minute: hold targets are capped below it (transition
 // margin included). TDZ: lives here because render-path helpers read it.
 const DENSE_MAX_HOLD_PER_ROUND = 55;
+// Cross e1RM estimate (load exercise without own evidence): minimum transfer
+// coefficient for a source to count, and sigma shown on the card.
+const DENSE_CROSS_E1RM_MIN_C = 0.25;
+const DENSE_CROSS_E1RM_SIGMA = 0.25;
 // Fase 4 — aprendizaje: mínimo de observaciones para usar sigma empírica y
 // clamp del bias de pendiente de la curva personal por ejercicio.
 const DENSE_CALIBRATION_MIN_OBS = 4;
@@ -3210,6 +3233,33 @@ function runDenseSelfTests() {
     state.denseDayPlans = savedPlans;
     state.denseTrainingEntries = [];
     return items.length === 3 && items[0].exercise_id === "ring_dip" && items[0].nature === "weighted_calisthenics" && items[0].scheme === "5D3" && items[1].exercise_id === "pull_up" && items[2].exercise_id === "back_squat" && items[2].scheme === "S5x5";
+  });
+  test("e1RM cruzado: press militar sin marcas hereda nivel desde banca (escalera) y la tarjeta/formulario traen carga", () => {
+    state.denseTrainingEntries = [];
+    // La estimación suavizada de banca de tests anteriores no debe contaminar el cruce.
+    const savedBenchEstimate = state.denseEstimates?.bench_press;
+    if (savedBenchEstimate) delete state.denseEstimates.bench_press;
+    add({ id: "x1", exercise_id: "bench_press", nature: "weighted", date: "2026-08-20", scheme: "5D5", total_reps: 25, external_load_kg: 90, duration_minutes: 5, e1rm_kg: 108 });
+    rebuildTransferState();
+    const military = denseExerciseById("military_press");
+    const cross = denseCrossE1rmEstimate(military);
+    const src = denseTargetSource(military, "S5x5");
+    const suggestion = denseProgressionSuggestion(military, "normal", "S5x5");
+    const dense = denseProgressionSuggestion(military, "normal", "5D5");
+    const levels = denseExerciseLevels(military, null);
+    state.denseTrainingEntries = [];
+    if (savedBenchEstimate) state.denseEstimates.bench_press = savedBenchEstimate;
+    rebuildTransferState();
+    // banca 108/80 = 1.35×BW → escalón 3.4 → militar 0.98×BW ≈ 78 kg, recortado por c=0.5 → ≈ 72 kg
+    return cross && cross.fromId === "bench_press" && cross.e1rm > 60 && cross.e1rm < 85 && src.kind === "transfer" && /Desde/.test(src.label) && suggestion?.externalLoadKg > 45 && suggestion.externalLoadKg < 70 && /Nivel equivalente/.test(suggestion.reason) && dense?.externalLoadKg > 40 && dense.externalLoadKg < suggestion.externalLoadKg && levels === null;
+  });
+  test("e1RM cruzado: escalera ida y vuelta, y sin benchmark o sin fuente no estima", () => {
+    const levels = [0.5, 0.7, 0.9, 1.1];
+    const back = Math.abs(denseLadderValue(levels, denseLadderPosition(levels, 0.8)) - 0.8) < 1e-9;
+    const below = Math.abs(denseLadderPosition(levels, 0.25) - 0.5) < 1e-9;
+    state.denseTrainingEntries = [];
+    rebuildTransferState();
+    return back && below && denseCrossE1rmEstimate(denseExerciseById("military_press")) === null && denseCrossE1rmEstimate(denseExerciseById("cossack_squat")) === null;
   });
   test("rutinas: normalizeState conserva el banco y stateHasTrainingData lo cuenta", () => {
     const normalized = normalizeState({ denseRoutines: [{ name: "Pierna", items: ["back_squat"] }, "basura"] });
@@ -6752,7 +6802,8 @@ function denseExerciseLevels(exercise, best) {
   const bench = DENSE_STRENGTH_BENCHMARKS[exercise.id];
   if (!bench) return null;
   const bw = latestKnownBodyweight(dateKey(selectedDate)) || Number(best?.bodyweight_kg) || 0;
-  const source = denseBestWeightedE1rmSource(exercise.id);
+  // Levels reflect real evidence: a cross-benchmark estimate never earns a rung.
+  const source = denseOwnWeightedE1rmSource(exercise.id);
   const e1rm = source?.e1rm || Number(best?.e1rm_kg) || 0;
   const maxInfo = denseMaxApplies(exercise) ? denseEstimatedMax(exercise) : null;
   const maxValue = maxInfo?.direct?.value || maxInfo?.estimate?.value || 0;
@@ -8879,6 +8930,13 @@ function denseTargetSource(exercise, scheme) {
     const sigma = emp ? emp.sigma : 0.18;
     return { kind: "family", label: `Desde ${shortName}`, cls: "is-amber", icon: "git-branch", sigma, empirical: emp, confidence: denseConfidenceLabel(sigma) };
   }
+  if (denseIsLoadExercise(exercise) && !entries.length) {
+    const cross = denseCrossE1rmEstimate(exercise);
+    if (cross) {
+      const shortName = cross.from.split(" ").slice(0, 3).join(" ");
+      return { kind: "transfer", label: `Desde ${shortName}`, cls: "is-amber", icon: "git-merge", sigma: DENSE_CROSS_E1RM_SIGMA, confidence: denseConfidenceLabel(DENSE_CROSS_E1RM_SIGMA) };
+    }
+  }
   if (denseTransferBoost(exercise.id) > 0) {
     const emp = denseEmpiricalSigma("transfer");
     const sigma = emp ? emp.sigma : 0.2;
@@ -9731,6 +9789,15 @@ function denseDirectionTone(direction, failed, effort) {
 }
 
 function denseBestWeightedE1rmSource(exerciseId) {
+  const own = denseOwnWeightedE1rmSource(exerciseId);
+  if (own) return own;
+  // Nothing of its own (no marks in any modality): equivalent level read from
+  // the strongest related exercise's benchmark ladder, flagged as cross.
+  const cross = denseCrossE1rmEstimate(findDenseExerciseById(exerciseId));
+  return cross ? { e1rm: cross.e1rm, entry: null, cross } : null;
+}
+
+function denseOwnWeightedE1rmSource(exerciseId) {
   const entries = getDenseEntries()
     .filter((entry) => entry.exercise_id === exerciseId && !entry.deleted_at && Number(entry.e1rm_kg) > 0)
     .sort((a, b) => Number(b.e1rm_kg || 0) - Number(a.e1rm_kg || 0));
@@ -9747,6 +9814,52 @@ function denseBestWeightedE1rmSource(exerciseId) {
   const unified = denseUnifiedE1rm(exerciseId);
   if (unified?.e1rm) return { e1rm: unified.e1rm, entry: bestEntry || latestDenseEntryForExercise(exerciseId), fromBodyweight: true };
   return null;
+}
+
+// ── e1RM cruzado por benchmarks ───────────────────────────────────────────
+// Un ejercicio con carga sin ninguna marca propia ("Transferencia" en la
+// tarjeta) no tenía número: el motor solo multiplica un e1RM propio. Aquí se
+// coloca el ejercicio relacionado más fuerte (coeficiente ≥ 0.25) en su
+// escalera de benchmarks y se lee el mismo escalón en la escalera de este
+// ejercicio; se recorta hacia abajo cuanto más débil es el vínculo.
+function denseLadderPosition(levels, value) {
+  if (!(value > 0)) return 0;
+  if (value <= levels[0]) return value / levels[0];
+  for (let i = 0; i < levels.length - 1; i += 1) {
+    if (value <= levels[i + 1]) return i + 1 + (value - levels[i]) / (levels[i + 1] - levels[i]);
+  }
+  const last = levels.length - 1;
+  return Math.min(levels.length + 1, levels.length + (value - levels[last]) / (levels[last] - levels[last - 1]));
+}
+
+function denseLadderValue(levels, position) {
+  if (position <= 1) return levels[0] * position;
+  const last = levels.length - 1;
+  if (position >= levels.length) return levels[last] + (position - levels.length) * (levels[last] - levels[last - 1]);
+  const i = Math.floor(position) - 1;
+  return levels[i] + (position - (i + 1)) * (levels[i + 1] - levels[i]);
+}
+
+function denseCrossE1rmEstimate(exercise) {
+  const target = exercise ? DENSE_STRENGTH_BENCHMARKS[exercise.id] : null;
+  if (!target || !["ratio", "system"].includes(target.axis) || exercise.transferIn === "none") return null;
+  const bw = latestKnownBodyweight(dateKey(selectedDate)) || 0;
+  if (!bw) return null;
+  let best = null;
+  Object.entries(DENSE_STRENGTH_BENCHMARKS).forEach(([id, bench]) => {
+    if (id === exercise.id || !["ratio", "system"].includes(bench.axis)) return;
+    const source = findDenseExerciseById(id);
+    if (!source) return;
+    const c = denseTransferCoefficient(source, exercise);
+    if (c < DENSE_CROSS_E1RM_MIN_C) return;
+    const own = denseOwnWeightedE1rmSource(id);
+    if (!own?.e1rm) return;
+    if (!best || c > best.c) best = { id, name: source.name, c, position: denseLadderPosition(bench.levels, own.e1rm / bw), sourceE1rm: own.e1rm };
+  });
+  if (!best) return null;
+  const ratio = denseLadderValue(target.levels, best.position);
+  const e1rm = roundTo(ratio * bw * (0.85 + 0.15 * best.c), 1);
+  return e1rm > 0 ? { e1rm, from: best.name, fromId: best.id, coefficient: best.c, position: best.position } : null;
 }
 
 // Modo Fuerza sin historial en ese esquema S: carga desde el mejor e1RM
@@ -9786,7 +9899,9 @@ function denseEstimatedStrengthSuggestion(exercise, scheme, readiness = "normal"
     weightPerDumbbellKg: loadKey === "weight_per_dumbbell_kg" ? shown : "",
     estimated: true,
     title: `${denseStrengthSchemeLabel(scheme)} · ${loadKey === "added_load_kg" ? "+" : ""}${formatKg(shown)} · descanso ${denseFormatRest(restSeconds)}`,
-    reason: `Estimado desde e1RM ${formatKg(source.e1rm)} (Epley, 2 reps en recámara); falta marca directa en ${denseStrengthSchemeLabel(scheme)}.`,
+    reason: source.cross
+      ? `Nivel equivalente a tu ${source.cross.from} (e1RM ≈ ${formatKg(source.e1rm)}, transferencia ${Math.round(source.cross.coefficient * 100)} %); sin marca propia — es un test.`
+      : `Estimado desde e1RM ${formatKg(source.e1rm)} (Epley, 2 reps en recámara); falta marca directa en ${denseStrengthSchemeLabel(scheme)}.`,
   };
 }
 
@@ -9905,7 +10020,9 @@ function denseEstimatedLoadSuggestion(exercise, scheme, readiness = "normal") {
     weightPerDumbbellKg: exercise.loadPattern === "dumbbell_pair" ? load : "",
     estimated: true,
     title: `${scheme} · ${exercise.nature === "weighted_calisthenics" ? "+" : ""}${formatKg(load)}`,
-    reason: `Estimado desde e1RM ${formatKg(curveAdjusted)}${Math.abs(curveAdjusted - source.e1rm) > 0.5 ? " (curva personal)" : ""}; falta test directo en ${scheme}.`,
+    reason: source.cross
+      ? `Nivel equivalente a tu ${source.cross.from} (e1RM ≈ ${formatKg(source.e1rm)}, transferencia ${Math.round(source.cross.coefficient * 100)} %); sin marca propia — es un test.`
+      : `Estimado desde e1RM ${formatKg(curveAdjusted)}${Math.abs(curveAdjusted - source.e1rm) > 0.5 ? " (curva personal)" : ""}; falta test directo en ${scheme}.`,
   };
 }
 
