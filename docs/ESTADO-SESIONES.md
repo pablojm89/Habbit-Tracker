@@ -8,7 +8,7 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 > App: PWA de entrenamiento (Dense training). Vanilla JS sin build: `app.js` (~9000
 > líneas), `styles.css`, `index.html`, `sw.js`. Sincroniza a Google Sheets vía Apps Script.
 > Modo training-only (`TRAINING_ONLY = true`). Cache busting: string `?v=…` en `index.html`
-> **y** `sw.js` a la vez. **Última versión: `20260906-test-carga-42`.**
+> **y** `sw.js` a la vez. **Última versión: `20260906-gym-tanda2-43`.**
 
 ## Cómo trabajar aquí (imprescindible)
 
@@ -17,7 +17,7 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
   en la raíz con las reglas que se cargan siempre.
 - **QA en un comando**: `tools/qa/run.sh` (o `selftests` / `crawl` / `audit`). Los tres
   scripts viven ya en el repo (`tools/qa/`), no en el scratchpad de la sesión.
-- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **93 asserts**.
+- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **94 asserts**.
   Correr siempre tras tocar el motor.
 - **Simulación de entrenamiento** (nueva herramienta de QA): 6 semanas × 4 días con un
   atleta sintético que sigue las sugerencias reales de la app vía Playwright+Chromium
@@ -58,6 +58,12 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
   fail-closed, LockService, hojas de transferencias. Auto-restore al arrancar vacío.
 
 ## Trabajo reciente por tema (con commits)
+
+### Catálogo de gimnasio, tanda 2 (6 sep 2026)
+- 54 variantes con carga (presses horizontales/verticales, hombro, tríceps, remos, jalones,
+  bíceps/antebrazo, pierna, core con carga), cada una con `denseTransferIdMeta` y
+  benchmark `ratio` orientativo (mancuernas = carga total del par / BW). Alta en el bloque
+  `...[...].map((gym) => …)` del catálogo. Tabla en `modo-fuerza.md`. +1 self-test (94).
 
 ### Tests con carga ya configurados + píldora de carga en Minimal (6 sep 2026)
 - **e1RM cruzado por benchmarks** (`denseCrossE1rmEstimate`, `denseLadderPosition/Value`):

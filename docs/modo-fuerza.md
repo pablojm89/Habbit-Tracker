@@ -57,6 +57,24 @@
 | Espalda | remo barra · remo mancuerna 1 mano · remo polea baja · face pull | remo barra S5x5 · 3:00; resto S3x8-12 · 1:00-1:30 |
 | Pierna | prensa · peso muerto rumano · hip thrust · zancadas mancuernas · gemelos | S3x8-10 · 1:30-2:00 |
 
+### Tanda 2 (sep 2026): 54 variantes, todas `weighted` con id-meta y benchmark propios
+
+| Grupo | Ejercicios |
+|---|---|
+| Empuje horizontal | banca declinado · agarre cerrado · press en suelo · press pecho máquina · declinado mancuernas · aperturas polea · aperturas mancuernas · contractora |
+| Empuje vertical / hombro | militar sentado barra · push press · Arnold · press hombro máquina · landmine · laterales polea · frontales · pájaros |
+| Tríceps | press francés · extensión mancuerna dos manos · fondos en máquina |
+| Tirón | Pendlay · remo en T · remo apoyo pecho · remo máquina · jalón ancho · jalón neutro · pullover polea · pullover mancuerna · encogimientos barra/mancuernas |
+| Bíceps / antebrazo | predicador · inclinado · polea · inverso · curl de muñeca |
+| Pierna | hack · goblet · pausa · cajón · sumo · hexagonal · piernas rígidas · RDL a una pierna · good morning barra · zancada atrás · step-up · hip thrust máquina · patada glúteo · abductores · aductores · femoral sentado · gemelos sentado · gemelos en prensa |
+| Core con carga | crunch en polea · press Pallof |
+
+Familias nuevas (solo agrupan; la transferencia sale del id-meta): `chest_isolation`,
+`lat_isolation`, `traps`, `forearm`, `hip_isolation`, `core_weighted`. Los ya existentes
+que el usuario preguntó: inclinado barra (`incline_bench_press`), inclinado mancuernas
+(`incline_db_bench_press`), militar barra (`military_press`), militar mancuernas sentado
+(`seated_db_overhead_press`) y de pie (`standing_db_overhead_press`).
+
 Básicos existentes con apertura en Fuerza para usuarios sin historial: banca,
 militar, peso muerto (S5x3), back/front squat (S5x5 · 3:00); máquinas S3x12 ·
 1:00; jalón S3x10 · 1:30; press mancuernas sentado S3x8 · 2:00.
