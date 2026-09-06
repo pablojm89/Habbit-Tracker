@@ -118,7 +118,7 @@ mismo ejercicio, y tu posición respecto a los hitos (+BW/6, +BW/3).
 - **Sigma empírica**: la confianza de las tarjetas pasa de fórmula a TU error real.
 - Corrección de niveles curados donde tu ratio real discrepe (sissy/NLE, etc.).
 
-## Feature pendiente (alta prioridad): "MAX" medible y deducible
+## Feature "MAX" medible y deducible — HECHA (sep 2026, ver docs/modo-fuerza.md)
 
 Diseño acordado con el usuario (13 jul 2026), para la próxima sesión de motor:
 
@@ -142,7 +142,7 @@ distintos del prior) para revisarlos juntos.
 
 | Batería | Fecha | Notas |
 |---|---|---|
-| T1 | en curso | **Máx chin-up: 23,5 reps (fallo en la 24) — 13 jul 2026.** No registrado en la app (sin esquema MAX aún): retro-cargar como primera marca MAX cuando exista la feature. Implicación: 5D estimado ≈ 23,5 × 0,37 ≈ **5D8** (confirma el rango 7-8 que decía el usuario; probar 5D8). Su ratio previo declarado (20 máx ≈ 5D7-8 → 0,35-0,4×) queda pendiente de confirmar con el 5D real |
+| T1 | en curso | **Máx chin-up: 23,5 reps (fallo en la 24) — 13 jul 2026.** Registrar en la app con el formato **Máx (serie única)** en la fecha 13 jul (navega al día y registra 23,5 reps). Implicación: 5D estimado ≈ 23,5 × 0,37 ≈ **5D8** (confirma el rango 7-8 que decía el usuario; probar 5D8). Su ratio previo declarado (20 máx ≈ 5D7-8 → 0,35-0,4×) queda pendiente de confirmar con el 5D real |
 | T2 | — | |
 | T3 | — | |
 | T4 | — | |

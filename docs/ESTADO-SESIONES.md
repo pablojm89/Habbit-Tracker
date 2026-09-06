@@ -8,11 +8,11 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 > App: PWA de entrenamiento (Dense training). Vanilla JS sin build: `app.js` (~9000
 > líneas), `styles.css`, `index.html`, `sw.js`. Sincroniza a Google Sheets vía Apps Script.
 > Modo training-only (`TRAINING_ONLY = true`). Cache busting: string `?v=…` en `index.html`
-> **y** `sw.js` a la vez. **Última versión: `20260905-chips-37`.**
+> **y** `sw.js` a la vez. **Última versión: `20260906-max-benchmarks-38`.**
 
 ## Cómo trabajar aquí (imprescindible)
 
-- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **81 asserts**.
+- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **86 asserts**.
   Correr siempre tras tocar el motor.
 - **Simulación de entrenamiento** (nueva herramienta de QA): 6 semanas × 4 días con un
   atleta sintético que sigue las sugerencias reales de la app vía Playwright+Chromium
@@ -61,6 +61,18 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
   cuando el bloque no tiene historial (`denseEstimatedLoadSuggestion`).
 - `23b547b` e1RM efectivo: los fallos recalibran al instante.
 - `8618f72` Fix estrella de favorito que no se actualizaba en el picker.
+
+### Backlog cerrado: MAX, benchmarks y ritmo de peso (6 sep 2026)
+- **Esquema MAX** (formato "Máx (serie única)"): reps/hold máximos como eje propio, e1RM
+  por Epley con carga, multiplicador personal por bloque aprendido de pares MAX↔bloque
+  casi al fallo (prior 2D .55 · 5D .37 · 10D .20 · 20D .17), máx deducible desde un bloque
+  al fallo y siembra de bloques desde un máx. Sección "Máximos" en el detalle. Doc en
+  `modo-fuerza.md`.
+- **Niveles de fuerza por benchmarks** (`DENSE_STRENGTH_BENCHMARKS`, 22 ejercicios):
+  e1RM/BW en barra, sistema o reps máximas en calistenia, hold máximo en skills. Escalera
+  Base/Sólido/Fuerte/Élite con "tu nivel" y "siguiente". Sustituye a la tabla ×0,7/1/1,2.
+- **Ritmo de peso personalizado** (`bodyweightGoal.weeklyTarget`, banda ±0,15).
+- +5 self-tests (86).
 
 ### Reps por serie con casillas (5 sep 2026)
 - El formulario de set (`dense-set`, con o sin buscador) también ocupa ~96 % de alto en

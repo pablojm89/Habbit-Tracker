@@ -35,6 +35,10 @@ silencia hasta mañana. Nunca salta bajo automatización (`navigator.webdriver`,
   actual. `saveBodyweightForm` guarda ambos y re-renderiza.
 - La analítica de recuperación ya dibujaba la serie de peso (`bodyweightTrendRows`).
 
+## Ritmo personalizado (sep 2026)
+- Campo opcional **Ritmo objetivo (kg/semana)** en el modal (`bodyweightGoal.weeklyTarget`).
+  `bodyweightRule` construye la banda `objetivo ± 0,15` (`BODYWEIGHT_TARGET_TOLERANCE`) y el
+  veredicto la usa en vez del rango genérico; los consejos citan tu objetivo.
+
 ## Pendiente
-- Objetivo con ritmo personalizado (p. ej. +0,3 kg/sem exactos) en vez de rangos.
 - Aviso de "hace X días que no te pesas" cuando el registro se abandona.

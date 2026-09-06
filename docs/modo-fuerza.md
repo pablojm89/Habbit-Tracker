@@ -79,3 +79,25 @@ de estado completo (backup íntegro), no en columnas propias.
   `plan-tests-calibracion.md`; con el modo S ya existe el sitio natural (S1xMAX).
 - Analytics: gráfica de e1RM por ejercicio ya mezcla dense y S (misma unidad);
   falta etiquetar el formato en el historial largo.
+
+## Esquema MAX — serie única al fallo (sep 2026)
+
+- Formato **Máx (serie única)** en el selector de Formato de cualquier ejercicio dinámico
+  (peso corporal / carga) o isométrico. Esquema `MAX`, `scheme_base: "MAX"`,
+  `scheme_type: "max"`, campos `max_reps` / `max_hold_seconds`. Esfuerzo por defecto VH
+  (RIR 0); nunca cuenta como marca fallida. Con carga → e1RM por Epley (mismo `e1rm_kg`).
+- **Multiplicador personal por bloque** (`denseMaxMultiplier`): prior `DENSE_MAX_PRIOR`
+  (2D 0,55 · 5D 0,37 · 10D 0,20 · 20D 0,17 — dato real del usuario) mezclado con cada
+  par {MAX ↔ bloque cerca del fallo (H/VH/fallo) a ≤ 21 días}: `(prior + Σobs)/(1+n)`.
+- **Máx deducible** (`denseEstimatedMax`): sin test dedicado, el último bloque casi al
+  fallo dividido por el multiplicador da un "máx estimado". Un máx real siembra los
+  bloques (`denseMaxSeedRpm/Hold`) cuando no hay historial de densidad; fuente "Desde
+  tu máx" en la tarjeta (`denseTargetSource` kind `max`, se trata como test).
+- Sugerencia en formato MAX (`denseMaxSuggestion`): superar el mejor (+4 %) o confirmar
+  el estimado. El siguiente registro del ejercicio NO abre en MAX (`denseDefaultScheme`
+  ignora las marcas MAX); la racha de estancamiento tampoco las cuenta.
+- Detalle del ejercicio: sección **Máximos** (máx real · máx estimado · ritmo aprendido
+  por bloque) y **Niveles de fuerza** por benchmarks (`DENSE_STRENGTH_BENCHMARKS`):
+  e1RM/peso corporal en barra, e1RM del sistema o reps máximas en dominadas/fondos,
+  reps/hold máximos en flexiones, pistol, OAC, handstand, L-sit, palancas. Escalera
+  Base · Sólido · Fuerte · Élite con "tu nivel" y "siguiente".

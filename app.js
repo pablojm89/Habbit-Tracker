@@ -210,9 +210,49 @@ const denseRirByEffort = { VE: 5, E: 4, N: 2, H: 1, VH: 0, fallo: 0, no_llego: 0
 // gain: +0.2…+0.6 (volumen limpio) · lose: −1.0…−0.25 (definición sostenible)
 // · maintain: ±0.3. Fuera de rango → consejo de alimentación / actividad.
 const BODYWEIGHT_GOAL_RULES = {
-  gain: { label: "Subir", min: 0.2, max: 0.6, icon: "trending-up" },
-  lose: { label: "Bajar", min: -1.0, max: -0.25, icon: "trending-down" },
-  maintain: { label: "Mantener", min: -0.3, max: 0.3, icon: "move-right" },
+  gain: { label: "Subir", min: 0.2, max: 0.6, icon: "trending-up", hint: "+0.25" },
+  lose: { label: "Bajar", min: -1.0, max: -0.25, icon: "trending-down", hint: "-0.5" },
+  maintain: { label: "Mantener", min: -0.3, max: 0.3, icon: "move-right", hint: "0" },
+};
+// Tolerancia alrededor de un ritmo objetivo personalizado (kg/semana).
+const BODYWEIGHT_TARGET_TOLERANCE = 0.15;
+
+// ── Esquema MAX: serie única al fallo (reps máximas / hold máximo) ────────
+// Prior "ritmo sostenible por bloque ≈ fracción de tus máximas" (dato real del
+// usuario: 5D ≈ 0,37×). El motor aprende el multiplicador POR EJERCICIO con
+// pares MAX ↔ bloque cerca del fallo (≤ 21 días), y con él deduce el máx desde
+// un bloque casi al fallo o siembra los bloques desde un máx.
+const DENSE_MAX_SCHEME = "MAX";
+const DENSE_MAX_PRIOR = { "2D": 0.55, "5D": 0.37, "10D": 0.2, "20D": 0.17 };
+const DENSE_MAX_PAIR_DAYS = 21;
+
+// ── Niveles de fuerza por benchmarks (estándares generales, 4 escalones) ──
+// ratio: e1RM / peso corporal · system: e1RM del sistema (cuerpo + lastre) /
+// peso corporal, con escalera alternativa de reps máximas · reps / hold: máximas.
+const DENSE_LEVEL_LABELS = ["Base", "Sólido", "Fuerte", "Élite"];
+const DENSE_STRENGTH_BENCHMARKS = {
+  bench_press: { axis: "ratio", levels: [0.75, 1.0, 1.25, 1.5] },
+  incline_bench_press: { axis: "ratio", levels: [0.6, 0.85, 1.05, 1.25] },
+  back_squat: { axis: "ratio", levels: [1.0, 1.5, 1.75, 2.0] },
+  front_squat: { axis: "ratio", levels: [0.8, 1.2, 1.4, 1.6] },
+  deadlift: { axis: "ratio", levels: [1.25, 1.75, 2.0, 2.5] },
+  romanian_deadlift: { axis: "ratio", levels: [1.0, 1.4, 1.7, 2.0] },
+  military_press: { axis: "ratio", levels: [0.5, 0.7, 0.9, 1.1] },
+  barbell_row: { axis: "ratio", levels: [0.75, 1.0, 1.25, 1.5] },
+  barbell_hip_thrust: { axis: "ratio", levels: [1.0, 1.5, 2.0, 2.5] },
+  leg_press: { axis: "ratio", levels: [1.5, 2.5, 3.5, 4.5] },
+  barbell_curl: { axis: "ratio", levels: [0.3, 0.45, 0.6, 0.75] },
+  pull_up: { axis: "system", levels: [1.0, 1.17, 1.33, 1.5], reps: [3, 8, 15, 25] },
+  chin_up: { axis: "system", levels: [1.0, 1.17, 1.33, 1.5], reps: [5, 10, 18, 28] },
+  parallel_bar_dip: { axis: "system", levels: [1.0, 1.25, 1.5, 1.75], reps: [5, 12, 20, 30] },
+  ring_dip: { axis: "system", levels: [1.0, 1.2, 1.4, 1.6], reps: [3, 8, 15, 25] },
+  floor_push_up: { axis: "reps", levels: [15, 30, 45, 60] },
+  pistol_squat: { axis: "reps", levels: [1, 5, 10, 15] },
+  one_arm_chin_up: { axis: "reps", levels: [1, 3, 5, 8] },
+  straight_handstand: { axis: "hold", levels: [15, 30, 60, 90] },
+  l_sit: { axis: "hold", levels: [10, 20, 40, 60] },
+  front_lever_full: { axis: "hold", levels: [3, 8, 15, 25] },
+  back_lever_full: { axis: "hold", levels: [5, 10, 20, 30] },
 };
 
 // ── Phase 5: calibration kit ─────────────────────────────────────────────
@@ -2974,8 +3014,8 @@ function runDenseSelfTests() {
   });
   test("strength levels honestos: sin marca no hay tabla; con e1RM va en kg; hitos declarados", () => {
     return (
-      denseExerciseLevels(denseExerciseById("sissy_squat"), null).length === 0 &&
-      denseExerciseLevels(denseExerciseById("bench_press"), { e1rm_kg: 100 })[1].value.includes("kg") &&
+      denseExerciseLevels(denseExerciseById("sissy_squat"), null) === null &&
+      denseExerciseLevels(denseExerciseById("bench_press"), { e1rm_kg: 100, bodyweight_kg: 80 }).rows[1].value.includes("×BW") &&
       denseExerciseById("chin_up").milestones.length === 2 &&
       denseExerciseById("jefferson_curl").milestones.length === 2
     );
@@ -3092,6 +3132,43 @@ function runDenseSelfTests() {
       state.bodyweightLogs = savedLogs;
       state.settings.bodyweightGoal = savedGoal;
     }
+  });
+  // Esquema MAX + multiplicadores personales + benchmarks + ritmo de peso
+  test("MAX: computeDenseEntry — 23.5 reps BW (sin e1RM) y +20 kg × 8 VH → e1RM Epley", () => {
+    const bw = computeDenseEntry({ scheme: "MAX", nature: "bodyweight", total_reps: 23.5, effort: "VH", bodyweight_kg: 80 });
+    const weighted = computeDenseEntry({ scheme: "MAX", nature: "weighted_calisthenics", added_load_kg: 20, total_reps: 8, effort: "VH", bodyweight_kg: 80 });
+    return bw.max_reps === 23.5 && bw.e1rm_kg === 0 && bw.scheme_base === "MAX" && bw.bodyweight_capacity === 0 && Math.abs(weighted.e1rm_kg - 100 / denseEpleyPct(8)) < 0.5 && denseSchemeFormat("MAX") === "max";
+  });
+  test("MAX: multiplicador aprendido (prior 0.37 + par 8/20) → 0.385; máx estimado y siembra de 5D", () => {
+    add(computeDenseEntry({ id: "mx1", exercise_id: "floor_push_up", exercise_name: "Flexiones", nature: "bodyweight", scheme: "MAX", date: "2026-06-20", created_at: "2026-06-20T10:00:00Z", total_reps: 20, effort: "VH", bodyweight_kg: 80 }));
+    add(computeDenseEntry({ id: "mx2", exercise_id: "floor_push_up", exercise_name: "Flexiones", nature: "bodyweight", scheme: "5D", date: "2026-06-25", created_at: "2026-06-25T10:00:00Z", total_reps: 40, effort: "VH", bodyweight_kg: 80 }));
+    const mult = denseMaxMultiplier("floor_push_up", "5D", "reps");
+    const est = denseEstimatedMax(denseExerciseById("floor_push_up"));
+    const seed = denseMaxSeedRpm(denseExerciseById("floor_push_up"), "5D");
+    return mult && Math.abs(mult.value - 0.385) < 0.01 && mult.n === 1 && est.direct?.value === 20 && est.estimate && Math.abs(est.estimate.value - 8 / 0.385) < 0.2 && seed === 7;
+  });
+  test("MAX: el formulario no abre en MAX tras un máx, la sugerencia MAX apunta a superar el mejor y no contamina dense", () => {
+    const ex = denseExerciseById("floor_push_up");
+    const maxSug = denseProgressionSuggestion(ex, "normal", "MAX");
+    const denseSug = denseProgressionSuggestion(ex, "normal", "5D");
+    return !denseIsMaxScheme(denseDefaultScheme(ex)) && maxSug && maxSug.type === "max" && maxSug.totalReps === 21 && (!denseSug || !denseIsMaxScheme(denseSug.scheme)) && denseAllowedSchemes(ex).includes("MAX") && denseFormSchemes(ex, "max").join() === "MAX";
+  });
+  test("benchmarks: militar e1RM 72 @80 kg → Fuerte (0.9×BW), siguiente Élite a 1.1×BW; flexiones 20 máx → Base", () => {
+    const savedLogs = state.bodyweightLogs;
+    try {
+      state.bodyweightLogs = { [dateKey(selectedDate)]: 80 };
+      // military_press has no marks in the suite → the passed best mark is the source
+      const pressLevels = denseExerciseLevels(denseExerciseById("military_press"), { e1rm_kg: 72, bodyweight_kg: 80 });
+      const pushLevels = denseExerciseLevels(denseExerciseById("floor_push_up"), null);
+      return pressLevels && /Fuerte/.test(pressLevels.current) && /Élite a 1.1×BW/.test(pressLevels.current) && pressLevels.rows[2].achieved && !pressLevels.rows[3].achieved && pushLevels && /Base/.test(pushLevels.current) && denseExerciseLevels(denseExerciseById("sissy_squat"), null) === null;
+    } finally {
+      state.bodyweightLogs = savedLogs;
+    }
+  });
+  test("peso: ritmo objetivo personalizado ±0.15 (subir +0.5 con +0.07 real → lento; +0.45 → va bien)", () => {
+    const slow = bodyweightVerdict({ ratePerWeek: 0.07, logs: 10, spanDays: 20 }, { mode: "gain", weeklyTarget: 0.5 });
+    const ok = bodyweightVerdict({ ratePerWeek: 0.45, logs: 10, spanDays: 20 }, { mode: "gain", weeklyTarget: 0.5 });
+    return slow.tone === "amber" && /objetivo/.test(slow.advice) && ok.tone === "green" && bodyweightRule({ mode: "gain", weeklyTarget: 0.5 }).max === 0.65;
   });
   test("S: timer en modo descanso — 5 series × 3:00 = 900 s y vuelve a EMOM al elegir 5D", () => {
     setQuickTimerRest(180);
@@ -4000,6 +4077,7 @@ function denseTrainingFormMarkup(defaults, { includePicker = false, modal = fals
   const format = denseFormFormat(activeExercise, defaults.scheme);
   const formSchemes = denseFormSchemes(activeExercise, format);
   const strength = denseStrengthParts(defaults.scheme);
+  const isMax = denseIsMaxScheme(defaults.scheme);
   const readiness = defaults.readiness || "normal";
   const suggestion = denseProgressionSuggestion(activeExercise, readiness, defaults.scheme);
   return `
@@ -4018,7 +4096,7 @@ function denseTrainingFormMarkup(defaults, { includePicker = false, modal = fals
         <input type="hidden" name="exerciseId" value="${escapeAttr(defaults.exerciseId)}" />
         <input type="hidden" name="nature" value="${escapeAttr(nature)}" />
         <fieldset class="scheme-picker-field is-full">
-          <legend>${strength ? "Series × reps" : modal ? "Esquema realizado" : "Esquema Dense"}</legend>
+          <legend>${isMax ? "Serie única al fallo" : strength ? "Series × reps" : modal ? "Esquema realizado" : "Esquema Dense"}</legend>
           <div class="scheme-option-grid">
             ${formSchemes.map((scheme) => denseSchemeOption(scheme, defaults.scheme)).join("")}
           </div>
@@ -4027,7 +4105,7 @@ function denseTrainingFormMarkup(defaults, { includePicker = false, modal = fals
         ${denseRomField(activeExercise, defaults)}
         ${denseRepPerSetFields(activeExercise, defaults)}
         ${strength ? denseRepsDoneField(defaults) : ""}
-        ${denseIsIsometric(activeExercise) ? "" : field("Reps totales", "totalReps", defaults.totalReps, "number")}
+        ${denseIsIsometric(activeExercise) ? "" : field(isMax ? "Reps máximas (serie única)" : "Reps totales", "totalReps", defaults.totalReps, "number")}
         ${denseHoldFields(activeExercise, defaults)}
         ${denseLoadFields(activeExercise, defaults)}
         <fieldset class="effort-picker-field is-full">
@@ -4043,8 +4121,8 @@ function denseTrainingFormMarkup(defaults, { includePicker = false, modal = fals
       </div>
       <div class="dense-actions">
         <div class="dense-form-hint">
-          <strong>${escapeHtml(denseNatureLabel(nature))}${strength ? " · Fuerza" : ""}</strong>
-          <span>${escapeHtml(strength ? "Modo Fuerza: series con descanso completo. El e1RM sale de Epley sobre reps + RIR implícito en el esfuerzo (N = 2 en recámara)." : denseExerciseHint(activeExercise))}</span>
+          <strong>${escapeHtml(denseNatureLabel(nature))}${isMax ? " · Máx" : strength ? " · Fuerza" : ""}</strong>
+          <span>${escapeHtml(isMax ? "Serie única al fallo técnico, en fresco. Ancla tu curva máximas↔densidad: el motor aprende cuánto de tu máx sostienes en cada bloque." : strength ? "Modo Fuerza: series con descanso completo. El e1RM sale de Epley sobre reps + RIR implícito en el esfuerzo (N = 2 en recámara)." : denseExerciseHint(activeExercise))}</span>
         </div>
         <button class="text-button is-hot" type="submit"><i data-lucide="save"></i>${escapeHtml(submitLabel)}</button>
       </div>
@@ -4066,9 +4144,11 @@ function denseSetModalSummary(exercise, defaults) {
         : (bodyweight * (exercise.bodyweightContributionPct ?? 100)) / 100;
   const volume = total && perRep ? `${Math.round(total * perRep)} kg movidos` : denseExerciseHint(exercise);
   const strength = denseStrengthParts(defaults.scheme);
-  const headline = strength
-    ? `${denseStrengthSchemeLabel(defaults.scheme)} · descanso ${denseFormatRest(defaults.restSeconds || DENSE_STRENGTH_DEFAULT_REST)}`
-    : `${defaults.scheme} · ${defaults.repsPerSet ? `${defaults.repsPerSet}/min` : "objetivo"}`;
+  const headline = denseIsMaxScheme(defaults.scheme)
+    ? "MÁX · serie única al fallo"
+    : strength
+      ? `${denseStrengthSchemeLabel(defaults.scheme)} · descanso ${denseFormatRest(defaults.restSeconds || DENSE_STRENGTH_DEFAULT_REST)}`
+      : `${defaults.scheme} · ${defaults.repsPerSet ? `${defaults.repsPerSet}/min` : "objetivo"}`;
   return `
     <div class="dense-set-modal-summary">
       <span class="mini-tag is-green">${escapeHtml(denseNatureLabel(exercise.nature).split("·")[0].trim())}</span>
@@ -4081,11 +4161,10 @@ function denseSetModalSummary(exercise, defaults) {
 
 // ── Modo Fuerza: piezas del formulario ──────────────────────────────────
 function denseFormatSelectorMarkup(exercise, format) {
-  if (!denseStrengthApplies(exercise)) return "";
-  const options = [
-    ["dense", "Densidad (EMOM)"],
-    ["strength", "Fuerza (series × descanso)"],
-  ];
+  if (!denseStrengthApplies(exercise) && !denseMaxApplies(exercise)) return "";
+  const options = [["dense", "Densidad (EMOM)"]];
+  if (denseStrengthApplies(exercise)) options.push(["strength", "Fuerza (series × descanso)"]);
+  if (denseMaxApplies(exercise)) options.push(["max", "Máx (serie única)"]);
   return `
     <fieldset class="readiness-field nature-field is-full">
       <legend>Formato</legend>
@@ -6119,13 +6198,16 @@ function openDenseExerciseDetailModal(exerciseId) {
           }
         </div>
       </section>
+      ${denseMaxSectionHtml(exercise)}
       ${denseMilestonesSectionHtml(exercise)}
       ${(() => {
         const levels = denseExerciseLevels(exercise, best);
-        if (!levels.length) return "";
+        if (!levels) return "";
         return `<section class="exercise-detail-levels">
           <strong>Niveles de fuerza</strong>
-          ${levels.map((item) => `<div><span>${escapeHtml(item.label)}</span><b>${escapeHtml(item.value)}</b></div>`).join("")}
+          <small class="levels-current">${escapeHtml(levels.current)}</small>
+          ${levels.rows.map((item) => `<div class="${item.achieved ? "is-achieved" : ""}"><span>${escapeHtml(item.label)}</span><b>${escapeHtml(item.value)}</b></div>`).join("")}
+          <small class="levels-source">${escapeHtml(levels.source)}</small>
         </section>`;
       })()}
       <div class="modal-actions">
@@ -6196,32 +6278,75 @@ function exerciseDetailRow(entry, index) {
   `;
 }
 
-// Honest v1 (revisión jul 2026): only with a DIRECT best mark, and on the
-// right axis per nature — e1RM kg for loaded work, seconds for holds, reps
-// otherwise. Without data the old generic ladder was nonsense on most
-// exercises; a deeper benchmark-based redesign is pending with the user.
+// ── Máximos: sección del detalle ─────────────────────────────────────────
+function denseMaxSectionHtml(exercise) {
+  if (!denseMaxApplies(exercise)) return "";
+  const info = denseEstimatedMax(exercise);
+  if (!info.direct && !info.estimate) return "";
+  const unit = info.axis === "hold" ? "s" : "reps";
+  const rows = [];
+  if (info.direct) rows.push({ icon: "flame", label: `${roundTo(info.direct.value, 1)} ${unit}`, note: `máx real${info.direct.date ? ` · ${formatShortDate(parseDate(info.direct.date))}` : ""}`, value: "MÁX" });
+  if (info.estimate) rows.push({ icon: "sigma", label: `≈ ${roundTo(info.estimate.value, 1)} ${unit}`, note: `máx estimado desde ${info.estimate.scheme} cerca del fallo · ${info.estimate.n ? `${info.estimate.n} par${info.estimate.n === 1 ? "" : "es"}` : "prior genérico"}`, value: "est." });
+  const learned = bodyweightSchemes
+    .map((base) => ({ base, mult: denseMaxMultiplier(exercise.id, base, info.axis) }))
+    .filter((item) => item.mult && item.mult.n > 0)
+    .map((item) => `${item.base} ${Math.round(item.mult.value * 100)}%`);
+  return `
+    <section class="exercise-detail-section">
+      <div class="section-subhead"><strong>Máximos</strong><span>${learned.length ? `tu ritmo por bloque: ${escapeHtml(learned.join(" · "))} del máx` : "ritmo por bloque: prior genérico"}</span></div>
+      <div class="exercise-detail-list">
+        ${rows.map((row) => `<article class="exercise-detail-row"><span class="tiny-icon"><i data-lucide="${row.icon}"></i></span><div><strong>${escapeHtml(row.label)}</strong><span>${escapeHtml(row.note)}</span></div><b>${escapeHtml(row.value)}</b></article>`).join("")}
+      </div>
+    </section>
+  `;
+}
+
+// ── Niveles de fuerza por benchmarks ──────────────────────────────────────
+// Returns null when the exercise has no benchmark table or no usable value.
 function denseExerciseLevels(exercise, best) {
-  if (!best) return [];
-  let base;
-  let unit;
-  let steps;
-  if (Number(best.e1rm_kg) > 0) {
-    base = Number(best.e1rm_kg);
-    unit = "kg e1RM";
-    steps = [0.85, 1, 1.1, 1.25];
-  } else if (best.total_hold_seconds) {
-    base = Number(best.total_hold_seconds);
-    unit = "s";
-    steps = [0.7, 1, 1.2, 1.45];
-  } else if (best.total_reps) {
-    base = Number(best.total_reps);
+  const bench = DENSE_STRENGTH_BENCHMARKS[exercise.id];
+  if (!bench) return null;
+  const bw = latestKnownBodyweight(dateKey(selectedDate)) || Number(best?.bodyweight_kg) || 0;
+  const source = denseBestWeightedE1rmSource(exercise.id);
+  const e1rm = source?.e1rm || Number(best?.e1rm_kg) || 0;
+  const maxInfo = denseMaxApplies(exercise) ? denseEstimatedMax(exercise) : null;
+  const maxValue = maxInfo?.direct?.value || maxInfo?.estimate?.value || 0;
+  const estimated = Boolean(maxInfo && !maxInfo.direct && maxInfo.estimate);
+  let value = 0;
+  let unit = "";
+  let ladder = bench.levels;
+  let format = (item) => String(item);
+  if (bench.axis === "ratio" || bench.axis === "system") {
+    if (e1rm && bw) {
+      value = e1rm / bw;
+      unit = "×BW";
+      format = (item) => `${roundTo(item, 2)}×BW`;
+    } else if (bench.axis === "system" && bench.reps && maxValue) {
+      value = maxValue;
+      ladder = bench.reps;
+      unit = "reps";
+      format = (item) => `${item} reps`;
+    }
+  } else if (bench.axis === "reps" && maxValue) {
+    value = maxValue;
     unit = "reps";
-    steps = [0.7, 1, 1.2, 1.45];
-  } else {
-    return [];
+    format = (item) => `${item} reps`;
+  } else if (bench.axis === "hold" && maxValue) {
+    value = maxValue;
+    unit = "s";
+    format = (item) => `${item} s`;
   }
-  const labels = ["Lv 1 Base", "Lv 2 Solid", "Lv 3 Strong", "Lv 4 Elite"];
-  return steps.map((step, index) => ({ label: labels[index], value: `${Math.max(1, Math.round(base * step))} ${unit}` }));
+  if (!value) return null;
+  const achievedIndex = ladder.reduce((acc, threshold, index) => (value >= threshold ? index : acc), -1);
+  const next = ladder[achievedIndex + 1];
+  const shown = unit === "×BW" ? roundTo(value, 2) : Math.round(value * 10) / 10;
+  const current = `${achievedIndex >= 0 ? `Tu nivel: ${DENSE_LEVEL_LABELS[achievedIndex]}` : "Por debajo de Base"} (${format(shown)}${estimated ? ", estimado" : ""})${next !== undefined ? ` · siguiente ${DENSE_LEVEL_LABELS[achievedIndex + 1]} a ${format(next)}` : " · tope de la escalera"}`;
+  return {
+    current,
+    unit,
+    rows: ladder.map((threshold, index) => ({ label: DENSE_LEVEL_LABELS[index], value: format(threshold), achieved: index <= achievedIndex })),
+    source: unit === "×BW" ? "Estándares generales de fuerza relativa (e1RM / peso corporal)." : "Estándares generales de calistenia (serie única máxima).",
+  };
 }
 
 // "Hitos del patrón" declared on catalog entries (e.g. chin-up +BW/6 antes de
@@ -6272,6 +6397,7 @@ function saveDenseTrainingForm(form) {
   // Modo Fuerza (esquema S): series × reps + descanso; reps reales por serie
   // opcionales ("5,5,4"). Sin reps/min.
   const strength = denseStrengthParts(scheme);
+  const isMax = denseIsMaxScheme(scheme);
   const repsDone = strength ? denseReadRepsDone(form, scheme) : [];
   const restSeconds = strength ? positiveNumber(data.restSeconds) || DENSE_STRENGTH_DEFAULT_REST : 0;
   const targetRepsPerMin = isometric
@@ -6285,7 +6411,7 @@ function saveDenseTrainingForm(form) {
   const totalReps = isometric
     ? 0
     : positiveNumber(data.totalReps) || (strength ? repsDone.reduce((sum, reps) => sum + reps, 0) || strength.sets * strength.reps : 0);
-  const rounds = strength ? strength.sets : positiveNumber(data.rounds) || durationMinutes || null;
+  const rounds = isMax ? 1 : strength ? strength.sets : positiveNumber(data.rounds) || durationMinutes || null;
   const holdSecondsPerRound = positiveNumber(data.holdSecondsPerRound);
   const targetTotalHoldSeconds = holdSecondsPerRound && rounds ? holdSecondsPerRound * rounds : 0;
   const totalHoldSeconds = positiveNumber(data.totalHoldSeconds) || targetTotalHoldSeconds;
@@ -6293,9 +6419,11 @@ function saveDenseTrainingForm(form) {
   // Modo Fuerza: dejarse una o dos reps en la última serie es normal (se repite
   // la carga). Solo cuenta como fallo el chip "fallo" o quedarse por debajo del
   // 80 % de las reps planificadas.
+  // MAX: going to failure IS the point — never a failed mark.
   const failed =
-    data.effort === "fallo" ||
-    (!usesHold && targetTotalReps > 0 && totalReps > 0 && totalReps < (strength ? targetTotalReps * 0.8 : targetTotalReps));
+    !isMax &&
+    (data.effort === "fallo" ||
+      (!usesHold && targetTotalReps > 0 && totalReps > 0 && totalReps < (strength ? targetTotalReps * 0.8 : targetTotalReps)));
   const editingEntryId = state.settings.denseDraftEntryId || "";
   const existingEntry = editingEntryId ? getDenseEntries().find((entry) => entry.id === editingEntryId) : null;
   const now = new Date().toISOString();
@@ -6318,7 +6446,9 @@ function saveDenseTrainingForm(form) {
     scheme,
     scheme_base: denseSchemeBase(scheme),
     scheme_target: strength ? `${strength.sets}x${strength.isRange ? `${strength.repsMin}-${strength.repsMax}` : strength.reps}` : denseSchemeTarget(scheme),
-    scheme_type: usesHold ? "dense_hold" : strength ? "strength" : denseSchemeType(exercise, scheme),
+    scheme_type: isMax ? "max" : usesHold ? "dense_hold" : strength ? "strength" : denseSchemeType(exercise, scheme),
+    max_reps: isMax && !usesHold ? totalReps : null,
+    max_hold_seconds: isMax && usesHold ? totalHoldSeconds : null,
     sets: strength ? strength.sets : null,
     reps_done: strength ? repsDone : null,
     rest_seconds: restSeconds || null,
@@ -7130,6 +7260,17 @@ function denseSchemeOption(scheme, currentScheme) {
   const minutes = denseSchemeMinutes(scheme);
   const suffix = scheme.replace(/^\d+D/, "");
   const strength = denseStrengthParts(scheme);
+  if (denseIsMaxScheme(scheme)) {
+    return `
+    <label class="scheme-option ${selected ? "is-selected" : ""}" style="--scheme-color:${denseSchemeColor(scheme)}">
+      <input type="radio" name="scheme" value="${escapeAttr(scheme)}" ${selected ? "checked" : ""} />
+      <span>
+        <strong>MÁX</strong>
+        <small>1 serie al fallo</small>
+      </span>
+    </label>
+  `;
+  }
   // The bold label already reads "5×5"; keep the subtitle short so it fits.
   const detail = strength
     ? `${strength.sets} series${strength.isRange ? " · rango" : ""}`
@@ -7190,7 +7331,9 @@ function applyDenseFormTargets(form, { resetStaleLoad = false } = {}) {
   const strength = denseStrengthParts(scheme);
   if (strength) denseSyncRepsDoneBoxes(form, scheme);
   const repsDone = strength ? denseReadRepsDone(form, scheme) : [];
-  const reps = strength
+  const reps = denseIsMaxScheme(scheme)
+    ? (suggestion && suggestion.scheme === scheme && suggestion.totalReps) || ""
+    : strength
     ? repsDone.length
       ? repsDone.reduce((sum, value) => sum + value, 0)
       : (suggestion && suggestion.scheme === scheme && suggestion.totalReps) || strength.sets * strength.reps
@@ -7228,7 +7371,7 @@ function applyDenseFormTargets(form, { resetStaleLoad = false } = {}) {
   // Switching to a scheme whose target is an estimate turns the set into a
   // test; add the opt-out toggle if it is not there yet (never remove one the
   // user already saw — they may have unchecked it deliberately).
-  if (!denseFailureSetMode && !form.querySelector(".dense-test-toggle") && ["family", "transfer", "estimated", "none"].includes(denseTargetSource(exercise, scheme).kind)) {
+  if (!denseFailureSetMode && !form.querySelector(".dense-test-toggle") && ["family", "transfer", "estimated", "max", "none"].includes(denseTargetSource(exercise, scheme).kind)) {
     const recWrap = form.querySelector("[data-recommendation]");
     if (recWrap) recWrap.insertAdjacentHTML("beforebegin", denseTestToggleHtml());
   }
@@ -7306,7 +7449,9 @@ function updateDenseFormatSelection(input) {
     if (bw && preserve.bodyweightKg) bw.value = preserve.bodyweightKg;
     const notes = next.querySelector("[name='notes']");
     if (notes && preserve.notes) notes.value = preserve.notes;
-    ["effort", "readiness"].forEach((name) => denseRestoreRadio(next, name, preserve[name]));
+    // MAX defaults to VH (a single set to failure): keep that, not the old effort.
+    const keep = input.value === "max" ? ["readiness"] : ["effort", "readiness"];
+    keep.forEach((name) => denseRestoreRadio(next, name, preserve[name]));
   }
   refreshIcons();
 }
@@ -7444,8 +7589,8 @@ function renderRomProgressCard(exercise) {
 
 function denseRepPerSetFields(exercise, defaults) {
   if (!denseUsesRepsPerSet(exercise)) return "";
-  // Strength mode has no reps/min: sets × reps live in the scheme chip.
-  if (denseIsStrengthScheme(defaults.scheme)) return "";
+  // Strength mode has no reps/min: sets × reps live in the scheme chip. MAX neither.
+  if (denseIsStrengthScheme(defaults.scheme) || denseIsMaxScheme(defaults.scheme)) return "";
   if (denseIsLoadExercise(exercise)) {
     return `
       <label class="field dense-fixed-target">
@@ -7459,6 +7604,12 @@ function denseRepPerSetFields(exercise, defaults) {
 
 function denseHoldFields(exercise, defaults) {
   if (!denseSupportsHold(exercise)) return "";
+  if (denseIsMaxScheme(defaults.scheme)) {
+    return `
+    ${field("Hold máximo (s, serie única)", "holdSecondsPerRound", defaults.holdSecondsPerRound || "", "number")}
+    <input type="hidden" name="rounds" value="1" />
+  `;
+  }
   const holdDefault = defaults.holdSecondsPerRound || (denseIsIsometric(exercise) ? denseDefaultHoldPerRound(exercise, defaults.scheme) : "");
   return `
     ${field("Hold/ronda s", "holdSecondsPerRound", holdDefault || "", "number")}
@@ -8110,7 +8261,10 @@ function denseEntryIsPr(entry) {
 // form so the "Target" shown and the scheme the form opens with always match.
 function denseDefaultScheme(exercise) {
   const allowed = denseAllowedSchemes(exercise);
-  const last = latestDenseEntryForExercise(exercise.id);
+  // A MAX test is occasional: the next open goes back to the last block format.
+  const last = [...getDenseEntries()]
+    .filter((entry) => entry.exercise_id === exercise.id && !entry.deleted_at && !denseIsMaxScheme(entry.scheme))
+    .sort((a, b) => (b.created_at || b.date || "").localeCompare(a.created_at || a.date || ""))[0];
   if (last && allowed.includes(last.scheme)) return last.scheme;
   // Catalog default first (gym basics open in Fuerza: S5x5 / S3x12), then the
   // generic dense mid-range.
@@ -8237,6 +8391,12 @@ function denseTargetSource(exercise, scheme) {
     const emp = denseEmpiricalSigma("block");
     const sigma = emp ? emp.sigma : denseEstimateSigma(sameBase.date);
     return { kind: "block", label: `Desde ${sameBase.scheme}`, cls: "is-blue", icon: "history", sigma, empirical: emp, confidence: denseConfidenceLabel(sigma) };
+  }
+  const bestMax = denseBestMax(exercise.id);
+  if (bestMax && (denseIsIsometric(exercise) ? bestMax.hold : bestMax.reps) && !denseIsLoadExercise(exercise)) {
+    const mult = denseMaxMultiplier(exercise.id, base, denseIsIsometric(exercise) ? "hold" : "reps");
+    const sigma = mult?.n ? 0.12 : 0.2;
+    return { kind: "max", label: "Desde tu máx", cls: "is-blue", icon: "flame", sigma, confidence: denseConfidenceLabel(sigma) };
   }
   const leverSibling = denseLeverSiblingEstimate(exercise, denseIsIsometric(exercise) ? "isometric_capacity" : "bodyweight_capacity");
   if (leverSibling) {
@@ -8556,6 +8716,7 @@ function denseNatureLabel(nature) {
 function denseSchemeColor(scheme) {
   const base = denseSchemeBase(scheme);
   if (base === "S") return "#c58bff";
+  if (base === "MAX") return "#ff9f43";
   if (base === "2D") return "#ff7c9e";
   if (base === "5D") return "#ffd166";
   if (base === "10D") return "#79aaff";
@@ -8575,9 +8736,10 @@ function denseEffortColor(effort) {
 function denseAllowedSchemes(exercise) {
   if (exercise.allowedSchemes?.length) return exercise.allowedSchemes;
   const dense = denseIsLoadExercise(exercise) ? weightedSchemes : bodyweightSchemes;
-  // Modo Fuerza (series × descanso) se suma a los bloques de densidad; el
-  // formulario filtra por formato, el resto del motor valida contra la unión.
-  return denseStrengthApplies(exercise) ? [...dense, ...strengthSchemes] : dense;
+  // Modo Fuerza (series × descanso) y MAX (serie única) se suman a los bloques
+  // de densidad; el formulario filtra por formato, el motor valida la unión.
+  const list = denseStrengthApplies(exercise) ? [...dense, ...strengthSchemes] : dense;
+  return denseMaxApplies(exercise) ? [...list, DENSE_MAX_SCHEME] : list;
 }
 
 function denseDefaultTotalReps(exercise, scheme) {
@@ -8645,11 +8807,15 @@ function denseDefaultRepsPerSet(exercise, scheme) {
     // Cross-estimate via the unified e1RM curve (e.g. weighted-only history
     // informing an unweighted scheme) before falling back to generic defaults.
     const crossRpm = denseCrossRpm(exercise, denseSchemeBase(scheme));
+    // A logged max (personal multiplier) beats cross-modality and generic defaults.
+    const maxSeed = denseMaxSeedRpm(exercise, scheme);
     raw = estimate && multiplier
       ? Math.max(1, Math.floor(estimate * multiplier))
-      : crossRpm
-        ? Math.max(1, Math.floor(crossRpm))
-        : Math.max(1, Math.round(denseDefaultRpm(exercise, denseSchemeBase(scheme)) * denseColdStartFactor(exercise)));
+      : maxSeed
+        ? maxSeed
+        : crossRpm
+          ? Math.max(1, Math.floor(crossRpm))
+          : Math.max(1, Math.round(denseDefaultRpm(exercise, denseSchemeBase(scheme)) * denseColdStartFactor(exercise)));
   }
   return Math.max(1, Math.round(denseCapRpm(exercise, raw)));
 }
@@ -8844,6 +9010,9 @@ function denseFormTargetRepsPerSet(exercise, scheme, suggestion) {
   const capacity = denseBestCapacity(exercise.id, "bodyweight_capacity");
   const multiplier = bodyweightMultipliers[denseSchemeBase(scheme)];
   if (capacity && multiplier) return Math.max(1, Math.round(denseCapRpm(exercise, Math.floor(capacity * multiplier))));
+  // A logged max seeds every block through the personal multiplier.
+  const maxSeed = denseMaxSeedRpm(exercise, scheme);
+  if (maxSeed) return Math.max(1, Math.round(denseCapRpm(exercise, maxSeed)));
   const sibling = denseLeverSiblingEstimate(exercise, "bodyweight_capacity");
   if (sibling && multiplier) {
     const reps = Math.floor(sibling.value * multiplier);
@@ -8868,6 +9037,8 @@ function denseFormTargetHoldPerRound(exercise, scheme, suggestion) {
   const capacity = denseBestCapacity(exercise.id, "isometric_capacity");
   const multiplier = bodyweightMultipliers[denseSchemeBase(scheme)];
   if (capacity && multiplier) return denseCapHold(Math.max(1, Math.floor(capacity * multiplier)));
+  const maxSeed = denseMaxSeedHold(exercise, scheme);
+  if (maxSeed) return denseCapHold(maxSeed);
   // No direct history at this progression: scale a sibling lever level through
   // the endurance curve (30s tuck ≈ 14s adv tuck ≈ 3s full, not 30s everywhere).
   const sibling = denseLeverSiblingEstimate(exercise, "isometric_capacity");
@@ -9317,7 +9488,7 @@ function denseEstimatedBodySuggestion(exercise, scheme, readiness = "normal") {
 // progress. Time to back off.
 function denseStagnationInfo(exercise) {
   const marks = [...getDenseEntries()]
-    .filter((entry) => entry.exercise_id === exercise.id && !entry.deleted_at && !entry.is_test)
+    .filter((entry) => entry.exercise_id === exercise.id && !entry.deleted_at && !entry.is_test && !denseIsMaxScheme(entry.scheme))
     .sort((a, b) => String(b.created_at || b.date || "").localeCompare(String(a.created_at || a.date || "")))
     .slice(0, DENSE_DELOAD_STREAK);
   if (marks.length < DENSE_DELOAD_STREAK) return null;
@@ -9365,6 +9536,7 @@ function denseMaybeDeload(suggestion, exercise) {
 }
 
 function denseProgressionSuggestion(exercise, readiness = "normal", schemeFilter = "") {
+  if (denseIsMaxScheme(schemeFilter)) return denseMaxSuggestion(exercise, readiness);
   // Scheme-aware memory:
   // - load exercises progress from the exact scheme (10D5 does not borrow 10D10)
   // - bodyweight / holds use the dense block (10D) so reps or seconds can move
@@ -9391,10 +9563,11 @@ function denseProgressionSuggestion(exercise, readiness = "normal", schemeFilter
   }
   entry ||= latestDenseEntryForExercise(exercise.id);
   if (!entry) return null;
-  // Never answer a dense form with a strength mark (or vice versa): the
+  // Never answer a dense form with a strength/max mark (or vice versa): the
   // prefill would talk about another format.
-  if (schemeFilter && denseIsStrengthScheme(schemeFilter) !== denseIsStrengthScheme(entry.scheme)) return null;
+  if (schemeFilter && denseSchemeFormat(schemeFilter) !== denseSchemeFormat(entry.scheme)) return null;
   const scheme = denseAllowedSchemes(exercise).includes(entry.scheme) ? entry.scheme : denseAllowedSchemes(exercise)[0];
+  if (denseIsMaxScheme(scheme)) return denseMaxSuggestion(exercise, readiness);
   if (denseIsStrengthScheme(scheme)) return denseStrengthProgressionSuggestion(exercise, entry, scheme, readiness);
   const minutes = denseSchemeMinutes(scheme) || entry.duration_minutes || 0;
   const effort = entry.effort || "N";
@@ -9757,8 +9930,17 @@ function bodyweightTrend(referenceKey = dateKey(selectedDate)) {
 }
 
 // Verdict vs goal, with a concrete food/activity nudge when off track.
+// Effective weekly band: custom target ± tolerance, else the mode's range.
+function bodyweightRule(goal = bodyweightGoal()) {
+  const base = BODYWEIGHT_GOAL_RULES[goal.mode];
+  if (!base) return null;
+  const target = Number(goal.weeklyTarget);
+  if (goal.weeklyTarget === null || goal.weeklyTarget === undefined || goal.weeklyTarget === "" || !Number.isFinite(target)) return base;
+  return { ...base, min: roundTo(target - BODYWEIGHT_TARGET_TOLERANCE, 2), max: roundTo(target + BODYWEIGHT_TARGET_TOLERANCE, 2), target };
+}
+
 function bodyweightVerdict(trend = bodyweightTrend(), goal = bodyweightGoal()) {
-  const rule = BODYWEIGHT_GOAL_RULES[goal.mode];
+  const rule = bodyweightRule(goal);
   if (!rule) return { tone: "neutral", icon: "target", title: "Sin objetivo", advice: "Elige subir, bajar o mantener para que la app valore tu tendencia." };
   if (!trend) return { tone: "neutral", icon: "scale", title: "Sin pesos aún", advice: "Registra tu peso al abrir la app: con una semana de datos empieza a valorar." };
   if (trend.ratePerWeek === null) {
@@ -9770,18 +9952,18 @@ function bodyweightVerdict(trend = bodyweightTrend(), goal = bodyweightGoal()) {
     if (rate < rule.min) {
       return rate <= 0
         ? { tone: "amber", icon: "utensils", title: `No subes (${fmt})`, advice: "Come más: añade ~300 kcal/día (más carbohidrato y proteína en las comidas grandes) y revisa en una semana." }
-        : { tone: "amber", icon: "utensils", title: `Vas lento (${fmt})`, advice: "Subes menos del mínimo lógico (+0,2 kg/sem): añade ~200 kcal/día y revisa en una semana." };
+        : { tone: "amber", icon: "utensils", title: `Vas lento (${fmt})`, advice: `Subes menos de ${rule.target !== undefined ? `tu objetivo (${rule.target > 0 ? "+" : ""}${roundTo(rule.target, 2)} kg/sem)` : "el mínimo lógico (+0,2 kg/sem)"}: añade ~200 kcal/día y revisa en una semana.` };
     }
-    if (rate > rule.max) return { tone: "amber", icon: "alert-triangle", title: `Demasiado rápido (${fmt})`, advice: "Por encima de +0,6 kg/sem buena parte es grasa: recorta ~200 kcal/día y mantén el entreno." };
+    if (rate > rule.max) return { tone: "amber", icon: "alert-triangle", title: `Demasiado rápido (${fmt})`, advice: `Por encima de ${rule.target !== undefined ? `tu objetivo (+${roundTo(rule.target, 2)} kg/sem)` : "+0,6 kg/sem"} buena parte es grasa: recorta ~200 kcal/día y mantén el entreno.` };
     return { tone: "green", icon: "check-circle-2", title: `Va bien (${fmt})`, advice: "Ritmo de volumen limpio. Sigue igual y revisa cada semana." };
   }
   if (goal.mode === "lose") {
     if (rate > rule.max) {
       return rate >= 0
         ? { tone: "amber", icon: "apple", title: `No bajas (${fmt})`, advice: "Te mantienes o subes: cuida la alimentación (−300 kcal/día, prioriza proteína y verdura) o añade 8-10k pasos / cardio suave." }
-        : { tone: "amber", icon: "apple", title: `Vas lento (${fmt})`, advice: "Bajas menos de 0,25 kg/sem: ajusta −150/200 kcal/día o añade algo de cardio." };
+        : { tone: "amber", icon: "apple", title: `Vas lento (${fmt})`, advice: `Bajas menos de ${rule.target !== undefined ? `tu objetivo (${roundTo(rule.target, 2)} kg/sem)` : "0,25 kg/sem"}: ajusta −150/200 kcal/día o añade algo de cardio.` };
     }
-    if (rate < rule.min) return { tone: "amber", icon: "alert-triangle", title: `Demasiado rápido (${fmt})`, advice: "Más de 1 kg/sem compromete fuerza y masa: sube ~200 kcal/día y protege la proteína." };
+    if (rate < rule.min) return { tone: "amber", icon: "alert-triangle", title: `Demasiado rápido (${fmt})`, advice: `Más rápido que ${rule.target !== undefined ? `tu objetivo (${roundTo(rule.target, 2)} kg/sem)` : "1 kg/sem"} compromete fuerza y masa: sube ~200 kcal/día y protege la proteína.` };
     return { tone: "green", icon: "check-circle-2", title: `Va bien (${fmt})`, advice: "Ritmo de definición sostenible. Mantén la proteína alta y el entreno de fuerza." };
   }
   if (rate > rule.max) return { tone: "amber", icon: "trending-up", title: `Subiendo (${fmt})`, advice: "Querías mantener: recorta ~150 kcal/día o añade pasos, y revisa en una semana." };
@@ -9793,7 +9975,7 @@ function renderBodyweightCard() {
   const goal = bodyweightGoal();
   const trend = bodyweightTrend();
   const verdict = bodyweightVerdict(trend, goal);
-  const rule = BODYWEIGHT_GOAL_RULES[goal.mode];
+  const rule = bodyweightRule(goal);
   const weightTxt = trend ? `${roundTo(trend.current, 1)} kg` : "— kg";
   const when = !trend ? "sin registros" : trend.loggedToday ? "hoy" : trend.daysSince === 1 ? "ayer" : `hace ${trend.daysSince} d`;
   const meta = trend && trend.logs > 1 ? `${when} · media 7 d · ${trend.logs} pesos en 4 sem` : when;
@@ -9804,7 +9986,7 @@ function renderBodyweightCard() {
           <strong>${escapeHtml(weightTxt)}</strong>
           <small>${escapeHtml(meta)}</small>
         </div>
-        <span class="mini-tag ${rule ? "is-green" : "is-amber"}"><i data-lucide="${rule ? rule.icon : "target"}"></i>${escapeHtml(rule ? rule.label : "Sin objetivo")}</span>
+        <span class="mini-tag ${rule ? "is-green" : "is-amber"}"><i data-lucide="${rule ? rule.icon : "target"}"></i>${escapeHtml(rule ? `${rule.label}${rule.target !== undefined ? ` · ${rule.target > 0 ? "+" : ""}${roundTo(rule.target, 2)} kg/sem` : ""}` : "Sin objetivo")}</span>
       </div>
       <div class="bodyweight-verdict">
         <span class="tiny-icon"><i data-lucide="${verdict.icon}"></i></span>
@@ -9882,6 +10064,10 @@ function openBodyweightModal({ prompt = false } = {}) {
             .join("")}
         </div>
       </fieldset>
+      <label class="field is-full">
+        <span>Ritmo objetivo (kg/semana, opcional)</span>
+        <input name="weeklyTarget" type="number" inputmode="decimal" step="0.05" min="-2" max="2" value="${goal.weeklyTarget !== undefined && goal.weeklyTarget !== null && goal.weeklyTarget !== "" ? escapeAttr(String(goal.weeklyTarget)) : ""}" placeholder="p. ej. ${BODYWEIGHT_GOAL_RULES[goal.mode]?.hint || "+0.25"} — vacío = rango recomendado" />
+      </label>
       <p class="transfer-note"><i data-lucide="info"></i>Pésate en las mismas condiciones (al levantarte, tras el baño). La app valora la media de 7 días y la tendencia de 4 semanas, no el número de un día.</p>
       ${verdict ? `<p class="transfer-note ${verdict.tone === "amber" ? "is-warn" : ""}"><i data-lucide="${verdict.icon}"></i>${escapeHtml(verdict.title)} — ${escapeHtml(verdict.advice)}</p>` : ""}
       <div class="modal-actions">
@@ -9902,7 +10088,12 @@ function saveBodyweightForm(form) {
   if (validKg) state.bodyweightLogs[date] = roundTo(kg, 1);
   if (BODYWEIGHT_GOAL_RULES[data.goalMode]) {
     const previous = state.settings.bodyweightGoal || {};
-    state.settings.bodyweightGoal = { mode: data.goalMode, since: previous.mode === data.goalMode ? previous.since || date : date };
+    const target = Number(String(data.weeklyTarget || "").replace(",", "."));
+    state.settings.bodyweightGoal = {
+      mode: data.goalMode,
+      since: previous.mode === data.goalMode ? previous.since || date : date,
+      weeklyTarget: String(data.weeklyTarget || "").trim() !== "" && Number.isFinite(target) ? roundTo(target, 2) : null,
+    };
   }
   state.settings.bodyweightPromptedOn = dateKey(new Date());
   closeModal();
@@ -10431,16 +10622,18 @@ function denseFormDefaults() {
   // item, else the last mark for this exercise, else the catalog default
   // scheme (gym basics open in Fuerza). Both reset the scheme to that format's
   // sensible default; the latest S mark is reused when switching to Fuerza.
-  const formatOverride = denseFormFormatOverride && denseStrengthApplies(activeExercise) ? denseFormFormatOverride : null;
+  const formatOverride = denseFormFormatOverride && denseFormatAllowed(activeExercise, denseFormFormatOverride) ? denseFormFormatOverride : null;
   const latestStrength = [...getDenseEntries()]
     .filter((entry) => entry.exercise_id === exercise.id && !entry.deleted_at && denseIsStrengthScheme(entry.scheme))
     .sort((a, b) => (b.created_at || b.date || "").localeCompare(a.created_at || a.date || ""))[0];
   const preferredScheme = formatOverride
-    ? formatOverride === "strength"
-      ? latestStrength?.scheme || denseDefaultStrengthScheme(activeExercise)
-      : denseIsLoadExercise(activeExercise)
-        ? "10D5"
-        : "10D"
+    ? formatOverride === "max"
+      ? DENSE_MAX_SCHEME
+      : formatOverride === "strength"
+        ? latestStrength?.scheme || denseDefaultStrengthScheme(activeExercise)
+        : denseIsLoadExercise(activeExercise)
+          ? "10D5"
+          : "10D"
     : overrideNature
       ? denseIsLoadExercise(activeExercise)
         ? "10D5"
@@ -10448,15 +10641,16 @@ function denseFormDefaults() {
       : (planItem?.scheme && allowedSchemes.includes(planItem.scheme) ? planItem.scheme : denseDefaultScheme(activeExercise));
   const scheme = allowedSchemes.includes(preferredScheme) ? preferredScheme : allowedSchemes[0];
   const strength = denseStrengthParts(scheme);
+  const isMax = denseIsMaxScheme(scheme);
   const suggestion = denseProgressionSuggestion(activeExercise, "normal", scheme);
-  const repsPerSet = strength ? "" : suggestion?.repsPerSet || denseDefaultRepsPerSet(activeExercise, scheme);
+  const repsPerSet = strength || isMax ? "" : suggestion?.repsPerSet || denseDefaultRepsPerSet(activeExercise, scheme);
   const restSeconds = strength
     ? Number(suggestion?.restSeconds) || Number(latestDenseEntryForExercise(exercise.id, scheme)?.rest_seconds) || exercise.defaultRestSeconds || DENSE_STRENGTH_DEFAULT_REST
     : "";
   // Test session: planned as test, or the target comes from transfer/estimation
   // with no direct evidence — exploring a number, not executing a known one.
   const sourceKind = denseTargetSource(activeExercise, scheme).kind;
-  const isTest = Boolean(planItem?.is_test) || ["family", "transfer", "estimated", "none"].includes(sourceKind);
+  const isTest = Boolean(planItem?.is_test) || ["family", "transfer", "estimated", "max", "none"].includes(sourceKind);
   return {
     date: dateKey(selectedDate),
     bodyweightKg: latestKnownBodyweight(dateKey(selectedDate)) || 80,
@@ -10466,12 +10660,14 @@ function denseFormDefaults() {
     repsPerSet,
     restSeconds,
     repsDone: "",
-    totalReps: strength
-      ? suggestion?.totalReps || strength.sets * strength.reps
-      : suggestion?.totalReps || (repsPerSet ? denseTotalFromRepsPerSet(repsPerSet, scheme) : denseDefaultTotalReps(activeExercise, scheme)),
+    totalReps: isMax
+      ? suggestion?.totalReps || ""
+      : strength
+        ? suggestion?.totalReps || strength.sets * strength.reps
+        : suggestion?.totalReps || (repsPerSet ? denseTotalFromRepsPerSet(repsPerSet, scheme) : denseDefaultTotalReps(activeExercise, scheme)),
     holdSecondsPerRound: suggestion?.holdSecondsPerRound || (!overrideNature && shouldUseLatest && referenceEntry?.hold_seconds_per_round ? referenceEntry.hold_seconds_per_round : ""),
     rounds: suggestion?.rounds || (shouldUseLatest && referenceEntry?.rounds ? referenceEntry.rounds : denseSchemeMinutes(scheme) || ""),
-    effort: denseFailureSetMode ? "fallo" : "N",
+    effort: denseFailureSetMode ? "fallo" : isMax ? "VH" : "N",
     externalLoadKg: suggestion?.externalLoadKg || "",
     addedLoadKg: suggestion?.addedLoadKg || "",
     weightPerDumbbellKg: suggestion?.weightPerDumbbellKg || "",
@@ -10524,6 +10720,51 @@ function computeDenseEntry(raw) {
   }
   if (raw.nature === "bodyweight" || raw.nature === "banded" || raw.nature === "plyometrics" || raw.nature === "conditioning") {
     totalSystemLoad = 0;
+  }
+
+  // ── MAX: serie única al fallo. Reps/hold máximos como eje propio; con carga,
+  // e1RM por Epley (RIR según esfuerzo, por defecto VH = 0). Sin capacidad de
+  // densidad: los bloques se relacionan con el máx vía multiplicador aprendido.
+  if (denseIsMaxScheme(scheme)) {
+    const maxReps = totalReps || 0;
+    const maxHold = totalHoldSeconds || holdSecondsPerRound || 0;
+    const effortMax = raw.effort || "VH";
+    const e1rmMax = maxReps ? denseStrengthE1rm(totalSystemLoad, maxReps, effortMax) : 0;
+    const effectiveLoadM = raw.nature === "weighted_calisthenics" || raw.nature === "assisted" ? totalSystemLoad : load + (bw * contribution) / 100;
+    const relativeM = bw && totalSystemLoad ? totalSystemLoad / bw : 0;
+    const tonnageM = maxReps && effectiveLoadM ? effectiveLoadM * maxReps * (raw.tonnage_factor || 1) : 0;
+    const tutM = maxHold && effectiveLoadM ? effectiveLoadM * maxHold * (raw.tonnage_factor || 1) : 0;
+    return {
+      ...raw,
+      scheme_base: "MAX",
+      duration_minutes: 0,
+      total_reps: maxReps,
+      max_reps: maxReps || null,
+      max_hold_seconds: maxHold || null,
+      total_hold_seconds: maxHold,
+      hold_seconds_per_round: maxHold,
+      reps_per_min: 0,
+      hold_seconds_per_min: 0,
+      isometric_capacity: 0,
+      working_pct: maxReps ? roundTo(denseEpleyPct(maxReps + denseStrengthRir(effortMax)), 3) : 0,
+      total_system_load_kg: roundTo(totalSystemLoad, 2),
+      visible_added_load_kg: roundTo(raw.nature === "weighted_calisthenics" && bw ? totalSystemLoad - bw : 0, 2),
+      e1rm_kg: roundTo(e1rmMax, 2),
+      relative_strength: roundTo(relativeM, 3),
+      bodyweight_capacity: 0,
+      effective_load_kg: roundTo(effectiveLoadM, 2),
+      tonnage_kg: roundTo(tonnageM, 1),
+      tut_load_kg_seconds: roundTo(tutM, 1),
+      computed: {
+        e1rm: roundTo(e1rmMax, 2) || null,
+        relative_strength: roundTo(relativeM, 3) || null,
+        effective_load_kg: roundTo(effectiveLoadM, 2) || null,
+        tonnage: roundTo(tonnageM, 1) || null,
+        capacity: null,
+        isometric_capacity: null,
+        pr_score: roundTo(e1rmMax, 3) || maxReps || maxHold || null,
+      },
+    };
   }
 
   // ── Modo Fuerza (esquemas S): series × reps con descanso, fuera del reloj
@@ -10880,6 +11121,11 @@ function denseEntryScore(entry) {
 }
 
 function denseEntryValue(entry) {
+  if (denseIsMaxScheme(entry.scheme)) {
+    if (Number(entry.max_hold_seconds) > 0) return `${entry.max_hold_seconds}s hold máximo`;
+    const load = entry.nature === "weighted_calisthenics" ? ` · +${formatKg(entry.visible_added_load_kg)}` : entry.nature === "weighted" ? ` · ${formatKg(entry.external_load_kg)}` : "";
+    return `${entry.total_reps || 0} reps máximas${load}${entry.e1rm_kg ? ` · e1RM ${formatKg(entry.e1rm_kg)}` : ""}`;
+  }
   const romTxt = denseRomText(entry);
   if (romTxt) {
     // Mobility leads with depth; reps/hold (if any) come after as context.
@@ -10918,6 +11164,7 @@ function denseEntryValue(entry) {
 }
 
 function denseSchemeBase(scheme) {
+  if (denseIsMaxScheme(scheme)) return "MAX";
   if (denseIsStrengthScheme(scheme)) return "S";
   const match = String(scheme || "").match(/^(\d+D)/);
   return match ? match[1] : "";
@@ -10926,6 +11173,136 @@ function denseSchemeBase(scheme) {
 function denseSchemeMinutes(scheme) {
   const match = String(scheme || "").match(/^(\d+)D/);
   return match ? Number(match[1]) : 0;
+}
+
+// ── Esquema MAX ─────────────────────────────────────────────────────────
+function denseIsMaxScheme(scheme) {
+  return String(scheme || "") === DENSE_MAX_SCHEME;
+}
+
+// "dense" | "strength" | "max"
+function denseSchemeFormat(scheme) {
+  return denseIsMaxScheme(scheme) ? "max" : denseIsStrengthScheme(scheme) ? "strength" : "dense";
+}
+
+function denseMaxApplies(exercise) {
+  if (!exercise) return false;
+  if (exercise.allowedSchemes?.length && !exercise.allowedSchemes.includes(DENSE_MAX_SCHEME)) return false;
+  return denseIsIsometric(exercise) || denseIsLoadExercise(exercise) || exercise.nature === "bodyweight";
+}
+
+function denseMaxEntries(exerciseId) {
+  return [...getDenseEntries()]
+    .filter((entry) => entry.exercise_id === exerciseId && !entry.deleted_at && denseIsMaxScheme(entry.scheme))
+    .sort((a, b) => (b.created_at || b.date || "").localeCompare(a.created_at || a.date || ""));
+}
+
+function denseBestMax(exerciseId) {
+  const entries = denseMaxEntries(exerciseId);
+  if (!entries.length) return null;
+  const byReps = entries.filter((entry) => Number(entry.max_reps) > 0).sort((a, b) => Number(b.max_reps) - Number(a.max_reps))[0];
+  const byHold = entries.filter((entry) => Number(entry.max_hold_seconds) > 0).sort((a, b) => Number(b.max_hold_seconds) - Number(a.max_hold_seconds))[0];
+  return { reps: Number(byReps?.max_reps) || 0, hold: Number(byHold?.max_hold_seconds) || 0, entry: byReps || byHold };
+}
+
+// Dense blocks taken close to failure (H/VH/fallo) in a base: the only honest
+// evidence to relate a block pace to a true max.
+function denseNearFailureEntries(exerciseId, base, axis = "reps") {
+  return [...getDenseEntries()]
+    .filter((entry) => entry.exercise_id === exerciseId && !entry.deleted_at && denseSchemeBase(entry.scheme) === base)
+    .filter((entry) => entry.failed || ["H", "VH", "fallo"].includes(entry.effort || ""))
+    .filter((entry) => (axis === "reps" ? Number(entry.reps_per_min) > 0 : Number(entry.hold_seconds_per_round) > 0))
+    .sort((a, b) => (b.created_at || b.date || "").localeCompare(a.created_at || a.date || ""));
+}
+
+// Personal multiplier "block pace / max" for one base: prior blended with every
+// observed pair (MAX ↔ near-failure block within DENSE_MAX_PAIR_DAYS).
+function denseMaxMultiplier(exerciseId, base, axis = "reps") {
+  const prior = DENSE_MAX_PRIOR[base];
+  if (!prior) return null;
+  const maxes = denseMaxEntries(exerciseId).filter((entry) => (axis === "reps" ? Number(entry.max_reps) > 0 : Number(entry.max_hold_seconds) > 0));
+  const observed = [];
+  denseNearFailureEntries(exerciseId, base, axis).forEach((entry) => {
+    const pair = maxes
+      .map((max) => ({ max, gap: Math.abs(parseDate(max.date) - parseDate(entry.date)) / 86400000 }))
+      .filter((item) => item.gap <= DENSE_MAX_PAIR_DAYS)
+      .sort((a, b) => a.gap - b.gap)[0];
+    if (!pair) return;
+    const maxValue = axis === "reps" ? Number(pair.max.max_reps) : Number(pair.max.max_hold_seconds);
+    const blockValue = axis === "reps" ? Number(entry.reps_per_min) : Number(entry.hold_seconds_per_round);
+    if (maxValue > 0 && blockValue > 0) observed.push(blockValue / maxValue);
+  });
+  const value = (prior + observed.reduce((sum, item) => sum + item, 0)) / (1 + observed.length);
+  return { value: clamp(value, 0.05, 0.95), n: observed.length, prior };
+}
+
+// Max: direct best, plus the value deduced from the latest near-failure block
+// (block pace / personal multiplier) — no dedicated max test needed.
+function denseEstimatedMax(exercise, axis = denseIsIsometric(exercise) ? "hold" : "reps") {
+  const direct = denseBestMax(exercise.id);
+  const directValue = axis === "reps" ? direct?.reps : direct?.hold;
+  const candidates = [];
+  bodyweightSchemes.forEach((base) => {
+    const latest = denseNearFailureEntries(exercise.id, base, axis)[0];
+    if (!latest) return;
+    const mult = denseMaxMultiplier(exercise.id, base, axis);
+    if (!mult) return;
+    const blockValue = axis === "reps" ? Number(latest.reps_per_min) : Number(latest.hold_seconds_per_round);
+    if (blockValue > 0) candidates.push({ value: blockValue / mult.value, base, scheme: latest.scheme, date: latest.date, n: mult.n });
+  });
+  candidates.sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  return { axis, direct: directValue ? { value: directValue, date: direct.entry?.date } : null, estimate: candidates[0] || null };
+}
+
+// Seed a dense block from a known max when the exercise has no density history.
+function denseMaxSeedRpm(exercise, scheme) {
+  const base = denseSchemeBase(scheme);
+  if (!DENSE_MAX_PRIOR[base]) return 0;
+  const best = denseBestMax(exercise.id);
+  if (!best?.reps) return 0;
+  const mult = denseMaxMultiplier(exercise.id, base, "reps");
+  return Math.max(1, Math.floor(best.reps * (mult?.value || DENSE_MAX_PRIOR[base])));
+}
+
+function denseMaxSeedHold(exercise, scheme) {
+  const base = denseSchemeBase(scheme);
+  if (!DENSE_MAX_PRIOR[base]) return 0;
+  const best = denseBestMax(exercise.id);
+  if (!best?.hold) return 0;
+  const mult = denseMaxMultiplier(exercise.id, base, "hold");
+  return Math.max(1, Math.floor(best.hold * (mult?.value || DENSE_MAX_PRIOR[base])));
+}
+
+// Card/prefill for the MAX format: beat your best, or confirm the estimate.
+function denseMaxSuggestion(exercise, readiness = "normal") {
+  const info = denseEstimatedMax(exercise);
+  const latest = denseMaxEntries(exercise.id)[0];
+  const isHold = info.axis === "hold";
+  const value = info.direct?.value || info.estimate?.value || 0;
+  if (!value) return null;
+  const unit = isHold ? "s" : "reps";
+  const target = Math.max(1, Math.round(value * (info.direct ? 1.04 : 1)));
+  const reason = info.direct
+    ? `Tu mejor serie única: ${roundTo(info.direct.value, 1)} ${unit}${info.direct.date ? ` (${formatShortDate(parseDate(info.direct.date))})` : ""}. Intenta superarla con margen limpio.`
+    : `Máx estimado desde ${info.estimate.scheme} cerca del fallo (${info.estimate.n ? `${info.estimate.n} par${info.estimate.n === 1 ? "" : "es"} aprendido${info.estimate.n === 1 ? "" : "s"}` : "prior genérico"}); confírmalo con una serie única al fallo.`;
+  return {
+    entry: latest || { scheme: DENSE_MAX_SCHEME, effort: "estimado", exercise_id: exercise.id, exercise_name: exercise.name, total_reps: isHold ? 0 : Math.round(value), total_hold_seconds: isHold ? Math.round(value) : 0, max_reps: isHold ? 0 : Math.round(value), max_hold_seconds: isHold ? Math.round(value) : 0 },
+    scheme: DENSE_MAX_SCHEME,
+    rounds: 1,
+    effort: "VH",
+    readiness,
+    step: info.direct ? 1 : 0,
+    direction: info.direct ? "up" : "hold",
+    tone: "neutral",
+    type: isHold ? "hold" : "max",
+    repsPerSet: "",
+    totalReps: isHold ? "" : target,
+    holdSecondsPerRound: isHold ? target : "",
+    totalHoldSeconds: isHold ? target : 0,
+    estimated: !info.direct,
+    title: `MÁX · ${target} ${unit}`,
+    reason,
+  };
 }
 
 // ── Modo Fuerza: helpers de esquema "S" ─────────────────────────────────
@@ -10995,17 +11372,24 @@ function denseStrengthApplies(exercise) {
   return denseIsLoadExercise(exercise) || exercise.nature === "bodyweight";
 }
 
-// "dense" | "strength": explicit in-form choice wins, else whatever the scheme is.
-function denseFormFormat(exercise, scheme) {
-  if (denseFormFormatOverride && denseStrengthApplies(exercise)) return denseFormFormatOverride;
-  return denseIsStrengthScheme(scheme) ? "strength" : "dense";
+// Is an explicit format choice valid for this exercise?
+function denseFormatAllowed(exercise, format) {
+  if (format === "strength") return denseStrengthApplies(exercise);
+  if (format === "max") return denseMaxApplies(exercise);
+  return format === "dense";
 }
 
-// Schemes the form shows for a format (allowed list filtered by S / dense).
+// "dense" | "strength" | "max": explicit in-form choice wins, else the scheme's.
+function denseFormFormat(exercise, scheme) {
+  if (denseFormFormatOverride && denseFormatAllowed(exercise, denseFormFormatOverride)) return denseFormFormatOverride;
+  return denseSchemeFormat(scheme);
+}
+
+// Schemes the form shows for a format.
 function denseFormSchemes(exercise, format) {
   const allowed = denseAllowedSchemes(exercise);
-  if (!denseStrengthApplies(exercise)) return allowed;
-  return allowed.filter((scheme) => (format === "strength") === denseIsStrengthScheme(scheme));
+  if (format === "max") return allowed.includes(DENSE_MAX_SCHEME) ? [DENSE_MAX_SCHEME] : allowed;
+  return allowed.filter((scheme) => denseSchemeFormat(scheme) === format);
 }
 
 function denseDefaultStrengthScheme(exercise) {
