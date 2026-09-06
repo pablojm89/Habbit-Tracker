@@ -53,7 +53,8 @@ fuerza el cierre de la app para actualizar. Nada está "hecho" hasta que está e
 - [ ] `node --check app.js`
 - [ ] **Self-tests**: añade 1–5 asserts al final de `runDenseSelfTests()` para lo nuevo,
       luego `tools/qa/run.sh selftests` → `N/N OK` (N sube con cada feature).
-- [ ] `tools/qa/run.sh crawl` → `findings=0` y `tools/qa/run.sh audit` → `findings=0`.
+- [ ] `tools/qa/run.sh crawl` → `findings=0`, `tools/qa/run.sh audit` → `findings=0` y
+      `tools/qa/run.sh plan` → `issues=0` (dos pasadas) si tocaste plan, tarjeta o formulario.
 - [ ] El probe de §1 **pasa** después del cambio. Para UI, una captura a 390×844 y mírala.
 - [ ] Si tocaste móvil: revisa desbordes (`scrollWidth > clientWidth`) en el modal.
 - Si algo falla, no se maquilla: se arregla o se reporta con la salida.

@@ -8,16 +8,17 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 > App: PWA de entrenamiento (Dense training). Vanilla JS sin build: `app.js` (~9000
 > líneas), `styles.css`, `index.html`, `sw.js`. Sincroniza a Google Sheets vía Apps Script.
 > Modo training-only (`TRAINING_ONLY = true`). Cache busting: string `?v=…` en `index.html`
-> **y** `sw.js` a la vez. **Última versión: `20260906-test-lastre-44`.**
+> **y** `sw.js` a la vez. **Última versión: `20260906-plan-coherente-45`.**
 
 ## Cómo trabajar aquí (imprescindible)
 
 - **Flujo de trabajo**: skill del proyecto `.claude/skills/bittracker-ship/SKILL.md`
   (reproducir → cambio mínimo → verificar → versión → docs → commit → main) y `CLAUDE.md`
   en la raíz con las reglas que se cargan siempre.
-- **QA en un comando**: `tools/qa/run.sh` (o `selftests` / `crawl` / `audit`). Los tres
-  scripts viven ya en el repo (`tools/qa/`), no en el scratchpad de la sesión.
-- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **95 asserts**.
+- **QA en un comando**: `tools/qa/run.sh` (o `selftests` / `crawl` / `audit` / `plan`). Los
+  cuatro scripts viven ya en el repo (`tools/qa/`), no en el scratchpad de la sesión.
+  `plan.js` audita 1.612 combinaciones proposición → tarjeta → formulario (con y sin historial).
+- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **98 asserts**.
   Correr siempre tras tocar el motor.
 - **Simulación de entrenamiento** (nueva herramienta de QA): 6 semanas × 4 días con un
   atleta sintético que sigue las sugerencias reales de la app vía Playwright+Chromium
@@ -58,6 +59,20 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
   fail-closed, LockService, hojas de transferencias. Auto-restore al arrancar vacío.
 
 ## Trabajo reciente por tema (con commits)
+
+### Auditoría plan → tarjeta → formulario (6 sep 2026)
+- Nuevo `tools/qa/plan.js`: sugerencias del Dashboard, kits de calibración y cada ejercicio ×
+  esquema × modalidad (1.612 checks, con y sin historial) deben coincidir en esquema,
+  modalidad, toggle test y objetivo = prefill. Hallazgos corregidos:
+  - `denseResolvedRepsTarget` / `denseResolvedHoldTarget`: un solo resolutor (progresión
+    directa primero, luego capacidad/hermana/máx) para el Target de la tarjeta y el prefill
+    del formulario (antes 6 rpm en tarjeta y 7 en el formulario con historial directo).
+  - Plan con esquema sin modalidad (`5D` en dominada supina cuya última marca fue `5D3`
+    lastre): el formulario abría 5D3 lastre; ahora deduce la modalidad del esquema
+    (`planSchemeNature` en `denseFormDefaults`).
+  - Kit de calibración: `denseEntryMatchesTest` — "anclado" solo con marca del mismo
+    bloque Y modalidad (el 5D sin lastre ya no ancla el `2D5` con lastre).
+- +3 self-tests (98).
 
 ### Test con lastre desde el Dashboard (6 sep 2026)
 - `densePlanNatureForScheme(exercise, scheme)`: un esquema que no existe en la modalidad

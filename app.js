@@ -3447,6 +3447,38 @@ function runDenseSelfTests() {
     state.denseDayPlans = saved;
     return densePlanNatureForScheme(pull, "2D5") === "weighted_calisthenics" && densePlanNatureForScheme(pull, "10D") === "" && densePlanNatureForScheme(pull, "5D") === "" && densePlanNatureForScheme(denseExerciseById("military_press"), "2D5") === "" && planned.nature === "weighted_calisthenics" && planned.plannedScheme === "2D5" && denseAllowedSchemes(planned).includes("2D5") && routineItems[0].nature === "weighted_calisthenics" && routineItems[0].scheme === "5D3";
   });
+  test("auditoría plan: tarjeta y formulario comparten resolutor de reps/hold (progresión directa primero)", () => {
+    state.denseTrainingEntries = [];
+    add({ id: "ap1", exercise_id: "pull_up", date: "2026-09-01", scheme: "10D", total_reps: 70, reps_per_set: 7, duration_minutes: 10, reps_per_min: 7 });
+    const pull = denseExerciseById("pull_up");
+    const cardReps = denseResolvedRepsTarget(pull, "10D");
+    const suggestion = denseProgressionSuggestion(pull, "normal", "10D");
+    const cardText = densePlannedTargetValue(pull, "10D");
+    state.denseTrainingEntries = [];
+    return suggestion?.repsPerSet === cardReps && cardText === `${cardReps} rpm` && cardReps >= 7;
+  });
+  test("auditoría plan: '5D' planificado en dominada supina abre en peso corporal aunque la última marca fuese 5D3 lastre", () => {
+    state.denseTrainingEntries = [];
+    add({ id: "ap2", exercise_id: "chin_up", nature: "weighted_calisthenics", date: "2026-09-01", scheme: "5D3", total_reps: 15, added_load_kg: 20, duration_minutes: 5, e1rm_kg: 130 });
+    const key = dateKey(selectedDate);
+    const savedPlans = state.denseDayPlans;
+    state.denseDayPlans = { [key]: [{ exercise_id: "chin_up", source: "suggestion", is_test: true, scheme: "5D" }] };
+    state.settings.denseSelectedExerciseId = "chin_up";
+    delete state.settings.denseDraftEntryId;
+    const defaults = denseFormDefaults();
+    state.denseDayPlans = savedPlans;
+    state.denseTrainingEntries = [];
+    return defaults.exerciseId === "chin_up" && defaults.nature === "bodyweight" && defaults.scheme === "5D";
+  });
+  test("kit calibración: el 5D sin lastre no ancla el test 2D5 con lastre (y al revés)", () => {
+    state.denseTrainingEntries = [];
+    add({ id: "ap3", exercise_id: "pull_up", date: "2026-09-01", scheme: "5D", total_reps: 40, reps_per_set: 8, duration_minutes: 5 });
+    const rows = denseCalibrationRows(denseCalibrationKit, 28);
+    const bw = rows.find((row) => row.test.id === "pull_up" && row.test.scheme === "5D");
+    const loaded = rows.find((row) => row.test.id === "pull_up" && row.test.scheme === "2D5");
+    state.denseTrainingEntries = [];
+    return bw?.last?.id === "ap3" && loaded?.status === "pending";
+  });
   test("rutinas: normalizeState conserva el banco y stateHasTrainingData lo cuenta", () => {
     const normalized = normalizeState({ denseRoutines: [{ name: "Pierna", items: ["back_squat"] }, "basura"] });
     return normalized.denseRoutines.length === 1 && normalized.denseRoutines[0].items[0].exercise_id === "back_squat" && stateHasTrainingData({ denseRoutines: normalized.denseRoutines }) && !stateHasTrainingData({ denseRoutines: [] });
@@ -5083,11 +5115,20 @@ function denseConsistencySectionHtml() {
   `;
 }
 
+// A kit test is satisfied only by a mark of the same block AND modality: the
+// bodyweight 5D does not anchor "pull_up · 2D5" (lastre), and vice versa.
+function denseEntryMatchesTest(entry, scheme) {
+  if (denseSchemeBase(entry.scheme) !== denseSchemeBase(scheme)) return false;
+  const loadedTest = /^\d+D\d/.test(scheme) || denseIsStrengthScheme(scheme);
+  const loadedEntry = ["weighted", "weighted_calisthenics", "assisted"].includes(entry.nature);
+  return loadedTest === loadedEntry;
+}
+
 function denseCalibrationRows(kit, staleDays) {
   return kit.map((test) => {
     const exercise = denseExerciseById(test.id);
     const last = [...getDenseEntries()]
-      .filter((entry) => entry.exercise_id === test.id)
+      .filter((entry) => entry.exercise_id === test.id && !entry.deleted_at && denseEntryMatchesTest(entry, test.scheme))
       .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")))[0];
     const days = last ? Math.round((today.getTime() - parseDate(last.date).getTime()) / 86400000) : null;
     const status = !last ? "pending" : days <= staleDays ? "fresh" : "stale";
@@ -9185,6 +9226,20 @@ function denseTargetSourceBadge(exercise, scheme) {
   return `<span class="mini-tag ${src.cls}"><i data-lucide="${src.icon}"></i>${escapeHtml(src.label)}${src.confidence ? ` · conf ${escapeHtml(src.confidence)}` : ""}</span>`;
 }
 
+// Single source of truth for the reps/min and hold targets shown on the planned
+// card AND prefilled in the form: progression from direct history first, then
+// the capacity/sibling/max-seed estimate. (Audit sep 2026: the card said 6 rpm
+// while the form opened with 7 because each used a different resolver.)
+function denseResolvedRepsTarget(exercise, scheme, suggestion = denseProgressionSuggestion(exercise, "normal", scheme)) {
+  if (suggestion?.repsPerSet && suggestion.scheme === scheme) return suggestion.repsPerSet;
+  return denseFormTargetRepsPerSet(exercise, scheme, suggestion);
+}
+
+function denseResolvedHoldTarget(exercise, scheme, suggestion = denseProgressionSuggestion(exercise, "normal", scheme)) {
+  if (suggestion?.holdSecondsPerRound && suggestion.scheme === scheme) return denseCapHold(suggestion.holdSecondsPerRound);
+  return denseFormTargetHoldPerRound(exercise, scheme, suggestion);
+}
+
 function densePlannedTargetValue(exercise, scheme) {
   if (denseUsesRom(exercise)) {
     const rom = denseRomSuggestion(exercise);
@@ -9193,9 +9248,7 @@ function densePlannedTargetValue(exercise, scheme) {
     if (best !== null) return `${roundTo(best, 1)} cm`;
   }
   if (denseIsIsometric(exercise)) {
-    // Same resolver as the form prefill (own capacity → lever sibling → default)
-    // so the card target and the form never disagree.
-    const seconds = denseFormTargetHoldPerRound(exercise, scheme, null);
+    const seconds = denseResolvedHoldTarget(exercise, scheme);
     return seconds ? `${seconds}s/ronda` : "-";
   }
   // Load / assisted exercises: the headline objective is the weight, not rpm.
@@ -9207,7 +9260,7 @@ function densePlannedTargetValue(exercise, scheme) {
     return "-";
   }
   if (denseUsesRepsPerSet(exercise)) {
-    const reps = denseFormTargetRepsPerSet(exercise, scheme, null);
+    const reps = denseResolvedRepsTarget(exercise, scheme);
     return reps ? `${reps} rpm` : "-";
   }
   return scheme;
@@ -11405,7 +11458,12 @@ function denseFormDefaults() {
   // con lastre"). Both win over the last-session default unless the user
   // switched modality in-form.
   const planItem = densePlanItemsForDate(selectedDate).find((item) => item.exercise_id === exercise.id) || null;
-  const planNature = planItem?.nature && allowedNatures.includes(planItem.nature) ? planItem.nature : null;
+  // A plan with a scheme but no modality still implies one: "5D" on chin-ups is
+  // bodyweight even if the last mark was 5D3 with lastre (audit sep 2026).
+  const planSchemeNature = planItem?.scheme && !planItem.nature
+    ? denseAllowedSchemes(exercise).includes(planItem.scheme) ? exercise.nature : densePlanNatureForScheme(exercise, planItem.scheme)
+    : "";
+  const planNature = planItem?.nature && allowedNatures.includes(planItem.nature) ? planItem.nature : planSchemeNature || null;
   const nature = overrideNature || planNature || (shouldUseLatest && referenceEntry?.nature && allowedNatures.includes(referenceEntry.nature) ? referenceEntry.nature : exercise.nature);
   const activeExercise = { ...exercise, nature };
   const allowedSchemes = denseAllowedSchemes(activeExercise);
@@ -11437,7 +11495,7 @@ function denseFormDefaults() {
   const strength = denseStrengthParts(scheme);
   const isMax = denseIsMaxScheme(scheme);
   const suggestion = denseProgressionSuggestion(activeExercise, "normal", scheme);
-  const repsPerSet = strength || isMax ? "" : suggestion?.repsPerSet || denseDefaultRepsPerSet(activeExercise, scheme);
+  const repsPerSet = strength || isMax ? "" : denseIsLoadExercise(activeExercise) ? suggestion?.repsPerSet || denseDefaultRepsPerSet(activeExercise, scheme) : denseResolvedRepsTarget(activeExercise, scheme, suggestion);
   const restSeconds = strength
     ? Number(suggestion?.restSeconds) || Number(latestDenseEntryForExercise(exercise.id, scheme)?.rest_seconds) || exercise.defaultRestSeconds || DENSE_STRENGTH_DEFAULT_REST
     : "";
@@ -11459,7 +11517,7 @@ function denseFormDefaults() {
       : strength
         ? suggestion?.totalReps || strength.sets * strength.reps
         : suggestion?.totalReps || (repsPerSet ? denseTotalFromRepsPerSet(repsPerSet, scheme) : denseDefaultTotalReps(activeExercise, scheme)),
-    holdSecondsPerRound: suggestion?.holdSecondsPerRound || (!overrideNature && shouldUseLatest && referenceEntry?.hold_seconds_per_round ? referenceEntry.hold_seconds_per_round : ""),
+    holdSecondsPerRound: denseIsIsometric(activeExercise) && !isMax ? denseResolvedHoldTarget(activeExercise, scheme, suggestion) || "" : suggestion?.holdSecondsPerRound || "",
     rounds: suggestion?.rounds || (shouldUseLatest && referenceEntry?.rounds ? referenceEntry.rounds : denseSchemeMinutes(scheme) || ""),
     effort: denseFailureSetMode ? "fallo" : isMax ? "VH" : "N",
     externalLoadKg: suggestion?.externalLoadKg || "",

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # QA completo en un comando: levanta el servidor estático, corre self-tests, crawl y
-# auditoría, y apaga el servidor. Uso: tools/qa/run.sh [selftests|crawl|audit|all]
+# auditoría, y apaga el servidor. Uso: tools/qa/run.sh [selftests|crawl|audit|plan|all]
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
@@ -28,6 +28,7 @@ case "$WHAT" in
   selftests) node selftests.js ;;
   crawl) node crawl.js ;;
   audit) node audit.js ;;
-  all) node selftests.js && node crawl.js && node audit.js ;;
-  *) echo "uso: $0 [selftests|crawl|audit|all]"; exit 2 ;;
+  plan) node plan.js && node plan.js empty ;;
+  all) node selftests.js && node crawl.js && node audit.js && node plan.js && node plan.js empty ;;
+  *) echo "uso: $0 [selftests|crawl|audit|plan|all]"; exit 2 ;;
 esac
