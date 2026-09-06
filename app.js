@@ -4377,7 +4377,7 @@ function renderProgressAnalytics(entries) {
     })()}
 
     ${dcCollapse("trophy", "Récords personales", "toca para ver", `${prEvents.length}`, prEvents.length ? prEvents.slice(0, 8).map(dcPrRow).join("") : `<p class="dc-empty-note">Sin PRs en esta ventana.</p>`)}
-    ${dcCollapse("zap", "Effort — easier than before", "misma marca o mejor, menos esfuerzo", `${easier.length}`, easier.length ? easier.map((row) => `<div class="dc-pr-row"><div><strong>${escapeHtml(row.name)}</strong><small><em>Dense</em> ${escapeHtml(row.scheme)}</small></div><span>${escapeHtml(String(row.date || "").slice(5))}</span></div>`).join("") : `<p class="dc-empty-note">Aún nada aquí: repite una marca con menos esfuerzo y aparecerá.</p>`)}
+    ${dcCollapse("zap", "Effort — easier than before", "misma marca o mejor, menos esfuerzo", `${easier.length}`, easier.length ? easier.map((row) => `<div class="dc-pr-row"><div><strong>${escapeHtml(row.name)}</strong><small><em>${escapeHtml(denseFormatLabel(row.scheme))}</em> ${escapeHtml(denseSchemeDisplay(row.scheme))}</small></div><span>${escapeHtml(String(row.date || "").slice(5))}</span></div>`).join("") : `<p class="dc-empty-note">Aún nada aquí: repite una marca con menos esfuerzo y aparecerá.</p>`)}
 
     <div class="dc-section-head"><strong>Health</strong></div>
     <div class="analytics-stat-grid is-two">
@@ -8216,7 +8216,7 @@ function todayWorkoutCard(entry) {
       <div class="workout-set-main">
         <div class="workout-set-tags">
           ${isPr ? `<span class="mini-tag is-amber"><i data-lucide="trophy"></i>${["VE", "E"].includes(entry.effort) ? "PR + margen" : "NEW PR"}</span>` : ""}
-          <span class="mini-tag is-blue">${escapeHtml(denseNatureLabel(entry.nature).split("·")[0].trim())} · Dense</span>
+          <span class="mini-tag is-blue">${escapeHtml(denseNatureLabel(entry.nature).split("·")[0].trim())} · ${escapeHtml(denseFormatLabel(entry.scheme))}</span>
           <span class="mini-tag effort-tag" style="--effort-color:${effortColor}">${escapeHtml(denseEffortTagLabel(entry.effort))}</span>
         </div>
         <strong>${escapeHtml(entry.exercise_name)} <small>${escapeHtml(entry.scheme)}</small></strong>
@@ -10467,7 +10467,7 @@ function dcCollapse(icon, title, subtitle, valueLabel, bodyHtml) {
 function dcPrRow(entry) {
   return `
     <div class="dc-pr-row">
-      <div><strong>${escapeHtml(entry.exercise_name)}</strong><small><em>Dense</em> ${escapeHtml(entry.scheme)}</small></div>
+      <div><strong>${escapeHtml(entry.exercise_name)}</strong><small><em>${escapeHtml(denseFormatLabel(entry.scheme))}</em> ${escapeHtml(denseSchemeDisplay(entry.scheme))}</small></div>
       <b>${escapeHtml(denseEntryValue(entry))}</b>
       <span>${escapeHtml(String(entry.date || "").slice(5))}</span>
     </div>
@@ -11173,6 +11173,19 @@ function denseSchemeBase(scheme) {
 function denseSchemeMinutes(scheme) {
   const match = String(scheme || "").match(/^(\d+)D/);
   return match ? Number(match[1]) : 0;
+}
+
+// Human label of a scheme's format for tags: "Dense" | "Fuerza" | "Máx".
+function denseFormatLabel(scheme) {
+  const format = denseSchemeFormat(scheme);
+  return format === "max" ? "Máx" : format === "strength" ? "Fuerza" : "Dense";
+}
+
+// Display code: "5×5" for strength, "MÁX" for max, the raw code otherwise.
+function denseSchemeDisplay(scheme) {
+  if (denseIsMaxScheme(scheme)) return "MÁX";
+  if (denseIsStrengthScheme(scheme)) return denseStrengthSchemeLabel(scheme);
+  return String(scheme || "");
 }
 
 // ── Esquema MAX ─────────────────────────────────────────────────────────
