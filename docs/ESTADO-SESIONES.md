@@ -8,7 +8,7 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 > App: PWA de entrenamiento (Dense training). Vanilla JS sin build: `app.js` (~9000
 > líneas), `styles.css`, `index.html`, `sw.js`. Sincroniza a Google Sheets vía Apps Script.
 > Modo training-only (`TRAINING_ONLY = true`). Cache busting: string `?v=…` en `index.html`
-> **y** `sw.js` a la vez. **Última versión: `20260906-gym-tanda2-43`.**
+> **y** `sw.js` a la vez. **Última versión: `20260906-test-lastre-44`.**
 
 ## Cómo trabajar aquí (imprescindible)
 
@@ -17,7 +17,7 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
   en la raíz con las reglas que se cargan siempre.
 - **QA en un comando**: `tools/qa/run.sh` (o `selftests` / `crawl` / `audit`). Los tres
   scripts viven ya en el repo (`tools/qa/`), no en el scratchpad de la sesión.
-- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **94 asserts**.
+- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **95 asserts**.
   Correr siempre tras tocar el motor.
 - **Simulación de entrenamiento** (nueva herramienta de QA): 6 semanas × 4 días con un
   atleta sintético que sigue las sugerencias reales de la app vía Playwright+Chromium
@@ -58,6 +58,13 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
   fail-closed, LockService, hojas de transferencias. Auto-restore al arrancar vacío.
 
 ## Trabajo reciente por tema (con commits)
+
+### Test con lastre desde el Dashboard (6 sep 2026)
+- `densePlanNatureForScheme(exercise, scheme)`: un esquema que no existe en la modalidad
+  por defecto (2D5 / 5D3 en dominadas o dips) implica lastre; `addPlannedExerciseToSelectedDate`
+  guarda `nature` en el item del plan y `denseRoutinePlanItems` infiere igual. Antes la
+  tarjeta descartaba el 2D5 y abría 10D bodyweight. Ahora: "Dominadas 2D5 · +33 kg
+  (27–39)" y el formulario abre en lastre con la carga escrita. +1 self-test (95).
 
 ### Catálogo de gimnasio, tanda 2 (6 sep 2026)
 - 54 variantes con carga (presses horizontales/verticales, hombro, tríceps, remos, jalones,

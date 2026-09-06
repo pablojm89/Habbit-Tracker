@@ -3437,6 +3437,16 @@ function runDenseSelfTests() {
     });
     return unique && ok && C("decline_bench_press", "bench_press") > 0.3 && C("pendlay_row", "barbell_row") > 0.3 && C("sumo_deadlift", "deadlift") > 0.3 && C("wrist_curl", "bench_press") < 0.1;
   });
+  test("plan: un esquema con lastre (2D5/5D3) en ejercicio de peso corporal arrastra la modalidad", () => {
+    const pull = denseExerciseById("pull_up");
+    const key = "2031-02-01";
+    const saved = state.denseDayPlans;
+    state.denseDayPlans = { [key]: [{ exercise_id: "pull_up", source: "suggestion", is_test: true, scheme: "2D5", nature: densePlanNatureForScheme(pull, "2D5") }] };
+    const planned = plannedExercisesForDate(new Date(2031, 1, 1))[0];
+    const routineItems = denseRoutinePlanItems(denseNormalizeRoutine({ id: "rt_p", name: "P", items: [{ exercise_id: "ring_dip", scheme: "5D3" }] }));
+    state.denseDayPlans = saved;
+    return densePlanNatureForScheme(pull, "2D5") === "weighted_calisthenics" && densePlanNatureForScheme(pull, "10D") === "" && densePlanNatureForScheme(pull, "5D") === "" && densePlanNatureForScheme(denseExerciseById("military_press"), "2D5") === "" && planned.nature === "weighted_calisthenics" && planned.plannedScheme === "2D5" && denseAllowedSchemes(planned).includes("2D5") && routineItems[0].nature === "weighted_calisthenics" && routineItems[0].scheme === "5D3";
+  });
   test("rutinas: normalizeState conserva el banco y stateHasTrainingData lo cuenta", () => {
     const normalized = normalizeState({ denseRoutines: [{ name: "Pierna", items: ["back_squat"] }, "basura"] });
     return normalized.denseRoutines.length === 1 && normalized.denseRoutines[0].items[0].exercise_id === "back_squat" && stateHasTrainingData({ denseRoutines: normalized.denseRoutines }) && !stateHasTrainingData({ denseRoutines: [] });
@@ -6361,6 +6371,16 @@ function densePlanItemsForDate(day) {
   return (state.denseDayPlans?.[dateKey(day)] || []).map(densePlanItem).filter(Boolean);
 }
 
+// A planned scheme implies a modality: "2D5" on a bodyweight exercise means
+// lastre (the calibration kit proposes "pull_up · 2D5"). Without this the card
+// dropped the scheme because 2D5 does not exist in bodyweight, and opened 10D.
+function densePlanNatureForScheme(exercise, scheme) {
+  if (!exercise || !scheme || denseAllowedSchemes(exercise).includes(scheme)) return "";
+  const rank = { weighted_calisthenics: 0, weighted: 1, assisted: 2, bodyweight: 3 };
+  const natures = (exercise.allowedNatures || [exercise.nature]).filter((nature) => nature !== exercise.nature).sort((a, b) => (rank[a] ?? 9) - (rank[b] ?? 9));
+  return natures.find((nature) => denseAllowedSchemes({ ...exercise, nature }).includes(scheme)) || "";
+}
+
 function addPlannedExerciseToSelectedDate(exerciseId, { isTest = false, scheme = "" } = {}) {
   const exercise = findDenseExerciseById(exerciseId);
   if (!exercise) {
@@ -6373,6 +6393,8 @@ function addPlannedExerciseToSelectedDate(exerciseId, { isTest = false, scheme =
   const item = { exercise_id: exercise.id, source: isTest ? "suggestion" : "manual" };
   if (isTest) item.is_test = true;
   if (scheme) item.scheme = scheme;
+  const nature = densePlanNatureForScheme(exercise, scheme);
+  if (nature) item.nature = nature;
   state.denseDayPlans[key] = [...plan, item];
   state.settings.denseSelectedExerciseId = exercise.id;
   closeModal();
@@ -6439,7 +6461,12 @@ function denseRoutineItemExercise(item, exercise) {
 function denseRoutinePlanItems(routine) {
   return denseRoutineExercises(routine).map(({ item, exercise }) => {
     const plan = { exercise_id: exercise.id, source: "routine", routine_id: routine.id };
-    const viewed = denseRoutineItemExercise(item, exercise);
+    let viewed = denseRoutineItemExercise(item, exercise);
+    // No explicit modality but a loaded scheme: infer it like the day planner.
+    if (!item.nature && item.scheme && !denseAllowedSchemes(viewed).includes(item.scheme)) {
+      const inferred = densePlanNatureForScheme(exercise, item.scheme);
+      if (inferred) viewed = { ...exercise, nature: inferred };
+    }
     if (viewed.nature !== exercise.nature) plan.nature = viewed.nature;
     if (item.scheme && denseAllowedSchemes(viewed).includes(item.scheme)) plan.scheme = item.scheme;
     if (item.is_test) plan.is_test = true;
