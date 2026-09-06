@@ -8165,14 +8165,36 @@ function latestDenseEntryForExercise(exerciseId, scheme = "") {
 }
 
 // Bottom line of a logged card: "5D7 (35 reps)" or "5D15 (75s TUT)"
+// Load actually used, as the card should read it: "80kg" (barra/máquina),
+// "2×14kg" (par de mancuernas), "+20kg" (lastre), "−15kg asist" (asistida).
+function denseEntryLoadLabel(entry) {
+  if (entry.nature === "weighted") {
+    if (Number(entry.weight_per_dumbbell_kg) > 0) return `2×${formatKg(entry.weight_per_dumbbell_kg)}`;
+    return Number(entry.external_load_kg) > 0 ? formatKg(entry.external_load_kg) : "";
+  }
+  if (entry.nature === "weighted_calisthenics") {
+    const added = Number(entry.visible_added_load_kg) || Number(entry.added_load_kg) || 0;
+    return added > 0 ? `+${formatKg(added)}` : "";
+  }
+  if (entry.nature === "assisted") return Number(entry.assist_load_kg) > 0 ? `−${formatKg(entry.assist_load_kg)} asist` : "";
+  return "";
+}
+
 function denseEntrySummaryLine(entry) {
   const scheme = entry.scheme || "";
+  const load = denseEntryLoadLabel(entry);
+  const loadHtml = load ? ` <span class="set-load">${escapeHtml(load)}</span>` : "";
+  if (denseIsMaxScheme(scheme)) {
+    const value = Number(entry.max_hold_seconds) > 0 ? `${entry.max_hold_seconds}s` : `${entry.total_reps || 0} reps`;
+    return `<span class="set-main-metric">MÁX <span class="set-paren">(${escapeHtml(value)})</span>${loadHtml}</span>`;
+  }
   if (entry.total_hold_seconds) {
     const perRound = entry.hold_seconds_per_round || (entry.duration_minutes ? Math.round(entry.total_hold_seconds / entry.duration_minutes) : 0);
-    return `<span class="set-main-metric">${escapeHtml(denseSchemeCode(scheme, perRound))} <span class="set-paren">(${entry.total_hold_seconds}s TUT)</span></span>`;
+    return `<span class="set-main-metric">${escapeHtml(denseSchemeCode(scheme, perRound))} <span class="set-paren">(${entry.total_hold_seconds}s TUT)</span>${loadHtml}</span>`;
   }
   const rpm = Math.round(Number(entry.reps_per_min || entry.reps_per_set || 0));
-  return `<span class="set-main-metric">${escapeHtml(denseSchemeCode(scheme, rpm))} <span class="set-paren">(${entry.total_reps || 0} reps)</span></span>`;
+  const code = denseIsStrengthScheme(scheme) ? denseStrengthSchemeLabel(scheme) : denseSchemeCode(scheme, rpm);
+  return `<span class="set-main-metric">${escapeHtml(code)} <span class="set-paren">(${entry.total_reps || 0} reps)</span>${loadHtml}</span>`;
 }
 
 // Wrap a card so it can be swiped left to reveal a delete action (iOS-style).

@@ -7701,3 +7701,16 @@ html.has-modal body {
   content: " ✓";
   color: var(--green);
 }
+
+
+/* Carga usada en la tarjeta del día */
+.workout-set-summary .set-load {
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(168, 230, 53, 0.14);
+  color: var(--green);
+  font-size: 0.72rem;
+  font-weight: 900;
+  white-space: nowrap;
+}

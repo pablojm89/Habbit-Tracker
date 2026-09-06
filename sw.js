@@ -1,10 +1,10 @@
-const CACHE_NAME = "bittracker-mobile-20260906-etiqueta-formato-39";
+const CACHE_NAME = "bittracker-mobile-20260906-carga-tarjeta-40";
 const LUCIDE_URL = "https://unpkg.com/lucide@1.23.0/dist/umd/lucide.min.js";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=20260906-etiqueta-formato-39",
-  "./app.js?v=20260906-etiqueta-formato-39",
+  "./styles.css?v=20260906-carga-tarjeta-40",
+  "./app.js?v=20260906-carga-tarjeta-40",
   "./manifest.webmanifest?v=20260627-mobile-01",
   "./icon.svg",
   LUCIDE_URL
