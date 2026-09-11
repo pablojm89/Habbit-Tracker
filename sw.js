@@ -1,13 +1,11 @@
-const CACHE_NAME = "bittracker-mobile-20260911-estudio-46";
+const CACHE_NAME = "bittracker-mobile-20260911-clasica-47";
 const LUCIDE_URL = "https://unpkg.com/lucide@1.23.0/dist/umd/lucide.min.js";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=20260911-estudio-46",
-  "./app.js?v=20260911-estudio-46",
-  "./studio-core.js?v=20260911-estudio-46",
-  "./studio.js?v=20260911-estudio-46",
-  "./studio.css?v=20260911-estudio-46",
+  "./styles.css?v=20260911-clasica-47",
+  "./app.js?v=20260911-clasica-47",
+  "./studio-core.js?v=20260911-clasica-47",
   "./manifest.webmanifest?v=20260627-mobile-01",
   "./icon.svg",
   LUCIDE_URL
@@ -74,8 +72,6 @@ self.addEventListener("fetch", (event) => {
     (url.origin === self.location.origin &&
       (url.pathname.endsWith("/app.js") ||
         url.pathname.endsWith("/studio-core.js") ||
-        url.pathname.endsWith("/studio.js") ||
-        url.pathname.endsWith("/studio.css") ||
         url.pathname.endsWith("/styles.css") ||
         url.pathname.endsWith("/manifest.webmanifest") ||
         url.pathname.endsWith("/icon.svg"))) ||

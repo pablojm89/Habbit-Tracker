@@ -1,6 +1,6 @@
 # tools/qa — QA headless de BitTracker
 
-Tres scripts sobre Playwright + Chromium local (sin red externa: todo lo que no sea el
+Cinco scripts sobre Playwright + Chromium local (sin red externa: todo lo que no sea el
 servidor estático se bloquea, así que los iconos Lucide no cargan en las capturas).
 
 | Script | Qué hace | Éxito |
@@ -9,9 +9,9 @@ servidor estático se bloquea, así que los iconos Lucide no cargan en las captu
 | `crawl.js` | Buscador (tildes/espacios), todos los ejercicios × modalidades × formatos, detalles, cronómetro, pantallas; busca NaN/undefined/desbordes | `QA DONE. findings=0` |
 | `audit.js` | Arranque con cada pantalla persistida, click-crawl de todas las acciones, flujos plan → registro → edición → borrado, fugas | `AUDIT DONE. findings=0` |
 | `plan.js` | Todo lo que propone un test/plan (sugerencias del Dashboard, kits de calibración, cada ejercicio × esquema × modalidad) debe llegar a la tarjeta y al formulario con el mismo esquema, modalidad compatible y objetivo = prefill. Dos pasadas: con historial sintético y `empty` | `checks=N issues=0` |
-| `studio.js` | Actual ↔ Estudio, borradores A/B, variantes, rutinas, bloques repetidos, registros compartidos, backup, otra pestaña, objetivos manuales, tamaños 320/390/1280 y precache/offline | `STUDIO: N checks OK` |
+| `retirement.js` | Retirada de Estudio, enlaces antiguos, marcas/rutinas/borradores conservados, edición sin perder metadatos, cache anterior y uso offline | `RETIREMENT: N checks OK` |
 
-Para revisar Estudio con iconos reales: `QA_ICONS=1 tools/qa/run.sh studio` permite
+Para revisar la vuelta a la interfaz habitual con iconos reales: `QA_ICONS=1 tools/qa/run.sh retirement` permite
 únicamente el bundle Lucide fijado, además del servidor local. Sheets sigue bloqueado.
 
 ```bash

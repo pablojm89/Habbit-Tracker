@@ -1,4 +1,4 @@
-// Shared data contracts; loaded before app.js, called after its catalog exists.
+// Compatibility for data saved before the Studio UI was retired. No UI is loaded.
 function denseStudioId() {
   return `st_${globalThis.crypto?.randomUUID ? crypto.randomUUID() : denseRoutineId()}`;
 }
@@ -130,19 +130,6 @@ function denseStudioVisiblePlans(entries, planned) {
     if (match >= 0) { used.add(match); return false; }
     return true;
   });
-}
-
-function denseStudioFormFields(defaults) {
-  const entry = state.settings.denseDraftEntryId ? getDenseEntries().find((item) => item.id === state.settings.denseDraftEntryId) : null;
-  const plan = denseSetModalContext.planItem;
-  if (document.documentElement.dataset.experience !== "studio" && !entry?.studio_variant_id && !entry?.technique_quality && !plan?.studio_variant_id) return "";
-  const variants = (state.denseStudio?.variants || []).filter((v) => v.exercise_id === defaults.exerciseId);
-  const variantId = denseSetModalContext.studioFields?.studioVariant ?? entry?.studio_variant_id ?? plan?.studio_variant_id ?? "";
-  const technique = denseSetModalContext.studioFields?.studioTechnique ?? entry?.technique_quality ?? "";
-  return `<fieldset class="studio-form-details"><legend>Condiciones del registro</legend>
-    <label class="field"><span>Variante personal</span><select name="studioVariant"><option value="">Ejercicio base</option>${variants.map((v) => `<option value="${escapeAttr(v.id)}" ${variantId === v.id ? "selected" : ""}>${escapeHtml(v.name)}</option>`).join("")}</select></label>
-    <label class="field"><span>Técnica declarada</span><select name="studioTechnique">${[["", "Sin valorar"], ["clean", "Limpia"], ["adjusted", "Con ajustes"], ["partial", "Recorrido parcial"]].map(([value, label]) => `<option value="${value}" ${technique === value ? "selected" : ""}>${label}</option>`).join("")}</select></label>
-  </fieldset>`;
 }
 
 function denseStudioEntryMetadata(data, existing) {

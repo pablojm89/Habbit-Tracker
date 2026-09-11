@@ -2,6 +2,15 @@
 
 Versión inicial: `20260911-estudio-46`.
 
+**Retirado a petición de Pablo en `20260911-clasica-47`.** Ya no existen el selector
+ni la interfaz de Estudio. Los enlaces antiguos abren la app habitual. Solo permanece
+`studio-core.js` como compatibilidad para conservar los datos ya guardados, incluidos
+al editar marcas y rutinas o exportar/restaurar backups. No se borran borradores,
+variantes ni experimentos del estado. La regresión vigente es `tools/qa/run.sh retirement`.
+
+El resto de este documento describe la implementación histórica de v46, disponible
+en el commit `6423f83`, no la interfaz publicada a partir de v47.
+
 El selector **Actual / Estudio** cambia la interfaz dentro del mismo documento y
 proceso. `?experience=studio` permite abrir directamente Estudio. Sin ese parámetro
 el arranque conserva la interfaz actual. No hay copias independientes del historial.

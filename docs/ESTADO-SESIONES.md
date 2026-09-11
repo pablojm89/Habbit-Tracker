@@ -8,17 +8,17 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 > App: PWA de entrenamiento (Dense training). Vanilla JS sin build: `app.js` (~9000
 > líneas), `styles.css`, `index.html`, `sw.js`. Sincroniza a Google Sheets vía Apps Script.
 > Modo training-only (`TRAINING_ONLY = true`). Cache busting: string `?v=…` en `index.html`
-> **y** `sw.js` a la vez. **Última versión: `20260911-estudio-46`.**
+> **y** `sw.js` a la vez. **Última versión: `20260911-clasica-47`.**
 
 ## Cómo trabajar aquí (imprescindible)
 
 - **Flujo de trabajo**: skill del proyecto `.claude/skills/bittracker-ship/SKILL.md`
   (reproducir → cambio mínimo → verificar → versión → docs → commit → main) y `CLAUDE.md`
   en la raíz con las reglas que se cargan siempre.
-- **QA en un comando**: `tools/qa/run.sh` (o `selftests` / `crawl` / `audit` / `plan` / `studio`). Los
+- **QA en un comando**: `tools/qa/run.sh` (o `selftests` / `crawl` / `audit` / `plan` / `retirement`). Los
   cinco scripts viven ya en el repo (`tools/qa/`), no en el scratchpad de la sesión.
   `plan.js` audita 1.612 combinaciones proposición → tarjeta → formulario (con y sin historial).
-- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **103 asserts**.
+- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **104 asserts**.
   Correr siempre tras tocar el motor.
 - **Simulación de entrenamiento** (nueva herramienta de QA): 6 semanas × 4 días con un
   atleta sintético que sigue las sugerencias reales de la app vía Playwright+Chromium
@@ -60,14 +60,32 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 
 ## Trabajo reciente por tema (con commits)
 
+### Retirada de Estudio y vuelta a la interfaz habitual (11 sep 2026)
+- Pablo pidió retirar Estudio después de probar la versión publicada. Se eliminan
+  `studio.js`, `studio.css`, el selector Actual/Estudio y los campos nuevos del
+  formulario. Los enlaces `?experience=studio` abren ahora la app habitual.
+- No es una restauración destructiva del estado ni una vuelta binaria a v45:
+  `studio-core.js` queda como compatibilidad de datos. Se conservan marcas,
+  rutinas, planes, prescripciones y metadatos históricos; `denseStudio` sigue
+  incluido en el backup y el snapshot sin tener interfaz propia.
+- Se retira el hook del editor y se cambia la caché a `20260911-clasica-47`.
+  No se han accedido ni modificado datos reales de localStorage o Sheets.
+- +1 self-test de conservación de metadatos al editar sin controles de Estudio.
+  La suite anterior del editor se sustituye por `tools/qa/run.sh retirement`:
+  entrada antigua, registro/edición, backup, móvil, retirada de caché v46 y offline.
+- Verificado: 104/104 self-tests, crawl/auditoría sin incidencias, 3.224 checks de
+  plan/tarjeta/formulario y 29 de retirada. Capturas a 390/1280 px, sin desbordes.
+- La publicación está autorizada por la petición de quitar la versión desplegada;
+  se mantiene el respaldo `respaldo-pre-estudio-v45` y todo el historial de Git.
+
 ### Respaldo en GitHub anterior a Estudio (11 sep 2026)
 - Etiqueta anotada **`respaldo-pre-estudio-v45`**, subida y verificada en `origin`:
   apunta a `033114a3cd56863fb66645af1788ecaadfaaf15d`, versión
   `20260906-plan-coherente-45`. No mover ni reutilizar esta etiqueta.
-- GitHub Pages sirve `main` desde `/`; el despliegue de ese commit consta como
-  correcto. El HTML y el service worker publicados siguen en v45. Solo se subió
+- GitHub Pages sirve `main` desde `/`; el despliegue de ese commit constaba como
+  correcto. En esa comprobación el HTML y el service worker seguían en v45. Solo se subió
   la etiqueta solicitada como respaldo, no los cambios de Estudio a `main`.
-- Para volver a la interfaz anterior sin retirar Estudio basta el selector Actual.
+- En v46 se podía volver a la interfaz anterior con el selector Actual.
   Para una reversión completa solicitada por Pablo: partir del estado vigente,
   recuperar el código de esta etiqueta en un nuevo commit, revisar el diff,
   pasar QA y usar una versión nueva de caché en `index.html` y `sw.js`.

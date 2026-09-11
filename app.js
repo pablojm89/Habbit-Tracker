@@ -3507,6 +3507,11 @@ function runDenseSelfTests() {
     const item = denseStudioNormalizeItem({ exercise_id: "pull_up", prescription: { repsPerSet: "no", holdSecondsPerRound: 90, addedLoadKg: 0 } });
     return item.prescription.repsPerSet === undefined && item.prescription.holdSecondsPerRound === 55 && item.prescription.addedLoadKg === 0;
   });
+  test("compatibilidad: editar sin campos de Estudio conserva la marca histórica", () => {
+    const existing = { exercise_id: "pull_up", plan_ref: "block", studio_variant_id: "pause", studio_variant_name: "Pausa", studio_conditions: "2 s", technique_quality: "clean", prescription_snapshot: { prescription: { repsPerSet: 8 } } };
+    const metadata = denseStudioEntryMetadata({ exerciseId: "pull_up" }, existing);
+    return metadata.plan_ref === "block" && metadata.studio_variant_id === "pause" && metadata.studio_conditions === "2 s" && metadata.technique_quality === "clean" && metadata.prescription_snapshot.prescription.repsPerSet === 8;
+  });
 
   state.denseTrainingEntries = savedEntries;
   denseNeighborCache = null;
@@ -3578,7 +3583,6 @@ function render() {
   renderLogbook();
   renderReview();
   renderData();
-  window.bitTrackerStudio?.render();
   refreshIcons();
 }
 
@@ -4424,7 +4428,6 @@ function denseTrainingFormMarkup(defaults, { includePicker = false, modal = fals
           <textarea name="notes" placeholder="${modal ? "Sensaciones, técnica, molestias..." : "ROM, tempo, anillas altas, pies elevados, molestias, si las reps son por lado..."}">${escapeHtml(defaults.notes || "")}</textarea>
         </label>
       </div>
-      ${denseStudioFormFields(defaults)}
       <div class="dense-actions">
         <div class="dense-form-hint">
           <strong>${escapeHtml(denseNatureLabel(nature))}${isMax ? " · Máx" : strength ? " · Fuerza" : ""}</strong>
@@ -8654,7 +8657,6 @@ function closeModal() {
   }
   delete nodes.modalCard.dataset.modalKind;
   denseSetModalContext.planItem = null;
-  denseSetModalContext.studioFields = null;
   document.documentElement.classList.remove("has-modal");
   nodes.modal.close();
 }
