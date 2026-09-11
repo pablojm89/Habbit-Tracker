@@ -8,17 +8,17 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 > App: PWA de entrenamiento (Dense training). Vanilla JS sin build: `app.js` (~9000
 > líneas), `styles.css`, `index.html`, `sw.js`. Sincroniza a Google Sheets vía Apps Script.
 > Modo training-only (`TRAINING_ONLY = true`). Cache busting: string `?v=…` en `index.html`
-> **y** `sw.js` a la vez. **Última versión: `20260906-plan-coherente-45`.**
+> **y** `sw.js` a la vez. **Última versión: `20260911-estudio-46`.**
 
 ## Cómo trabajar aquí (imprescindible)
 
 - **Flujo de trabajo**: skill del proyecto `.claude/skills/bittracker-ship/SKILL.md`
   (reproducir → cambio mínimo → verificar → versión → docs → commit → main) y `CLAUDE.md`
   en la raíz con las reglas que se cargan siempre.
-- **QA en un comando**: `tools/qa/run.sh` (o `selftests` / `crawl` / `audit` / `plan`). Los
-  cuatro scripts viven ya en el repo (`tools/qa/`), no en el scratchpad de la sesión.
+- **QA en un comando**: `tools/qa/run.sh` (o `selftests` / `crawl` / `audit` / `plan` / `studio`). Los
+  cinco scripts viven ya en el repo (`tools/qa/`), no en el scratchpad de la sesión.
   `plan.js` audita 1.612 combinaciones proposición → tarjeta → formulario (con y sin historial).
-- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **98 asserts**.
+- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **103 asserts**.
   Correr siempre tras tocar el motor.
 - **Simulación de entrenamiento** (nueva herramienta de QA): 6 semanas × 4 días con un
   atleta sintético que sigue las sugerencias reales de la app vía Playwright+Chromium
@@ -59,6 +59,24 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
   fail-closed, LockService, hojas de transferencias. Auto-restore al arrancar vacío.
 
 ## Trabajo reciente por tema (con commits)
+
+### Estudio paralelo con historial compartido (11 sep 2026)
+- Selector Actual / Estudio en el mismo documento; enlace directo `?experience=studio`.
+- Editor de borradores A/B, orden, duplicación, grupos, objetivos y descansos manuales,
+  rutinas reutilizables, variantes personales, referencias comparables y experimentos.
+- `studio-core.js` antes del motor, `studio.js` después y `studio.css` acotado.
+  `state.denseStudio` viaja en el backup y el snapshot existentes. Las marcas siguen
+  en `denseTrainingEntries`, con condiciones opcionales e identidad de bloque `plan_ref`.
+- Tarjeta, formulario y cronómetro respetan las prescripciones. Registrar un bloque
+  repetido completa su referencia concreta; editar desde cualquiera de las vistas
+  conserva los campos de Estudio. Las rutinas antiguas siguen descartando esquemas
+  incompatibles con su modalidad.
+- +5 asserts del motor (103). Nueva suite `tools/qa/run.sh studio`: flujos cruzados,
+  persistencia, variantes/experimentos, objetivos por modalidad, tamaños móviles y offline.
+- Verificado: 103/103 self-tests, crawl y auditoría sin incidencias, 3.224 checks de
+  plan/tarjeta/formulario y 63 checks de Estudio. Revisión visual a 320/390/1280 px.
+  Las condiciones históricas se conservan aunque se modifique la variante original.
+- Propuesta guiada para clientes aparcada. Detalle y límites en `docs/estudio.md`.
 
 ### Auditoría plan → tarjeta → formulario (6 sep 2026)
 - Nuevo `tools/qa/plan.js`: sugerencias del Dashboard, kits de calibración y cada ejercicio ×

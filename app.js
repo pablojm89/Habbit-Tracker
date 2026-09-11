@@ -3483,6 +3483,30 @@ function runDenseSelfTests() {
     const normalized = normalizeState({ denseRoutines: [{ name: "Pierna", items: ["back_squat"] }, "basura"] });
     return normalized.denseRoutines.length === 1 && normalized.denseRoutines[0].items[0].exercise_id === "back_squat" && stateHasTrainingData({ denseRoutines: normalized.denseRoutines }) && !stateHasTrainingData({ denseRoutines: [] });
   });
+  test("estudio: un borrador sobrevive al backup sin contar como marca", () => {
+    const value = normalizeState({ denseStudio: { drafts: { "2026-09-10": { A: [{ exercise_id: "pull_up", scheme: "5D", prescription: { repsPerSet: 8 } }] } } } });
+    return value.denseTrainingEntries.length === 0 && stateHasTrainingData(value) && value.denseStudio.drafts["2026-09-10"].A[0].prescription.repsPerSet === 8;
+  });
+  test("estudio: objetivos elegidos llegan al formulario sin cambiar de esquema", () => {
+    const item = { exercise_id: "pull_up", nature: "bodyweight", scheme: "5D", prescription: { repsPerSet: 8 } };
+    const defaults = denseStudioApplyPrescription({ exerciseId: "pull_up", nature: "bodyweight", scheme: "5D", repsPerSet: 3, totalReps: 15 }, item);
+    const other = denseStudioApplyPrescription({ exerciseId: "pull_up", nature: "bodyweight", scheme: "10D", repsPerSet: 3 }, item);
+    return defaults.repsPerSet === 8 && defaults.totalReps === 40 && other.repsPerSet === 3;
+  });
+  test("estudio: registrar el segundo bloque repetido deja pendiente el primero", () => {
+    const planned = [{ id: "pull_up", plannedItem: { id: "first" } }, { id: "pull_up", plannedItem: { id: "second" } }];
+    const remaining = denseStudioVisiblePlans([{ exercise_id: "pull_up", plan_ref: "second" }], planned);
+    return remaining.length === 1 && remaining[0].plannedItem.id === "first";
+  });
+  test("estudio: rutina compartida conserva variante y carga pero crea referencias nuevas", () => {
+    const routine = denseNormalizeRoutine({ name: "Tirón", items: [{ id: "old", exercise_id: "pull_up", nature: "weighted_calisthenics", scheme: "5D3", studio_variant_id: "pause", prescription: { addedLoadKg: 20 }, group: "A" }] });
+    const [item] = denseRoutinePlanItems(routine);
+    return item.id !== "old" && item.prescription.addedLoadKg === 20 && item.studio_variant_id === "pause" && item.group === "A";
+  });
+  test("estudio: la migración descarta objetivos no numéricos y limita holds", () => {
+    const item = denseStudioNormalizeItem({ exercise_id: "pull_up", prescription: { repsPerSet: "no", holdSecondsPerRound: 90, addedLoadKg: 0 } });
+    return item.prescription.repsPerSet === undefined && item.prescription.holdSecondsPerRound === 55 && item.prescription.addedLoadKg === 0;
+  });
 
   state.denseTrainingEntries = savedEntries;
   denseNeighborCache = null;
@@ -3554,6 +3578,7 @@ function render() {
   renderLogbook();
   renderReview();
   renderData();
+  window.bitTrackerStudio?.render();
   refreshIcons();
 }
 
@@ -4193,20 +4218,7 @@ function daySlideContent(date) {
   const key = dateKey(date);
   const entries = denseEntriesForDate(key).sort((a, b) => (a.created_at || "").localeCompare(b.created_at || ""));
   const planned = plannedExercisesForDate(date);
-  const loggedCounts = {};
-  entries.forEach((entry) => {
-    loggedCounts[entry.exercise_id] = (loggedCounts[entry.exercise_id] || 0) + 1;
-  });
-  const fulfilledCounts = {};
-  const visiblePlanned = planned.filter((exercise) => {
-    const logged = loggedCounts[exercise.id] || 0;
-    const used = fulfilledCounts[exercise.id] || 0;
-    if (used < logged) {
-      fulfilledCounts[exercise.id] = used + 1;
-      return false;
-    }
-    return true;
-  });
+  const visiblePlanned = denseStudioVisiblePlans(entries, planned);
   return `${entries.map((entry) => todayWorkoutCard(entry)).join("")}${visiblePlanned.map((exercise) => plannedWorkoutCard(exercise)).join("")}${addWorkoutCard()}`;
 }
 
@@ -4217,20 +4229,7 @@ function renderMesocycle() {
   const currentWeekIndex = Math.min(52, trainingWeekIndex(today));
   const isCurrentWeek = selectedDate.getFullYear() === today.getFullYear() && weekIndex === currentWeekIndex;
   const planned = plannedExercisesForDate(selectedDate);
-  const loggedCounts = {};
-  entries.forEach((entry) => {
-    loggedCounts[entry.exercise_id] = (loggedCounts[entry.exercise_id] || 0) + 1;
-  });
-  const fulfilledCounts = {};
-  const visiblePlanned = planned.filter((exercise) => {
-    const logged = loggedCounts[exercise.id] || 0;
-    const used = fulfilledCounts[exercise.id] || 0;
-    if (used < logged) {
-      fulfilledCounts[exercise.id] = used + 1;
-      return false;
-    }
-    return true;
-  });
+  const visiblePlanned = denseStudioVisiblePlans(entries, planned);
   const totalReps = entries.reduce((sum, entry) => sum + (entry.total_reps || 0), 0);
   const volume = entries.reduce((sum, entry) => sum + (entry.tonnage_kg || 0), 0);
   const blocks = entries.reduce((sum, entry) => sum + denseEquivalentSets(entry), 0);
@@ -4425,6 +4424,7 @@ function denseTrainingFormMarkup(defaults, { includePicker = false, modal = fals
           <textarea name="notes" placeholder="${modal ? "Sensaciones, técnica, molestias..." : "ROM, tempo, anillas altas, pies elevados, molestias, si las reps son por lado..."}">${escapeHtml(defaults.notes || "")}</textarea>
         </label>
       </div>
+      ${denseStudioFormFields(defaults)}
       <div class="dense-actions">
         <div class="dense-form-hint">
           <strong>${escapeHtml(denseNatureLabel(nature))}${isMax ? " · Máx" : strength ? " · Fuerza" : ""}</strong>
@@ -4491,11 +4491,12 @@ function denseFormatSelectorMarkup(exercise, format) {
 
 function denseRestFieldMarkup(defaults) {
   const current = Number(defaults.restSeconds) || DENSE_STRENGTH_DEFAULT_REST;
+  const options = [...new Set([...strengthRestOptions, current])].sort((a, b) => a - b);
   return `
     <fieldset class="scheme-picker-field is-full">
       <legend>Descanso entre series</legend>
       <div class="scheme-option-grid">
-        ${strengthRestOptions
+        ${options
           .map(
             (seconds) => `
               <label class="scheme-option ${seconds === current ? "is-selected" : ""}" style="--scheme-color:#c58bff">
@@ -5472,7 +5473,7 @@ function handleClick(event) {
   if (action === "open-quick-timer") openQuickTimerModal();
   if (action === "open-bodyweight") openBodyweightModal();
   if (action === "skip-bodyweight-today") skipBodyweightToday();
-  if (action === "start-exercise-timer") startExerciseTimer(target.dataset.exercise);
+  if (action === "start-exercise-timer") startExerciseTimer(target.dataset.exercise, target.dataset.planIndex !== undefined ? densePlanItemsForDate(selectedDate)[Number(target.dataset.planIndex)] : null);
   if (action === "quick-timer-scheme") setQuickTimerScheme(target.dataset.scheme);
   if (action === "quick-timer-rest") setQuickTimerRest(Number(target.dataset.seconds));
   if (action === "quick-timer-hold") setQuickTimerHold(Number(target.dataset.seconds));
@@ -5487,7 +5488,7 @@ function handleClick(event) {
   if (action === "toggle-exercise") toggleExercise(target.dataset.session, target.dataset.exercise);
   if (action === "load-dense-entry") loadDenseEntry(target.dataset.entry);
   if (action === "open-dense-entry-modal") openDenseTrainingModal({ entryId: target.dataset.entry });
-  if (action === "open-dense-exercise-modal") openDenseTrainingModal({ exerciseId: target.dataset.exercise });
+  if (action === "open-dense-exercise-modal") openDenseTrainingModal({ exerciseId: target.dataset.exercise, planItem: target.dataset.planIndex !== undefined ? densePlanItemsForDate(selectedDate)[Number(target.dataset.planIndex)] : null });
   if (action === "open-workout-exercise-picker") openWorkoutExercisePickerModal({ tab: target.dataset.tab || "" });
   if (action === "add-planned-exercise") addPlannedExerciseToSelectedDate(target.dataset.exercise, { isTest: target.dataset.test === "1", scheme: target.dataset.scheme || "" });
   if (action === "set-workout-picker-tab") {
@@ -5810,20 +5811,20 @@ function openQuickTimerModal() {
 }
 
 // Open the timer pre-configured for a planned exercise (scheme, rounds, hold)
-function startExerciseTimer(exerciseId) {
-  const exercise = findDenseExerciseById(exerciseId);
+function startExerciseTimer(exerciseId, planItem = null) {
+  const exercise = planItem ? denseStudioItemExercise(planItem) : findDenseExerciseById(exerciseId);
   if (!exercise) {
     toast("Ejercicio no válido");
     return;
   }
-  const scheme = densePlannedScheme(exercise);
+  const scheme = planItem ? denseStudioItemScheme(planItem) : densePlannedScheme(exercise);
   const suggestion = denseProgressionSuggestion(exercise, "normal", scheme);
   const base = denseSchemeBase(scheme);
   const strength = denseStrengthParts(scheme);
   if (strength) {
     // Modo Fuerza: cronómetro de DESCANSO — cada "ronda" es el descanso entre series.
     quickTimerState.roundSeconds =
-      Number(suggestion?.restSeconds) || Number(latestDenseEntryForExercise(exercise.id, scheme)?.rest_seconds) || exercise.defaultRestSeconds || DENSE_STRENGTH_DEFAULT_REST;
+      planItem?.prescription?.restSeconds ?? (Number(suggestion?.restSeconds) || Number(latestDenseEntryForExercise(exercise.id, scheme)?.rest_seconds) || exercise.defaultRestSeconds || DENSE_STRENGTH_DEFAULT_REST);
     quickTimerState.rounds = Number(suggestion?.sets) || strength.sets;
     quickTimerState.holdSeconds = 0;
   } else {
@@ -5831,7 +5832,7 @@ function startExerciseTimer(exerciseId) {
     if (bodyweightSchemes.includes(base)) quickTimerState.scheme = base;
     quickTimerState.rounds = Number(suggestion?.rounds) || denseSchemeMinutes(scheme) || quickTimerState.rounds || 5;
     // Match the recommended hold (e.g. 5D23s) rather than a generic default.
-    const suggestedHold = suggestion?.type === "hold" ? Number(suggestion.holdSecondsPerRound) : Number(denseFormTargetHoldPerRound(exercise, scheme, suggestion));
+    const suggestedHold = planItem?.prescription?.holdSecondsPerRound ?? (suggestion?.type === "hold" ? Number(suggestion.holdSecondsPerRound) : Number(denseFormTargetHoldPerRound(exercise, scheme, suggestion)));
     quickTimerState.holdSeconds = denseIsIsometric(exercise) ? suggestedHold || Number(denseDefaultHoldPerRound(exercise, scheme)) || quickTimerState.holdSeconds || 0 : 0;
   }
   state.settings.denseSelectedExerciseId = exercise.id;
@@ -6171,7 +6172,7 @@ function denseSetModalBodyHtml() {
   `;
 }
 
-function openDenseTrainingModal({ exerciseId = "", entryId = "", failure = false } = {}) {
+function openDenseTrainingModal({ exerciseId = "", entryId = "", failure = false, planItem = null } = {}) {
   const entry = entryId ? getDenseEntries().find((item) => item.id === entryId) : null;
   const exercise = entry ? denseExerciseById(entry.exercise_id) : denseExerciseById(exerciseId || state.settings.denseSelectedExerciseId || "pull_up");
   if (!exercise) return;
@@ -6183,7 +6184,7 @@ function openDenseTrainingModal({ exerciseId = "", entryId = "", failure = false
   denseFormNatureOverride = null;
   denseFormFormatOverride = null;
   denseFailureSetMode = failure && !entry;
-  denseSetModalContext = { includePicker: !entry && !exerciseId, editing: Boolean(entry) };
+  denseSetModalContext = { includePicker: !entry && !exerciseId, editing: Boolean(entry), planItem: entry ? null : planItem || densePlanItemsForDate(selectedDate).find((item) => item.exercise_id === exercise.id) || null };
   // A stale saved query used to leave the picker filtered/empty on open.
   if (denseSetModalContext.includePicker) state.settings.denseExerciseSearch = "";
   nodes.modalCard.dataset.modalKind = "dense-set";
@@ -6466,7 +6467,7 @@ function denseNormalizeRoutine(raw) {
     .filter(Boolean)
     .map((item) => {
       const baseId = denseExerciseAliases[item.exercise_id];
-      const clean = { exercise_id: baseId || item.exercise_id };
+      const clean = { ...denseStudioNormalizeItem(item), exercise_id: baseId || item.exercise_id };
       if (baseId) clean.nature = item.nature || "weighted_calisthenics";
       else if (item.nature) clean.nature = item.nature;
       if (item.scheme) clean.scheme = item.scheme;
@@ -6501,7 +6502,9 @@ function denseRoutineItemExercise(item, exercise) {
 
 function denseRoutinePlanItems(routine) {
   return denseRoutineExercises(routine).map(({ item, exercise }) => {
-    const plan = { exercise_id: exercise.id, source: "routine", routine_id: routine.id };
+    const plan = { ...denseStudioNormalizeItem(item), id: denseStudioId(), exercise_id: exercise.id, source: "routine", routine_id: routine.id };
+    delete plan.scheme;
+    delete plan.nature;
     let viewed = denseRoutineItemExercise(item, exercise);
     // No explicit modality but a loaded scheme: infer it like the day planner.
     if (!item.nature && item.scheme && !denseAllowedSchemes(viewed).includes(item.scheme)) {
@@ -6726,6 +6729,7 @@ function routineItemRemove(index) {
 function routineItemChange(index, field, value) {
   const item = routineDraft?.items?.[index];
   if (!item) return;
+  if (["nature", "scheme"].includes(field)) delete item.prescription;
   if (field === "nature") {
     if (value) item.nature = value;
     else delete item.nature;
@@ -7226,6 +7230,7 @@ function saveDenseTrainingForm(form) {
     reps_per_side: Boolean(exercise.repsPerSide),
     source: "manual",
     deleted_at: null,
+    ...denseStudioEntryMetadata(data, existingEntry),
   };
 
   const entry = computeDenseEntry(raw);
@@ -7502,6 +7507,7 @@ function createInitialState() {
     denseEstimates: {},
     denseExerciseFavorites: [],
     denseRoutines: [],
+    denseStudio: { version: 1, drafts: {}, variants: [], experiments: [] },
   });
 }
 
@@ -7520,6 +7526,7 @@ function normalizeState(input) {
     denseEstimates: {},
     denseExerciseFavorites: [],
     denseRoutines: [],
+    denseStudio: { version: 1, drafts: {}, variants: [], experiments: [] },
   };
   const merged = { ...base, ...input };
   merged.settings = {
@@ -7551,6 +7558,7 @@ function normalizeState(input) {
   merged.denseExerciseFavorites = Array.isArray(merged.denseExerciseFavorites) ? merged.denseExerciseFavorites : [];
   denseMigrateUnifiedExercises(merged);
   merged.denseRoutines = (Array.isArray(merged.denseRoutines) ? merged.denseRoutines : []).map(denseNormalizeRoutine).filter(Boolean);
+  merged.denseStudio = denseNormalizeStudio(merged.denseStudio);
   return merged;
 }
 
@@ -7619,7 +7627,10 @@ function stateHasTrainingData(candidate = state) {
       Object.keys(candidate.bodyweightLogs || {}).length ||
       Object.keys(candidate.denseEstimates || {}).length ||
       (candidate.denseExerciseFavorites || []).length ||
-      (candidate.denseRoutines || []).length,
+      (candidate.denseRoutines || []).length ||
+      Object.values(candidate.denseStudio?.drafts || {}).some((pair) => (pair.A?.length || pair.B?.length)) ||
+      (candidate.denseStudio?.variants || []).length ||
+      (candidate.denseStudio?.experiments || []).length,
   );
 }
 
@@ -8125,6 +8136,20 @@ function applyDenseFormTargets(form, { resetStaleLoad = false } = {}) {
     rec.innerHTML = renderDenseProgressionSuggestion(exercise, suggestion);
     if (window.lucide?.createIcons) window.lucide.createIcons({ nameAttr: "data-lucide" });
   }
+  const manual = denseStudioApplyPrescription({ exerciseId: exercise.id, nature: exercise.nature, scheme }, denseSetModalContext.planItem);
+  Object.entries(manual).forEach(([name, value]) => {
+    if (["exerciseId", "nature", "scheme"].includes(name)) return;
+    if (name === "restSeconds") {
+      const radio = form.querySelector(`[name='restSeconds'][value='${value}']`);
+      if (radio) {
+        radio.checked = true;
+        radio.closest("fieldset").querySelectorAll(".scheme-option").forEach((option) => option.classList.toggle("is-selected", option.contains(radio)));
+      }
+      return;
+    }
+    const input = form.querySelector(`[name='${name}']`);
+    if (input) input.value = value;
+  });
   updateDenseHoldEstimate(form);
 }
 
@@ -8628,6 +8653,8 @@ function closeModal() {
     saveState();
   }
   delete nodes.modalCard.dataset.modalKind;
+  denseSetModalContext.planItem = null;
+  denseSetModalContext.studioFields = null;
   document.documentElement.classList.remove("has-modal");
   nodes.modal.close();
 }
@@ -9282,7 +9309,8 @@ function denseLastSessionSummary(exercise, scheme) {
 function plannedWorkoutCard(exercise) {
   const canDelete = exercise.plannedSource === "custom";
   const scheme = exercise.plannedScheme && denseAllowedSchemes(exercise).includes(exercise.plannedScheme) ? exercise.plannedScheme : densePlannedScheme(exercise);
-  const target = densePlannedTargetValue(exercise, scheme);
+  const manualTarget = exercise.plannedItem?.prescription && denseStudioTarget(exercise.plannedItem).manual;
+  const target = manualTarget ? denseStudioTargetLabel(exercise.plannedItem) : densePlannedTargetValue(exercise, scheme);
   const src = denseTargetSource(exercise, scheme);
   const range = densePlannedTargetRange(exercise, scheme, src);
   const card = `
@@ -9291,7 +9319,7 @@ function plannedWorkoutCard(exercise) {
       <div class="workout-set-main">
         <div class="workout-set-tags">
           ${exercise.plannedIsTest ? `<span class="mini-tag is-amber"><i data-lucide="flask-conical"></i>Test</span>` : ""}
-          ${denseTargetSourceBadge(exercise, scheme)}
+          ${manualTarget ? '<span class="mini-tag">Tu objetivo</span>' : denseTargetSourceBadge(exercise, scheme)}
           <span class="mini-tag">${escapeHtml(denseNatureLabel(exercise.nature).split("·")[0].trim())}</span>
         </div>
         <strong>${escapeHtml(exercise.name)} <small>${escapeHtml(scheme)}</small></strong>
@@ -9301,17 +9329,17 @@ function plannedWorkoutCard(exercise) {
       <div class="workout-set-volume">
         <span>Target</span>
         <strong>${escapeHtml(target)}</strong>
-        <small>${escapeHtml(range || scheme)}</small>
+        <small>${escapeHtml(manualTarget ? scheme : range || scheme)}</small>
       </div>
       <div class="workout-set-actions">
-        <button class="set-state is-empty" type="button" data-action="open-dense-exercise-modal" data-exercise="${escapeAttr(exercise.id)}" title="Completar" aria-label="Completar ${escapeAttr(exercise.name)}">
+        <button class="set-state is-empty" type="button" data-action="open-dense-exercise-modal" data-plan-index="${exercise.planIndex}" data-exercise="${escapeAttr(exercise.id)}" title="Completar" aria-label="Completar ${escapeAttr(exercise.name)}">
           <i data-lucide="square"></i>
         </button>
-        <button class="icon-button is-play" type="button" data-action="start-exercise-timer" data-exercise="${escapeAttr(exercise.id)}" title="Iniciar cronómetro" aria-label="Iniciar cronómetro ${escapeAttr(exercise.name)}">
+        <button class="icon-button is-play" type="button" data-action="start-exercise-timer" data-plan-index="${exercise.planIndex}" data-exercise="${escapeAttr(exercise.id)}" title="Iniciar cronómetro" aria-label="Iniciar cronómetro ${escapeAttr(exercise.name)}">
           <i data-lucide="play"></i>
         </button>
       </div>
-      <button class="workout-start-button" type="button" data-action="start-exercise-timer" data-exercise="${escapeAttr(exercise.id)}">
+      <button class="workout-start-button" type="button" data-action="start-exercise-timer" data-plan-index="${exercise.planIndex}" data-exercise="${escapeAttr(exercise.id)}">
         <i data-lucide="play"></i>Start
       </button>
     </article>
@@ -9390,7 +9418,7 @@ function plannedExercisesForDate(day) {
     .map((item, index) => {
       const exercise = findDenseExerciseById(item.exercise_id);
       return exercise
-        ? { ...exercise, nature: item.nature && (exercise.allowedNatures || [exercise.nature]).includes(item.nature) ? item.nature : exercise.nature, plannedSource: "custom", planIndex: index, plannedScheme: item.scheme || "", plannedIsTest: Boolean(item.is_test) }
+        ? { ...exercise, nature: item.nature && (exercise.allowedNatures || [exercise.nature]).includes(item.nature) ? item.nature : exercise.nature, plannedSource: "custom", planIndex: index, plannedScheme: item.scheme || "", plannedIsTest: Boolean(item.is_test), plannedItem: item }
         : null;
     })
     .filter(Boolean);
@@ -11457,7 +11485,7 @@ function denseFormDefaults() {
   // A planned item for today may pin a scheme AND a modality (e.g. "Dominadas
   // con lastre"). Both win over the last-session default unless the user
   // switched modality in-form.
-  const planItem = densePlanItemsForDate(selectedDate).find((item) => item.exercise_id === exercise.id) || null;
+  const planItem = denseSetModalContext.planItem?.exercise_id === exercise.id ? denseSetModalContext.planItem : densePlanItemsForDate(selectedDate).find((item) => item.exercise_id === exercise.id) || null;
   // A plan with a scheme but no modality still implies one: "5D" on chin-ups is
   // bodyweight even if the last mark was 5D3 with lastre (audit sep 2026).
   const planSchemeNature = planItem?.scheme && !planItem.nature
@@ -11502,8 +11530,8 @@ function denseFormDefaults() {
   // Test session: planned as test, or the target comes from transfer/estimation
   // with no direct evidence — exploring a number, not executing a known one.
   const sourceKind = denseTargetSource(activeExercise, scheme).kind;
-  const isTest = Boolean(planItem?.is_test) || ["family", "transfer", "estimated", "max", "none"].includes(sourceKind);
-  return {
+  const isTest = Boolean(planItem?.is_test) || ["family", "transfer", "estimated", "max", "none"].includes(sourceKind) || Boolean(planItem?.studio_variant_id && !denseStudioComparableEntries(planItem).length);
+  return denseStudioApplyPrescription({
     date: dateKey(selectedDate),
     bodyweightKg: latestKnownBodyweight(dateKey(selectedDate)) || 80,
     exerciseId: exercise.id,
@@ -11528,7 +11556,7 @@ function denseFormDefaults() {
     isTest,
     readiness: "normal",
     notes: "",
-  };
+  }, planItem);
 }
 
 function latestKnownBodyweight(beforeKey = dateKey(selectedDate)) {

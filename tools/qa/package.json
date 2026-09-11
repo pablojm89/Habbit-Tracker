@@ -7,7 +7,8 @@
     "crawl": "node crawl.js",
     "audit": "node audit.js",
     "plan": "node plan.js && node plan.js empty",
-    "all": "node selftests.js && node crawl.js && node audit.js && node plan.js && node plan.js empty"
+    "studio": "node studio.js",
+    "all": "node selftests.js && node crawl.js && node audit.js && node plan.js && node plan.js empty && node studio.js"
   },
   "devDependencies": {
     "playwright-core": "1.49.0"
