@@ -60,6 +60,24 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 
 ## Trabajo reciente por tema (con commits)
 
+### Respaldo en GitHub anterior a Estudio (11 sep 2026)
+- Etiqueta anotada **`respaldo-pre-estudio-v45`**, subida y verificada en `origin`:
+  apunta a `033114a3cd56863fb66645af1788ecaadfaaf15d`, versión
+  `20260906-plan-coherente-45`. No mover ni reutilizar esta etiqueta.
+- GitHub Pages sirve `main` desde `/`; el despliegue de ese commit consta como
+  correcto. El HTML y el service worker publicados siguen en v45. Solo se subió
+  la etiqueta solicitada como respaldo, no los cambios de Estudio a `main`.
+- Para volver a la interfaz anterior sin retirar Estudio basta el selector Actual.
+  Para una reversión completa solicitada por Pablo: partir del estado vigente,
+  recuperar el código de esta etiqueta en un nuevo commit, revisar el diff,
+  pasar QA y usar una versión nueva de caché en `index.html` y `sw.js`.
+  No usar `reset --hard` ni force-push; conservar el historial posterior.
+- Antes de una reversión completa, exportar un backup JSON actualizado de los
+  datos reales y comprobar su compatibilidad. GitHub respalda el código, no
+  localStorage ni Sheets. La v45 puede ignorar o descartar campos propios de
+  Estudio al editar: no prometer que una vuelta al código antiguo conserva todas
+  las extensiones sin esa comprobación. No se han tocado datos reales.
+
 ### Estudio paralelo con historial compartido (11 sep 2026)
 - Selector Actual / Estudio en el mismo documento; enlace directo `?experience=studio`.
 - Editor de borradores A/B, orden, duplicación, grupos, objetivos y descansos manuales,
