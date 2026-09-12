@@ -8,17 +8,18 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 > App: PWA de entrenamiento (Dense training). Vanilla JS sin build: `app.js` (~9000
 > líneas), `styles.css`, `index.html`, `sw.js`. Sincroniza a Google Sheets vía Apps Script.
 > Modo training-only (`TRAINING_ONLY = true`). Cache busting: string `?v=…` en `index.html`
-> **y** `sw.js` a la vez. **Última versión: `20260911-clasica-47`.**
+> **y** `sw.js` a la vez. **Última versión local: `20260912-crono-push-48`.**
+> Publicada en GitHub: `20260911-clasica-47`; v48 pendiente de push del usuario.
 
 ## Cómo trabajar aquí (imprescindible)
 
 - **Flujo de trabajo**: skill del proyecto `.claude/skills/bittracker-ship/SKILL.md`
   (reproducir → cambio mínimo → verificar → versión → docs → commit → main) y `CLAUDE.md`
   en la raíz con las reglas que se cargan siempre.
-- **QA en un comando**: `tools/qa/run.sh` (o `selftests` / `crawl` / `audit` / `plan` / `retirement`). Los
-  cinco scripts viven ya en el repo (`tools/qa/`), no en el scratchpad de la sesión.
+- **QA en un comando**: `tools/qa/run.sh` (o `selftests` / `crawl` / `audit` / `plan` / `retirement` / `timer` / `push`). Los
+  scripts viven ya en el repo (`tools/qa/`), no en el scratchpad de la sesión.
   `plan.js` audita 1.612 combinaciones proposición → tarjeta → formulario (con y sin historial).
-- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **104 asserts**.
+- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **111 asserts**.
   Correr siempre tras tocar el motor.
 - **Simulación de entrenamiento** (nueva herramienta de QA): 6 semanas × 4 días con un
   atleta sintético que sigue las sugerencias reales de la app vía Playwright+Chromium
@@ -59,6 +60,33 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
   fail-closed, LockService, hojas de transferencias. Auto-restore al arrancar vacío.
 
 ## Trabajo reciente por tema (con commits)
+
+### Cronómetro isométrico y preparación de push (12 sep 2026)
+- Avisos más largos y potentes, volumen regulable y prueba de sonido; el metrónomo
+  ya no suprime el fin del aguante. Preparación de 5 s, fases visibles, botón
+  **He caído** y segundos reales por ronda, incluido cero. Sin pulsar se completa
+  solo el objetivo de una ronda ya transcurrida. Próxima ronda en su minuto.
+- Borrador local recuperable pausado, wake lock mientras la app está visible,
+  confirmación antes de descartar y guardado en el formulario habitual sin duplicar.
+  `hold_rounds`/`timer_session_id` comparten backup/Sheets. Capacidad y máximos usan
+  tiempo real, no el objetivo escrito. La app no registra por sí sola en el historial.
+- Campana de pausas: horarios/material/tipos, prueba, baja y cuatro protocolos
+  suaves de cinco minutos. **Una pausa ahora** disponible sin backend.
+- Emisor en `services/push/`: Worker + SQLite Durable Objects, VAPID cifrado con
+  `web-push`, horas locales con `luxon`, alta protegida, tokens fuera de snapshots,
+  bajas y suscripciones caducadas. Configuración pública vacía intencionadamente.
+- **Push todavía NO operativo**: falta cuenta/autorización de Cloudflare, secretos,
+  despliegue, URL en `push-config.json`, permiso y prueba real en iPhone. No se han
+  creado recursos, suscripciones reales, cargos ni automaciones externas.
+- No se ha probado el volumen físico del iPhone ni hay app nativa de Apple Watch.
+  Salir de la app pausa el reloj; no prometer audio en segundo plano.
+- QA: 111/111 self-tests, crawl/auditoría sin incidencias, 3.224 combinaciones de
+  plan, 32 checks de retirada/offline, 33 del crono y 22 de push simulado. Backend:
+  10 tests, build y alta/lectura/envío cifrado/baja en runtime local; dependencias
+  de producción sin vulnerabilidades en `npm audit`. Capturas 320/390/1280 px.
+  Ver alcance, límites y pasos de activación en [crono-push.md](crono-push.md).
+- GitHub verificado de nuevo: `main` en `c2c8ed8`; respaldo remoto
+  `respaldo-pre-estudio-v45` intacto (`033114a`). Entrega local sin push remoto.
 
 ### Retirada de Estudio y vuelta a la interfaz habitual (11 sep 2026)
 - Pablo pidió retirar Estudio después de probar la versión publicada. Se eliminan

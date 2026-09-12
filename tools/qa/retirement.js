@@ -96,14 +96,25 @@ const check = (value, message) => { assert.ok(value, message); checks += 1; };
     await offlinePage.waitForFunction(() => navigator.serviceWorker.controller && !window.__bitTrackerReloading && typeof render === "function");
     const cache = await offlinePage.evaluate(async () => ({
       keys: await caches.keys(),
-      core: Boolean(await caches.match(new URL("./studio-core.js?v=20260911-clasica-47", location.href).href)),
+      core: Boolean(await caches.match(document.querySelector('script[src*="studio-core.js"]').src)),
+      timer: Boolean(await caches.match(document.querySelector('script[src*="timer-core.js"]').src)),
+      push: Boolean(await caches.match(document.querySelector('script[src*="notifications.js"]').src)),
+      current: `bittracker-mobile-${new URL(document.querySelector('script[src*="app.js?v="]').src).searchParams.get("v")}`,
     }));
     check(!cache.keys.includes("bittracker-mobile-20260911-estudio-46"), "La cache anterior se retira al activar la nueva version");
-    check(cache.keys.includes("bittracker-mobile-20260911-clasica-47") && cache.core, "Compatibilidad precacheada para uso sin conexion");
+    check(cache.keys.includes(cache.current) && cache.core, "Compatibilidad precacheada para uso sin conexion");
+    check(cache.timer && cache.push, "Cronometro y panel push precacheados");
     await offline.setOffline(true);
     await offlinePage.goto(`${url}&offline=1`);
     check(await offlinePage.locator(".app-shell").isVisible(), "El enlace antiguo tambien abre la app habitual sin conexion");
     check(await offlinePage.locator("#studioRoot, .experience-switch").count() === 0, "Estudio no reaparece desde la cache");
+    await offlinePage.evaluate(() => openQuickTimerModal());
+    check(await offlinePage.locator('.quick-timer-display').isVisible(), "Cronometro disponible sin conexion");
+    await offlinePage.locator('.modal-head [data-action="close-modal"]').click();
+    await offlinePage.locator('[data-action="open-micro-breaks"]').click();
+    await offlinePage.locator('[data-micro-action="preview"]').click();
+    await offlinePage.locator('[data-micro-action="start"]').waitFor();
+    check(await offlinePage.locator('.micro-session').isVisible(), "Protocolos de pausa accesibles sin conexion");
     await offline.close();
     console.log(`RETIREMENT: ${checks} checks OK`);
   } finally { await browser.close(); }

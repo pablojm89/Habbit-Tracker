@@ -1,0 +1,32 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import vm from "node:vm";
+import { readFileSync } from "node:fs";
+
+test("service worker: push visible, ruta confinada y click sin duplicar ventana", async () => {
+  const listeners = {}, shown = [], messages = [], opened = [];
+  let focused = 0, windows = [];
+  const self = { location: { origin: "https://app.test" }, registration: { scope: "https://app.test/Habbit-Tracker/", showNotification: async (...value) => shown.push(value) }, addEventListener: (name, fn) => { listeners[name] = fn; }, clients: { matchAll: async () => windows, openWindow: async (url) => opened.push(url) } };
+  vm.runInNewContext(readFileSync(new URL("../../../sw.js", import.meta.url), "utf8"), { self, URL });
+  let task;
+  const waitUntil = (promise) => { task = promise; };
+  listeners.push({ data: { json: () => ({ title: "5 minutos", url: "https://evil.test/?micro=anillas-remo", tag: "micro-test-1" }) }, waitUntil });
+  await task;
+  assert.equal(shown[0][1].data.url, self.registration.scope);
+  listeners.push({ data: { json: () => ({ url: "https://app.test/Habbit-Tracker/?micro=anillas-remo&evil=1" }) }, waitUntil });
+  await task;
+  assert.equal(shown[1][1].data.url, "https://app.test/Habbit-Tracker/?micro=anillas-remo");
+  windows = [{ url: self.registration.scope, focus: async () => { focused += 1; }, postMessage: (message) => messages.push(message) }];
+  listeners.notificationclick({ notification: { close() {}, data: shown[1][1].data }, waitUntil });
+  await task;
+  assert.equal(focused, 1);
+  assert.equal(messages[0].id, "anillas-remo");
+  assert.equal(opened.length, 0);
+  windows = [];
+  listeners.notificationclick({ notification: { close() {}, data: shown[1][1].data }, waitUntil });
+  await task;
+  assert.equal(opened[0], shown[1][1].data.url);
+  listeners.push({ data: { json() { throw new Error("bad JSON"); } }, waitUntil });
+  await task;
+  assert.equal(shown.length, 3);
+});

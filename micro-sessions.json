@@ -1,0 +1,6 @@
+[
+  { "id": "anillas-remo", "exerciseId": "ring_row", "title": "Remo suave en anillas", "equipment": ["anillas"], "kind": "activacion", "instruction": "Cada minuto: 5 remos faciles, con el cuerpo bastante vertical. Descansa el resto. 5 rondas, sin acercarte al fallo." },
+  { "id": "anillas-asistidas", "exerciseId": "pull_up_feet_assisted", "title": "Tiron con pies apoyados", "equipment": ["anillas"], "kind": "activacion", "instruction": "Cada minuto: 4 tirones en anillas bajas, ayudandote con los pies. Descansa el resto. 5 rondas comodas." },
+  { "id": "cadera-suave", "exerciseId": "frog_stretch", "title": "Movilidad suave de cadera", "equipment": ["suelo"], "kind": "movilidad", "instruction": "Cada minuto: 20 s de apertura suave en cuadrupedia, sin forzar el rango. Sal de la postura y descansa 40 s. 5 rondas." },
+  { "id": "pancake-suave", "exerciseId": "pancake_hold", "title": "Pancake sin prisas", "equipment": ["suelo"], "kind": "movilidad", "instruction": "Cada minuto: 20 s de inclinacion suave sentado con piernas abiertas, rodillas flexionadas si hace falta. Descansa 40 s. 5 rondas, sin buscar tu maximo." }
+]

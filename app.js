@@ -21,6 +21,15 @@ let quickTimerState = {
   intervalId: null,
   metronome: false,
   audioContext: null,
+  elapsedMs: 0,
+  elapsedBeforeRunMs: 0,
+  preparationSeconds: 5,
+  roundResults: [],
+  context: null,
+  sessionId: "",
+  appliedEntryId: "",
+  restored: false,
+  wakeLock: null,
 };
 let cloudSyncStatus = {
   state: "idle",
@@ -2862,7 +2871,17 @@ if ("serviceWorker" in navigator) {
   });
 }
 // Native close (Esc / backdrop) bypasses closeModal(): never leave the page locked.
-nodes.modal.addEventListener("close", () => document.documentElement.classList.remove("has-modal"));
+nodes.modal.addEventListener("close", () => {
+  document.documentElement.classList.remove("has-modal");
+  if (/^Cronómetro/.test(nodes.modalTitle.textContent || "")) pauseQuickTimer(false);
+});
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden && quickTimerState.running) {
+    quickTimerState.interrupted = true;
+    pauseQuickTimer(false);
+  }
+  if (!document.hidden && nodes.modalBody.querySelector(".quick-timer")) renderQuickTimerModalBody();
+});
 nodes.todayChip.addEventListener("click", () => {
   selectedDate = startOfDay(new Date());
   state.settings.selectedDate = dateKey(selectedDate);
@@ -3360,11 +3379,15 @@ function runDenseSelfTests() {
     return slow.tone === "amber" && /objetivo/.test(slow.advice) && ok.tone === "green" && bodyweightRule({ mode: "gain", weeklyTarget: 0.5 }).max === 0.65;
   });
   test("S: timer en modo descanso — 5 series × 3:00 = 900 s y vuelve a EMOM al elegir 5D", () => {
-    setQuickTimerRest(180);
-    quickTimerState.rounds = 5;
-    const total = quickTimerTotalSeconds();
-    setQuickTimerScheme("5D");
-    return total === 900 && quickTimerState.roundSeconds === 60 && quickTimerTotalSeconds() === 300;
+    const saved = quickTimerState;
+    try {
+      quickTimerState = { ...saved, running: false, intervalId: null, wakeLock: null, testing: true, roundResults: [] };
+      setQuickTimerRest(180);
+      quickTimerState.rounds = 5;
+      const total = quickTimerTotalSeconds();
+      setQuickTimerScheme("5D");
+      return total === 900 && quickTimerState.roundSeconds === 60 && quickTimerTotalSeconds() === 300;
+    } finally { quickTimerState = saved; }
   });
 
   // ── Rutinas ──
@@ -3511,6 +3534,39 @@ function runDenseSelfTests() {
     const existing = { exercise_id: "pull_up", plan_ref: "block", studio_variant_id: "pause", studio_variant_name: "Pausa", studio_conditions: "2 s", technique_quality: "clean", prescription_snapshot: { prescription: { repsPerSet: 8 } } };
     const metadata = denseStudioEntryMetadata({ exerciseId: "pull_up" }, existing);
     return metadata.plan_ref === "block" && metadata.studio_variant_id === "pause" && metadata.studio_conditions === "2 s" && metadata.technique_quality === "clean" && metadata.prescription_snapshot.prescription.repsPerSet === 8;
+  });
+  test("crono: 5:00 a 4:38 equivale a 22 segundos, sin depender de ticks", () => {
+    const frame = denseTimerFrame({ rounds: 5, roundSeconds: 60, holdSeconds: 30, preparationSeconds: 0 }, 22000);
+    return frame.remaining === 278 && frame.intoRound === 22 && frame.index === 0;
+  });
+  test("crono: el final permanece a cero sin inventar una sexta ronda", () => {
+    const frame = denseTimerFrame({ rounds: 5, roundSeconds: 60, holdSeconds: 22, preparationSeconds: 0 }, 305000);
+    return frame.remaining === 0 && frame.complete && frame.index === 4;
+  });
+  test("crono: los avisos de aguante existen también con metrónomo", () => {
+    const events = denseTimerEvents({ rounds: 5, roundSeconds: 60, holdSeconds: 22, preparationSeconds: 0, metronome: true }, 21000, 22000);
+    return events.length === 1 && events[0].kind === "hold-end";
+  });
+  test("crono: completa solo objetivos alcanzados y conserva una caída", () => {
+    const timer = { rounds: 5, roundSeconds: 60, holdSeconds: 22, preparationSeconds: 0, roundResults: [{ seconds: 12, kind: "fall" }] };
+    denseTimerCollectRounds(timer, 82000);
+    return timer.roundResults[0].seconds === 12 && timer.roundResults[1].seconds === 22 && !timer.roundResults[2];
+  });
+  test("crono: la preparación no registra tiempo de aguante", () => {
+    const timer = { rounds: 5, roundSeconds: 60, holdSeconds: 22, preparationSeconds: 5, roundResults: [] };
+    denseTimerCollectRounds(timer, 4000);
+    return denseTimerFrame(timer, 4000).preparing && timer.roundResults.length === 0 && denseTimerFrame(timer, 5000).intoRound === 0;
+  });
+  test("crono: ritmo real para estimaciones, sin confundirlo con el objetivo", () => {
+    return denseRecordedHoldPace({ hold_seconds_per_round: 22, duration_minutes: 5, hold_rounds: [17, 22, 22, 22, 22] }) === 21 && denseRecordedHoldPace({ hold_seconds_per_round: 22 }) === 22;
+  });
+  test("crono: una caída a cero no fabrica un máximo ni se muestra como reps", () => {
+    const saved = state.denseTrainingEntries;
+    try {
+      const raw = { id: "qa-zero", exercise_id: "straight_handstand", scheme: "5D", date: "2026-09-12", duration_minutes: 5, hold_seconds_per_round: 22, hold_rounds: [0, 0, 0, 0, 0], total_hold_seconds: 0, failed: true };
+      state.denseTrainingEntries = [computeDenseEntry(raw)];
+      return !denseEstimatedMax(denseExerciseById("straight_handstand"), "hold").estimate && /0s TUT/.test(denseEntrySummaryLine(raw));
+    } finally { state.denseTrainingEntries = saved; }
   });
 
   state.denseTrainingEntries = savedEntries;
@@ -4259,6 +4315,7 @@ function renderMesocycle() {
             <span class="workout-score"><strong>${entries.length}</strong><small>sets</small></span>
             <button class="icon-button" type="button" data-action="go-today" title="Hoy" aria-label="Hoy"><i data-lucide="calendar-clock"></i></button>
             <button class="icon-button" type="button" data-action="open-quick-timer" title="Cronómetro" aria-label="Cronómetro"><i data-lucide="timer"></i></button>
+            <button class="icon-button" type="button" data-action="open-micro-breaks" title="Pausas de 5 minutos" aria-label="Pausas de 5 minutos"><i data-lucide="bell"></i></button>
           </div>
         </div>
 
@@ -5484,6 +5541,8 @@ function handleClick(event) {
   if (action === "quick-timer-pause") pauseQuickTimer();
   if (action === "quick-timer-reset") resetQuickTimer();
   if (action === "quick-timer-metronome") toggleQuickTimerMetronome();
+  if (action === "quick-timer-fall") recordQuickTimerFall();
+  if (action === "quick-timer-test-sound") playQuickTimerCue("hold-end");
   if (action === "apply-timer-hold") applyTimerHoldToDenseForm();
   if (action === "apply-soft-target") applySoftTarget(target);
   if (action === "select-week") selectWeek(target.dataset.week);
@@ -5530,7 +5589,16 @@ function handleClick(event) {
 }
 
 function handleChange(event) {
+  if (event.target.matches("[data-action-input='quick-timer-volume']")) saveState();
+  if (event.target.matches("[data-action-input='quick-timer-exercise']")) {
+    const exercise = findDenseExerciseById(event.target.value);
+    quickTimerState.context = exercise ? { exerciseId: exercise.id, date: dateKey(selectedDate), nature: exercise.nature } : null;
+    if (exercise && !quickTimerState.sessionId) quickTimerState.rounds = denseSchemeMinutes(quickTimerState.scheme);
+    saveQuickTimerDraft();
+    renderQuickTimerModalBody();
+  }
   if (event.target.matches("#importFile")) importJson(event.target.files?.[0]);
+  if (event.target.matches("#denseTrainingForm [name='rounds']")) resizeDenseHoldRounds(event.target.closest("form"));
   if (event.target.matches("#denseTrainingForm input[name='natureChoice']")) updateDenseNatureSelection(event.target);
   if (event.target.matches("#denseTrainingForm input[name='formatChoice']")) updateDenseFormatSelection(event.target);
   if (event.target.matches("#denseFeedbackForm input[name='expectedComparison']")) {
@@ -5566,6 +5634,11 @@ function handleChange(event) {
 }
 
 function handleInput(event) {
+  if (event.target.matches("[data-action-input='quick-timer-volume']")) {
+    state.settings.timerVolume = clamp(Number(event.target.value) / 100, 0, 1);
+    patchQuickTimerReadout();
+  }
+  if (event.target.matches("#denseTrainingForm [data-hold-round]")) updateDenseHoldEstimate(event.target.closest("form"));
   if (event.target.matches("#routineForm [name='name']") && routineDraft) {
     routineDraft.name = event.target.value;
     routineDraft.dirty = true;
@@ -5806,9 +5879,11 @@ function openDayModal() {
 }
 
 function openQuickTimerModal() {
-  syncQuickTimerFromForm();
+  restoreQuickTimerDraft();
+  if (!quickTimerState.sessionId) syncQuickTimerFromForm();
   nodes.modalEyebrow.textContent = "Herramientas";
   nodes.modalTitle.textContent = "Cronómetro";
+  nodes.modalCard.dataset.modalKind = "quick-timer";
   renderQuickTimerModalBody();
   openModal();
 }
@@ -5818,6 +5893,11 @@ function startExerciseTimer(exerciseId, planItem = null) {
   const exercise = planItem ? denseStudioItemExercise(planItem) : findDenseExerciseById(exerciseId);
   if (!exercise) {
     toast("Ejercicio no válido");
+    return;
+  }
+  restoreQuickTimerDraft();
+  if (quickTimerState.roundResults.some(Boolean) && !quickTimerState.appliedEntryId && !window.confirm("Hay rondas sin guardar en el cronómetro. ¿Descartarlas y empezar otro bloque?")) {
+    openQuickTimerModal();
     return;
   }
   const scheme = planItem ? denseStudioItemScheme(planItem) : densePlannedScheme(exercise);
@@ -5839,20 +5919,24 @@ function startExerciseTimer(exerciseId, planItem = null) {
     quickTimerState.holdSeconds = denseIsIsometric(exercise) ? suggestedHold || Number(denseDefaultHoldPerRound(exercise, scheme)) || quickTimerState.holdSeconds || 0 : 0;
   }
   state.settings.denseSelectedExerciseId = exercise.id;
+  quickTimerState.context = { exerciseId: exercise.id, date: dateKey(selectedDate), nature: exercise.nature, planItem };
   resetQuickTimer(false);
   nodes.modalEyebrow.textContent = "Herramientas";
   nodes.modalTitle.textContent = `Cronómetro · ${exercise.name}`;
+  nodes.modalCard.dataset.modalKind = "quick-timer";
   renderQuickTimerModalBody();
   openModal();
 }
 
 function renderQuickTimerModalBody() {
   const totalSeconds = quickTimerTotalSeconds();
-  const remaining = quickTimerState.remainingSeconds || totalSeconds;
+  const frame = denseTimerFrame(quickTimerState, quickTimerElapsedNow());
+  const remaining = frame.remaining;
   const holdTotal = quickTimerState.holdSeconds ? quickTimerState.holdSeconds * quickTimerState.rounds : 0;
   const restMode = (quickTimerState.roundSeconds || 60) !== 60;
   nodes.modalBody.innerHTML = `
     <div class="quick-timer">
+      ${quickTimerState.microSession ? `<p class="micro-protocol">${escapeHtml(quickTimerState.microSession.instruction)}</p>` : ""}
       <div class="quick-timer-display">
         <strong>${formatTimerSeconds(remaining)}</strong>
         <span>${
@@ -5860,7 +5944,16 @@ function renderQuickTimerModalBody() {
             ? `Descanso ${Math.min(quickTimerState.currentRound, quickTimerState.rounds)} / ${quickTimerState.rounds} · ${denseFormatRest(quickTimerState.roundSeconds)} entre series`
             : `Ronda ${Math.min(quickTimerState.currentRound, quickTimerState.rounds)} / ${quickTimerState.rounds}${quickTimerState.holdSeconds ? ` · ${quickTimerState.holdSeconds}s hold` : ""}`
         }</span>
+        <b data-timer-phase></b>
       </div>
+      <div class="timer-actions">
+        <button class="text-button is-hot" type="button" data-action="${quickTimerState.running ? "quick-timer-pause" : "quick-timer-start"}"><i data-lucide="${quickTimerState.running ? "pause" : "play"}"></i>${quickTimerState.running ? "Pausar" : frame.complete ? "Terminado" : quickTimerState.elapsedMs ? "Continuar" : "Iniciar"}</button>
+        <button class="icon-button" type="button" data-action="quick-timer-reset" title="Reiniciar cronómetro" aria-label="Reiniciar cronómetro"><i data-lucide="rotate-ccw"></i></button>
+      </div>
+      ${quickTimerState.holdSeconds ? `<button class="timer-fall-button" type="button" data-action="quick-timer-fall"><i data-lucide="hand"></i><span>He caído</span><strong data-timer-fall-seconds>0 s</strong></button><div class="timer-round-results" aria-label="Segundos por ronda"></div>` : ""}
+      <p class="timer-status" data-timer-status role="status"></p>
+      <details class="timer-settings" ${quickTimerState.sessionId ? "" : "open"}><summary>Ajustes del bloque</summary>
+      <fieldset ${quickTimerState.sessionId ? "disabled" : ""}>
       <section>
         <p class="timer-label">Bloque de densidad</p>
         <div class="timer-option-grid">
@@ -5875,7 +5968,7 @@ function renderQuickTimerModalBody() {
       </section>
       <label class="field">
         <span>${restMode ? "Series" : "Rondas"}</span>
-        <input data-action-input="quick-timer-rounds" type="number" min="1" max="120" value="${escapeAttr(quickTimerState.rounds)}" />
+        <input data-action-input="quick-timer-rounds" type="number" min="1" max="120" value="${escapeAttr(quickTimerState.rounds)}" ${quickTimerState.context && !restMode ? "readonly" : ""} />
       </label>
       ${
         restMode
@@ -5883,34 +5976,30 @@ function renderQuickTimerModalBody() {
           : `<section>
         <p class="timer-label">Hold por ronda</p>
         <div class="timer-option-grid is-hold">
-          ${[0, 5, 10, 20, 30, 40, 60].map((seconds) => timerOptionButton("quick-timer-hold", seconds, seconds ? `${seconds}s` : "Off", quickTimerState.holdSeconds === seconds)).join("")}
+          ${[0, 5, 10, 20, 30, 40, 55].map((seconds) => timerOptionButton("quick-timer-hold", seconds, seconds ? `${seconds}s` : "Sin hold", quickTimerState.holdSeconds === seconds)).join("")}
         </div>
         <label class="field timer-custom-hold">
           <span>Hold a medida (s)</span>
-          <input data-action-input="quick-timer-hold-custom" type="number" min="0" max="600" step="1" value="${escapeAttr(quickTimerState.holdSeconds || "")}" placeholder="ej. 23" />
+          <input data-action-input="quick-timer-hold-custom" type="number" min="0" max="55" step="1" value="${escapeAttr(quickTimerState.holdSeconds || "")}" placeholder="ej. 22" />
         </label>
       </section>`
       }
+      </fieldset></details>
+      ${quickTimerState.holdSeconds ? `<label class="field"><span>Ejercicio del registro</span><select data-action-input="quick-timer-exercise" ${quickTimerState.appliedEntryId ? "disabled" : ""}><option value="">Solo cronómetro</option>${denseExerciseCatalog.filter(denseSupportsHold).map((exercise) => `<option value="${escapeAttr(exercise.id)}" ${quickTimerState.context?.exerciseId === exercise.id ? "selected" : ""}>${escapeHtml(exercise.name)}</option>`).join("")}</select></label>` : ""}
       <div class="quick-timer-summary">
         <span>${quickTimerState.rounds} ${restMode ? "descansos" : "rondas"}</span>
         <span>${restMode ? `${denseFormatRest(totalSeconds)} de descanso total` : quickTimerState.holdSeconds ? `${holdTotal}s TUT objetivo` : "modo reps/EMOM"}</span>
       </div>
-      <div class="timer-actions">
-        ${
-          quickTimerState.running
-            ? `<button class="text-button is-hot" type="button" data-action="quick-timer-pause"><i data-lucide="pause"></i>Pausar</button>`
-            : `<button class="text-button is-hot" type="button" data-action="quick-timer-start"><i data-lucide="play"></i>Iniciar</button>`
-        }
-        <button class="text-button" type="button" data-action="quick-timer-reset"><i data-lucide="rotate-ccw"></i>Reset</button>
-      </div>
+      <div class="timer-audio"><label class="field"><span>Volumen de avisos</span><input type="range" min="0" max="100" step="5" data-action-input="quick-timer-volume" value="${Math.round(Number(state.settings.timerVolume ?? .85) * 100)}"></label><button class="icon-button" type="button" data-action="quick-timer-test-sound" title="Probar sonido" aria-label="Probar sonido"><i data-lucide="volume-2"></i></button></div>
       <button class="text-button timer-wide-button ${quickTimerState.metronome ? "is-hot" : ""}" type="button" data-action="quick-timer-metronome">
         <i data-lucide="music"></i>${quickTimerState.metronome ? "Metrónomo activo" : "Usar metrónomo"}
       </button>
       <button class="text-button timer-wide-button" type="button" data-action="apply-timer-hold">
-        <i data-lucide="clipboard-check"></i>Aplicar hold al registro
+        <i data-lucide="clipboard-check"></i>${quickTimerState.appliedEntryId ? "Editar registro" : "Revisar y guardar"}
       </button>
     </div>
   `;
+  patchQuickTimerReadout();
   refreshIcons();
 }
 
@@ -5924,6 +6013,9 @@ function timerOptionButton(action, value, label, selected) {
 
 function syncQuickTimerFromForm() {
   const form = document.querySelector("#denseTrainingForm");
+  const exerciseId = form?.querySelector("[name='exerciseId']")?.value;
+  const exercise = findDenseExerciseById(exerciseId);
+  quickTimerState.context = exercise ? { exerciseId: exercise.id, date: form.querySelector("[name='date']")?.value || dateKey(selectedDate), nature: form.querySelector("[name='nature']")?.value || exercise.nature, planItem: denseSetModalContext.planItem } : null;
   const scheme = form?.querySelector("input[name='scheme']:checked")?.value;
   const rounds = positiveNumber(form?.querySelector("[name='rounds']")?.value);
   const hold = positiveNumber(form?.querySelector("[name='holdSecondsPerRound']")?.value);
@@ -5965,7 +6057,7 @@ function setQuickTimerRest(seconds) {
 }
 
 function setQuickTimerHold(seconds) {
-  quickTimerState.holdSeconds = Math.max(0, Number(seconds) || 0);
+  quickTimerState.holdSeconds = clamp(Math.round(Number(seconds) || 0), 0, 55);
   resetQuickTimer(false);
   renderQuickTimerModalBody();
 }
@@ -5973,6 +6065,7 @@ function setQuickTimerHold(seconds) {
 // Live update from a number input: patch the readout without rebuilding the
 // inputs (so multi-digit typing like "23" doesn't lose focus after each key).
 function setQuickTimerRoundsLive(value) {
+  if (quickTimerState.sessionId) return;
   quickTimerState.rounds = clamp(Math.round(Number(value) || 1), 1, 120);
   if (!quickTimerState.running) {
     quickTimerState.remainingSeconds = quickTimerTotalSeconds();
@@ -5982,26 +6075,54 @@ function setQuickTimerRoundsLive(value) {
 }
 
 function setQuickTimerHoldLive(value) {
-  quickTimerState.holdSeconds = clamp(Math.round(Number(value) || 0), 0, 600);
+  if (quickTimerState.sessionId) return;
+  const wasHold = quickTimerState.holdSeconds > 0;
+  quickTimerState.holdSeconds = clamp(Math.round(Number(value) || 0), 0, 55);
   if (!quickTimerState.running) quickTimerState.remainingSeconds = quickTimerTotalSeconds();
+  if (wasHold !== (quickTimerState.holdSeconds > 0)) {
+    const input = nodes.modalBody.querySelector("[data-action-input='quick-timer-hold-custom']");
+    renderQuickTimerModalBody();
+    if (input) nodes.modalBody.querySelector("[data-action-input='quick-timer-hold-custom']")?.focus();
+  }
   patchQuickTimerReadout();
 }
 
 function patchQuickTimerReadout() {
   const body = nodes.modalBody;
   if (!body || !body.querySelector(".quick-timer")) return;
-  const remaining = quickTimerState.remainingSeconds || quickTimerTotalSeconds();
+  const frame = denseTimerFrame(quickTimerState, quickTimerElapsedNow());
+  const remaining = frame.remaining;
   const disp = body.querySelector(".quick-timer-display strong");
   const sub = body.querySelector(".quick-timer-display span");
   const summary = body.querySelector(".quick-timer-summary");
+  const restMode = (quickTimerState.roundSeconds || 60) !== 60;
   if (disp) disp.textContent = formatTimerSeconds(remaining);
   if (sub) {
-    sub.textContent = `Round ${Math.min(quickTimerState.currentRound, quickTimerState.rounds)} / ${quickTimerState.rounds}${quickTimerState.holdSeconds ? ` · ${quickTimerState.holdSeconds}s hold` : ""}`;
+    sub.textContent = `${restMode ? "Descanso" : "Ronda"} ${frame.index + 1} / ${quickTimerState.rounds}${quickTimerState.holdSeconds ? ` · ${quickTimerState.holdSeconds}s objetivo` : ""}`;
   }
   if (summary) {
     const holdTotal = quickTimerState.holdSeconds ? quickTimerState.holdSeconds * quickTimerState.rounds : 0;
-    summary.innerHTML = `<span>${quickTimerState.rounds} rondas</span><span>${quickTimerState.holdSeconds ? `${holdTotal}s TUT objetivo` : "modo reps/EMOM"}</span>`;
+    summary.innerHTML = `<span>${quickTimerState.rounds} ${restMode ? "descansos" : "rondas"}</span><span>${restMode ? `${denseFormatRest(quickTimerTotalSeconds())} de descanso total` : quickTimerState.holdSeconds ? `${holdTotal}s TUT objetivo` : "modo reps/EMOM"}</span>`;
   }
+  const phase = body.querySelector("[data-timer-phase]");
+  if (phase) phase.textContent = frame.complete ? "Bloque terminado" : frame.preparing ? `Prepárate · ${frame.preparationRemaining} s` : frame.phase === "hold" ? `Aguanta · ${frame.phaseRemaining} s` : frame.phase === "rest" ? `Descansa · ${frame.phaseRemaining} s` : `${formatTimerSeconds(frame.phaseRemaining)} hasta la siguiente ronda`;
+  body.querySelector(".quick-timer-display")?.setAttribute("data-phase", frame.phase);
+  const fall = body.querySelector("[data-action='quick-timer-fall']");
+  if (fall) {
+    fall.disabled = !quickTimerState.running || frame.phase !== "hold";
+    fall.querySelector("[data-timer-fall-seconds]").textContent = `${Math.min(quickTimerState.holdSeconds, frame.intoRound)} s`;
+  }
+  const results = body.querySelector(".timer-round-results");
+  if (results) {
+    const html = Array.from({ length: quickTimerState.rounds }, (_, i) => `<div class="timer-round-result ${quickTimerState.roundResults[i]?.kind === "fall" ? "is-fall" : quickTimerState.roundResults[i] ? "is-done" : ""}"><span>R${i + 1}</span><strong>${quickTimerState.roundResults[i] ? `${quickTimerState.roundResults[i].seconds} s` : "-"}</strong></div>`).join("");
+    if (results.innerHTML !== html) results.innerHTML = html;
+  }
+  const save = body.querySelector("[data-action='apply-timer-hold']");
+  if (save) save.disabled = !quickTimerState.context || !quickTimerState.roundResults.some(Boolean) || quickTimerState.rounds !== denseSchemeMinutes(quickTimerState.scheme);
+  const start = body.querySelector("[data-action='quick-timer-start']");
+  if (start) start.disabled = frame.complete;
+  const status = body.querySelector("[data-timer-status]");
+  if (status) status.textContent = quickTimerState.draftSaveFailed ? "No se pudo guardar el borrador en este dispositivo." : Number(state.settings.timerVolume ?? .85) === 0 ? "Avisos silenciados" : quickTimerState.interrupted ? "Pausado al salir de la app" : quickTimerState.sessionId && !quickTimerState.appliedEntryId ? "Borrador guardado en este dispositivo" : quickTimerState.appliedEntryId ? "Guardado en el historial" : "";
 }
 
 function quickTimerTotalSeconds() {
@@ -6010,51 +6131,67 @@ function quickTimerTotalSeconds() {
 
 function startQuickTimer() {
   if (quickTimerState.running) return;
-  if (!quickTimerState.remainingSeconds) quickTimerState.remainingSeconds = quickTimerTotalSeconds();
+  if (denseTimerFrame(quickTimerState, quickTimerState.elapsedMs).complete) return;
+  quickTimerAudioContext();
+  quickTimerState.sessionId ||= denseRoutineId();
+  quickTimerState.interrupted = false;
   quickTimerState.running = true;
+  quickTimerState.elapsedBeforeRunMs = quickTimerState.elapsedMs;
   quickTimerState.startedAt = Date.now();
   clearInterval(quickTimerState.intervalId);
-  quickTimerState.intervalId = setInterval(tickQuickTimer, 1000);
-  // Cue the start of the first hold so the beeps mark the full first TUT window.
-  playTimerBeep(quickTimerState.holdSeconds > 0 ? 780 : 880);
+  quickTimerState.intervalId = setInterval(tickQuickTimer, 100);
+  if (quickTimerState.elapsedMs === 0 && (!quickTimerState.holdSeconds || !quickTimerState.preparationSeconds)) playQuickTimerCue("start");
+  else if (quickTimerState.elapsedMs > 0) playTimerBeep(820);
+  requestQuickTimerWakeLock();
+  saveQuickTimerDraft();
   renderQuickTimerModalBody();
 }
 
 function tickQuickTimer() {
-  quickTimerState.remainingSeconds = Math.max(0, quickTimerState.remainingSeconds - 1);
-  const roundSeconds = quickTimerState.roundSeconds || 60;
-  const elapsed = quickTimerTotalSeconds() - quickTimerState.remainingSeconds;
-  quickTimerState.currentRound = clamp(Math.floor(elapsed / roundSeconds) + 1, 1, quickTimerState.rounds);
-  const hold = quickTimerState.holdSeconds;
-  const secIntoRound = elapsed % roundSeconds;
-  const atRoundBoundary = secIntoRound === 0;
-  if (quickTimerState.metronome) {
-    playTimerBeep(440);
-  } else if (hold > 0 && quickTimerState.remainingSeconds > 0) {
-    // Isometric mode: cue the start and the end of each hold (TUT window).
-    if (hold < roundSeconds && secIntoRound === hold) playTimerBeep(1180); // end of hold
-    else if (atRoundBoundary) playTimerBeep(780); // next hold starts
-  } else if (atRoundBoundary) {
-    playTimerBeep(880); // round boundary (reps/EMOM) or end of a rest
-  }
-  if (quickTimerState.remainingSeconds <= 0) {
+  if (!quickTimerState.running) return;
+  const previous = quickTimerState.elapsedMs;
+  quickTimerState.elapsedMs = quickTimerElapsedNow();
+  const frame = denseTimerFrame(quickTimerState, quickTimerState.elapsedMs);
+  quickTimerState.remainingSeconds = frame.remaining;
+  quickTimerState.currentRound = frame.index + 1;
+  const changed = denseTimerCollectRounds(quickTimerState, quickTimerState.elapsedMs);
+  const events = denseTimerEvents(quickTimerState, previous, quickTimerState.elapsedMs);
+  if (events.length) playQuickTimerCue(events[events.length - 1].kind);
+  else if (quickTimerState.metronome && Math.floor(previous / 1000) !== Math.floor(quickTimerState.elapsedMs / 1000)) playTimerBeep(440, 0, .07);
+  if (changed || Math.floor(previous / 1000) !== Math.floor(quickTimerState.elapsedMs / 1000)) saveQuickTimerDraft();
+  if (frame.complete) {
     pauseQuickTimer(false);
-    playTimerBeep(1180);
+    if (nodes.modal.open && nodes.modalBody.querySelector(".quick-timer")) renderQuickTimerModalBody();
   }
-  if (nodes.modal.open && nodes.modalBody.querySelector(".quick-timer")) renderQuickTimerModalBody();
+  patchQuickTimerReadout();
 }
 
 function pauseQuickTimer(renderBody = true) {
+  if (quickTimerState.running) {
+    quickTimerState.elapsedMs = quickTimerElapsedNow();
+    denseTimerCollectRounds(quickTimerState, quickTimerState.elapsedMs);
+  }
   quickTimerState.running = false;
   clearInterval(quickTimerState.intervalId);
   quickTimerState.intervalId = null;
+  releaseQuickTimerWakeLock();
+  if (quickTimerState.sessionId) saveQuickTimerDraft();
   if (renderBody && nodes.modal.open) renderQuickTimerModalBody();
 }
 
 function resetQuickTimer(renderBody = true) {
+  if (renderBody && quickTimerState.roundResults.some(Boolean) && !quickTimerState.appliedEntryId && !window.confirm("¿Descartar las rondas del cronómetro y reiniciar?")) return;
   pauseQuickTimer(false);
+  quickTimerState.elapsedMs = 0;
+  quickTimerState.elapsedBeforeRunMs = 0;
+  quickTimerState.sessionId = "";
+  quickTimerState.appliedEntryId = "";
+  quickTimerState.interrupted = false;
+  quickTimerState.roundResults = [];
+  quickTimerState.microSession = null;
   quickTimerState.remainingSeconds = quickTimerTotalSeconds();
   quickTimerState.currentRound = 1;
+  saveQuickTimerDraft();
   if (renderBody && nodes.modal.open) renderQuickTimerModalBody();
 }
 
@@ -6065,18 +6202,13 @@ function toggleQuickTimerMetronome() {
 }
 
 function applyTimerHoldToDenseForm() {
-  const form = document.querySelector("#denseTrainingForm");
-  if (!form) {
-    toast("Abre Training > Workout para aplicar el hold");
-    return;
-  }
-  const holdInput = form.querySelector("[name='holdSecondsPerRound']");
-  const roundsInput = form.querySelector("[name='rounds']");
-  if (holdInput) holdInput.value = quickTimerState.holdSeconds || "";
-  if (roundsInput) roundsInput.value = quickTimerState.rounds || "";
-  updateDenseHoldEstimate(form);
-  closeModal();
-  toast("Hold aplicado al registro");
+  pauseQuickTimer(false);
+  const context = quickTimerState.context;
+  if (!context || !quickTimerState.roundResults.some(Boolean)) return;
+  const entry = getDenseEntries().find((item) => item.timer_session_id === quickTimerState.sessionId);
+  selectedDate = parseDate(context.date);
+  const result = { exerciseId: context.exerciseId, scheme: quickTimerState.scheme, target: quickTimerState.holdSeconds, rounds: Array.from({ length: quickTimerState.rounds }, (_, i) => quickTimerState.roundResults[i]?.seconds ?? 0), sessionId: quickTimerState.sessionId };
+  openDenseTrainingModal({ exerciseId: context.exerciseId, entryId: entry?.id || "", planItem: { ...context.planItem, exercise_id: context.exerciseId, nature: context.nature, scheme: quickTimerState.scheme, prescription: { ...context.planItem?.prescription, holdSecondsPerRound: quickTimerState.holdSeconds } }, timerResult: result });
 }
 
 function updateDenseHoldEstimate(form) {
@@ -6090,28 +6222,9 @@ function updateDenseHoldEstimate(form) {
     preview.classList.remove("is-active");
     return;
   }
-  preview.textContent = `${hold * rounds}s TUT objetivo · ${rounds} rondas x ${hold}s`;
+  const actual = denseReadHoldRounds(form, rounds, hold);
+  preview.textContent = `${actual ? `${actual.reduce((sum, seconds) => sum + seconds, 0)}s reales · ` : ""}${hold * rounds}s TUT objetivo · ${rounds} rondas x ${hold}s`;
   preview.classList.add("is-active");
-}
-
-function playTimerBeep(frequency = 660) {
-  try {
-    quickTimerState.audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
-    const ctx = quickTimerState.audioContext;
-    const oscillator = ctx.createOscillator();
-    const gain = ctx.createGain();
-    oscillator.frequency.value = frequency;
-    oscillator.type = "sine";
-    gain.gain.setValueAtTime(0.001, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + 0.01);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
-    oscillator.connect(gain);
-    gain.connect(ctx.destination);
-    oscillator.start();
-    oscillator.stop(ctx.currentTime + 0.14);
-  } catch {
-    // Audio can be blocked until the user interacts; the visual timer still works.
-  }
 }
 
 function saveHabitForm(form) {
@@ -6175,7 +6288,7 @@ function denseSetModalBodyHtml() {
   `;
 }
 
-function openDenseTrainingModal({ exerciseId = "", entryId = "", failure = false, planItem = null } = {}) {
+function openDenseTrainingModal({ exerciseId = "", entryId = "", failure = false, planItem = null, timerResult = null } = {}) {
   const entry = entryId ? getDenseEntries().find((item) => item.id === entryId) : null;
   const exercise = entry ? denseExerciseById(entry.exercise_id) : denseExerciseById(exerciseId || state.settings.denseSelectedExerciseId || "pull_up");
   if (!exercise) return;
@@ -6187,7 +6300,7 @@ function openDenseTrainingModal({ exerciseId = "", entryId = "", failure = false
   denseFormNatureOverride = null;
   denseFormFormatOverride = null;
   denseFailureSetMode = failure && !entry;
-  denseSetModalContext = { includePicker: !entry && !exerciseId, editing: Boolean(entry), planItem: entry ? null : planItem || densePlanItemsForDate(selectedDate).find((item) => item.exercise_id === exercise.id) || null };
+  denseSetModalContext = { includePicker: !entry && !exerciseId, editing: Boolean(entry), planItem: entry ? null : planItem || densePlanItemsForDate(selectedDate).find((item) => item.exercise_id === exercise.id) || null, timerResult };
   // A stale saved query used to leave the picker filtered/empty on open.
   if (denseSetModalContext.includePicker) state.settings.denseExerciseSearch = "";
   nodes.modalCard.dataset.modalKind = "dense-set";
@@ -7161,7 +7274,8 @@ function saveDenseTrainingForm(form) {
   const rounds = isMax ? 1 : strength ? strength.sets : positiveNumber(data.rounds) || durationMinutes || null;
   const holdSecondsPerRound = positiveNumber(data.holdSecondsPerRound);
   const targetTotalHoldSeconds = holdSecondsPerRound && rounds ? holdSecondsPerRound * rounds : 0;
-  const totalHoldSeconds = positiveNumber(data.totalHoldSeconds) || targetTotalHoldSeconds;
+  const holdRounds = !isMax && denseSupportsHold(activeExercise) ? denseReadHoldRounds(form, rounds, holdSecondsPerRound) : null;
+  const totalHoldSeconds = holdRounds ? holdRounds.reduce((sum, seconds) => sum + seconds, 0) : positiveNumber(data.totalHoldSeconds) || targetTotalHoldSeconds;
   const usesHold = isometric || Boolean(holdSecondsPerRound && rounds);
   // Modo Fuerza: dejarse una o dos reps en la última serie es normal (se repite
   // la carga). Solo cuenta como fallo el chip "fallo" o quedarse por debajo del
@@ -7169,7 +7283,7 @@ function saveDenseTrainingForm(form) {
   // MAX: going to failure IS the point — never a failed mark.
   const failed =
     !isMax &&
-    (data.effort === "fallo" ||
+    (data.effort === "fallo" || (usesHold && holdRounds && totalHoldSeconds < targetTotalHoldSeconds) ||
       (!usesHold && targetTotalReps > 0 && totalReps > 0 && totalReps < (strength ? targetTotalReps * 0.8 : targetTotalReps)));
   const editingEntryId = state.settings.denseDraftEntryId || "";
   const existingEntry = editingEntryId ? getDenseEntries().find((entry) => entry.id === editingEntryId) : null;
@@ -7208,6 +7322,8 @@ function saveDenseTrainingForm(form) {
     hold_seconds_per_round: holdSecondsPerRound,
     total_hold_seconds: totalHoldSeconds,
     target_total_hold_seconds: targetTotalHoldSeconds,
+    hold_rounds: holdRounds,
+    timer_session_id: data.timerSessionId || existingEntry?.timer_session_id || "",
     ladder_sequence_planned: denseLadderSequence(scheme),
     ladder_sequence_actual: null,
     rounds,
@@ -7237,6 +7353,10 @@ function saveDenseTrainingForm(form) {
   };
 
   const entry = computeDenseEntry(raw);
+  if (raw.timer_session_id && raw.timer_session_id === quickTimerState.sessionId) {
+    quickTimerState.appliedEntryId = entry.id;
+    saveQuickTimerDraft();
+  }
   state.denseTrainingEntries ||= [];
   const existingIndex = existingEntry ? state.denseTrainingEntries.findIndex((item) => item.id === existingEntry.id) : -1;
   if (existingIndex >= 0) {
@@ -7490,6 +7610,8 @@ function createInitialState() {
       trainingAnalyticsTab: "progress",
       trainingAnalyticsWindow: "70",
       trainingMode: "workout",
+      timerVolume: .85,
+      microBreaks: { times: ["11:00", "17:00"], timeZone: "Europe/Madrid", equipment: ["suelo", "anillas"], kinds: ["movilidad", "activacion"] },
     },
     habits: habitDefaults,
     records,
@@ -7547,6 +7669,8 @@ function normalizeState(input) {
     trainingAnalyticsWindow: "70",
     trainingMode: "workout",
     workoutPickerTab: "exercises",
+    timerVolume: .85,
+    microBreaks: { times: ["11:00", "17:00"], timeZone: "Europe/Madrid", equipment: ["suelo", "anillas"], kinds: ["movilidad", "activacion"] },
     ...(input.settings || {}),
   };
   merged.habits = (merged.habits?.length ? merged.habits : habitDefaults).map((habit) => ({ ...habit, id: habit.id || slugify(habit.name) }));
@@ -8153,6 +8277,7 @@ function applyDenseFormTargets(form, { resetStaleLoad = false } = {}) {
     const input = form.querySelector(`[name='${name}']`);
     if (input) input.value = value;
   });
+  resizeDenseHoldRounds(form);
   updateDenseHoldEstimate(form);
 }
 
@@ -8388,6 +8513,7 @@ function denseHoldFields(exercise, defaults) {
     ${field("Hold/ronda s", "holdSecondsPerRound", holdDefault || "", "number")}
     ${field("Rondas", "rounds", defaults.rounds || denseSchemeMinutes(defaults.scheme) || "", "number")}
     <div class="dense-hold-preview" data-hold-preview>Hold off</div>
+    ${denseHoldRoundFields(defaults.rounds || denseSchemeMinutes(defaults.scheme), defaults.holdRounds || [], defaults.timerSessionId || "")}
   `;
 }
 
@@ -8657,6 +8783,7 @@ function closeModal() {
   }
   delete nodes.modalCard.dataset.modalKind;
   denseSetModalContext.planItem = null;
+  denseSetModalContext.timerResult = null;
   document.documentElement.classList.remove("has-modal");
   nodes.modal.close();
 }
@@ -8964,8 +9091,8 @@ function denseEntrySummaryLine(entry) {
     const value = Number(entry.max_hold_seconds) > 0 ? `${entry.max_hold_seconds}s` : `${entry.total_reps || 0} reps`;
     return `<span class="set-main-metric">MÁX <span class="set-paren">(${escapeHtml(value)})</span>${loadHtml}</span>`;
   }
-  if (entry.total_hold_seconds) {
-    const perRound = entry.hold_seconds_per_round || (entry.duration_minutes ? Math.round(entry.total_hold_seconds / entry.duration_minutes) : 0);
+  if (entry.total_hold_seconds || entry.hold_rounds?.length) {
+    const perRound = entry.hold_rounds?.length ? roundTo(denseRecordedHoldPace(entry), 1) : entry.hold_seconds_per_round || (entry.duration_minutes ? Math.round(entry.total_hold_seconds / entry.duration_minutes) : 0);
     return `<span class="set-main-metric">${escapeHtml(denseSchemeCode(scheme, perRound))} <span class="set-paren">(${entry.total_hold_seconds}s TUT)</span>${loadHtml}</span>`;
   }
   const rpm = Math.round(Number(entry.reps_per_min || entry.reps_per_set || 0));
@@ -11461,6 +11588,8 @@ function denseFormDefaults() {
       repsPerSet: draftEntry.target_reps_per_min || draftEntry.reps_per_set || "",
       totalReps: draftEntry.total_reps || "",
       holdSecondsPerRound: draftEntry.hold_seconds_per_round || "",
+      holdRounds: draftEntry.hold_rounds || [],
+      timerSessionId: draftEntry.timer_session_id || "",
       rounds: draftEntry.rounds || denseSchemeMinutes(draftEntry.scheme) || "",
       effort: draftEntry.effort || "N",
       externalLoadKg: draftEntry.external_load_kg || "",
@@ -11533,7 +11662,7 @@ function denseFormDefaults() {
   // with no direct evidence — exploring a number, not executing a known one.
   const sourceKind = denseTargetSource(activeExercise, scheme).kind;
   const isTest = Boolean(planItem?.is_test) || ["family", "transfer", "estimated", "max", "none"].includes(sourceKind) || Boolean(planItem?.studio_variant_id && !denseStudioComparableEntries(planItem).length);
-  return denseStudioApplyPrescription({
+  return denseTimerFormDefaults(denseStudioApplyPrescription({
     date: dateKey(selectedDate),
     bodyweightKg: latestKnownBodyweight(dateKey(selectedDate)) || 80,
     exerciseId: exercise.id,
@@ -11558,7 +11687,7 @@ function denseFormDefaults() {
     isTest,
     readiness: "normal",
     notes: "",
-  }, planItem);
+  }, planItem));
 }
 
 function latestKnownBodyweight(beforeKey = dateKey(selectedDate)) {
@@ -12018,8 +12147,8 @@ function denseEntryValue(entry) {
         : "";
     return `${romTxt}${extra}`;
   }
-  if (entry.total_hold_seconds) {
-    return `${entry.total_hold_seconds}s TUT · ${entry.hold_seconds_per_round || 0}s/ronda`;
+  if (entry.total_hold_seconds || entry.hold_rounds?.length) {
+    return `${entry.total_hold_seconds}s TUT · ${entry.hold_rounds?.length ? "objetivo " : ""}${entry.hold_seconds_per_round || 0}s/ronda`;
   }
   if (entry.nature === "weighted_calisthenics") {
     return `${entry.total_reps || 0} reps · ${formatKg(entry.visible_added_load_kg)} lastre · e1RM ${formatKg(entry.e1rm_kg)}`;
@@ -12106,7 +12235,7 @@ function denseNearFailureEntries(exerciseId, base, axis = "reps") {
   return [...getDenseEntries()]
     .filter((entry) => entry.exercise_id === exerciseId && !entry.deleted_at && denseSchemeBase(entry.scheme) === base)
     .filter((entry) => entry.failed || ["H", "VH", "fallo"].includes(entry.effort || ""))
-    .filter((entry) => (axis === "reps" ? Number(entry.reps_per_min) > 0 : Number(entry.hold_seconds_per_round) > 0))
+    .filter((entry) => (axis === "reps" ? Number(entry.reps_per_min) > 0 : denseRecordedHoldPace(entry) > 0))
     .sort((a, b) => (b.created_at || b.date || "").localeCompare(a.created_at || a.date || ""));
 }
 
@@ -12124,7 +12253,7 @@ function denseMaxMultiplier(exerciseId, base, axis = "reps") {
       .sort((a, b) => a.gap - b.gap)[0];
     if (!pair) return;
     const maxValue = axis === "reps" ? Number(pair.max.max_reps) : Number(pair.max.max_hold_seconds);
-    const blockValue = axis === "reps" ? Number(entry.reps_per_min) : Number(entry.hold_seconds_per_round);
+    const blockValue = axis === "reps" ? Number(entry.reps_per_min) : denseRecordedHoldPace(entry);
     if (maxValue > 0 && blockValue > 0) observed.push(blockValue / maxValue);
   });
   const value = (prior + observed.reduce((sum, item) => sum + item, 0)) / (1 + observed.length);
@@ -12142,7 +12271,7 @@ function denseEstimatedMax(exercise, axis = denseIsIsometric(exercise) ? "hold" 
     if (!latest) return;
     const mult = denseMaxMultiplier(exercise.id, base, axis);
     if (!mult) return;
-    const blockValue = axis === "reps" ? Number(latest.reps_per_min) : Number(latest.hold_seconds_per_round);
+    const blockValue = axis === "reps" ? Number(latest.reps_per_min) : denseRecordedHoldPace(latest);
     if (blockValue > 0) candidates.push({ value: blockValue / mult.value, base, scheme: latest.scheme, date: latest.date, n: mult.n });
   });
   candidates.sort((a, b) => String(b.date).localeCompare(String(a.date)));

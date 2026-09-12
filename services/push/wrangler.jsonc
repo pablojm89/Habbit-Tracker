@@ -1,0 +1,12 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "bittracker-push",
+  "main": "src/worker.mjs",
+  "compatibility_date": "2026-09-12",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "vars": { "APP_URL": "https://pablojm89.github.io/Habbit-Tracker/" },
+  "durable_objects": { "bindings": [{ "name": "DEVICES", "class_name": "PushDevice" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["PushDevice"] }],
+  "observability": { "enabled": false }
+}

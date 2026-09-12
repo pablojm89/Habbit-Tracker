@@ -3489,7 +3489,7 @@ button:active:not(:disabled),
 
 .quick-timer-display strong {
   color: var(--text);
-  font-size: clamp(2.4rem, 10vw, 4rem);
+  font-size: 4rem;
   line-height: 0.95;
   font-variant-numeric: tabular-nums;
 }
@@ -3564,6 +3564,37 @@ button:active:not(:disabled),
   width: 100%;
   border-radius: var(--radius);
 }
+
+.quick-timer * { letter-spacing: 0; }
+.quick-timer-display { min-height: 140px; background: #141414; border-radius: 8px; }
+.quick-timer-display[data-phase="hold"] { border-color: var(--lime); }
+.quick-timer-display[data-phase="rest"] { border-color: var(--cyan); }
+[data-timer-phase] { font-size: 16px; color: var(--lime); min-height: 24px; }
+.quick-timer-display[data-phase="rest"] [data-timer-phase] { color: var(--cyan); }
+.timer-fall-button { display: flex; align-items: center; justify-content: center; gap: 12px; min-height: 68px; padding: 14px; border: 1px solid #ee9b7c; border-radius: 8px; background: #54251f; color: #fff4ef; font: inherit; font-size: 18px; font-weight: 700; cursor: pointer; }
+.timer-fall-button svg { width: 24px; height: 24px; }
+.timer-fall-button strong { min-width: 48px; font-variant-numeric: tabular-nums; }
+.timer-fall-button:disabled { opacity: .4; cursor: default; }
+.timer-round-results { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.timer-round-result { display: grid; text-align: center; gap: 5px; padding: 10px 3px; border: 1px solid var(--line); border-radius: 5px; min-height: 62px; }
+.timer-round-result span { font-size: 12px; color: var(--muted); }
+.timer-round-result strong { font-size: 15px; font-variant-numeric: tabular-nums; }
+.timer-round-result.is-done { border-color: #568337; color: var(--lime); }
+.timer-round-result.is-fall { border-color: #bf765c; color: #ffc3ab; }
+.timer-settings summary, .hold-round-details summary { cursor: pointer; min-height: 40px; padding: 10px 0; font-size: 14px; }
+.timer-settings fieldset { display: grid; gap: 14px; min-width: 0; padding: 0; margin: 8px 0; border: 0; }
+.timer-settings fieldset:disabled { opacity: .55; }
+.timer-status { min-height: 18px; margin: 0; font-size: 12px; color: var(--muted); }
+.timer-audio { display: grid; grid-template-columns: minmax(0, 1fr) 44px; align-items: end; gap: 12px; }
+.timer-audio input[type="range"] { width: 100%; height: 36px; padding: 0; accent-color: var(--lime); }
+.quick-timer input, .quick-timer select, .hold-round-grid input { font-size: 16px; min-width: 0; width: 100%; }
+.hold-round-details { grid-column: 1 / -1; min-width: 0; }
+.hold-round-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.hold-round-grid .field { min-width: 0; }
+.hold-round-grid .field span { font-size: 11px; letter-spacing: 0; }
+.hold-round-grid input { padding: 9px 5px; }
+.modal-card[data-modal-kind="quick-timer"] { max-height: 94vh; max-height: 94dvh; overflow: hidden; background: #141414; backdrop-filter: none; }
+.modal-card[data-modal-kind="quick-timer"] .modal-body { overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; }
 
 .dense-recent {
   display: grid;
@@ -7898,3 +7929,20 @@ body[data-density="compact"] .workout-set-summary .set-load {
   padding: 0 5px;
   font-size: 0.56rem;
 }
+.micro-form { display: grid; gap: 18px; min-width: 0; }
+.micro-form fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
+.micro-form legend { margin-bottom: 10px; font-size: .9rem; font-weight: 700; }
+.micro-form input { min-width: 0; font-size: 16px; letter-spacing: 0; }
+.micro-times { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
+.micro-times input { width: 100%; max-width: 100%; box-sizing: border-box; }
+.micro-times .field > span { font-size: .72rem; letter-spacing: 0; }
+.micro-choices, .micro-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.micro-check { position: relative; display: flex; align-items: center; gap: 10px; padding: 10px 0; cursor: pointer; }
+.micro-check input { appearance: none; width: 22px; height: 22px; min-height: 22px; margin: 0; padding: 0; border: 2px solid var(--muted); border-radius: 4px; }
+.micro-check input:checked { background: var(--lime); border-color: var(--lime); box-shadow: inset 0 0 0 4px var(--panel); }
+.micro-check input:focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }
+.micro-status { margin: 0; font-size: .9rem; line-height: 1.5; color: var(--muted); overflow-wrap: anywhere; }
+.micro-session, .micro-protocol { line-height: 1.6; }
+.micro-protocol { margin: 0; font-size: .95rem; }
+.modal-card[data-modal-kind="micro-breaks"], .modal-card[data-modal-kind="micro-session"] { max-height: 94dvh; overflow: hidden; background: #141414; backdrop-filter: none; }
+.modal-card[data-modal-kind="micro-breaks"] .modal-body { overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; min-height: 0; }

@@ -30,6 +30,8 @@ case "$WHAT" in
   audit) node audit.js ;;
   plan) node plan.js && node plan.js empty ;;
   retirement) node retirement.js ;;
-  all) node selftests.js && node crawl.js && node audit.js && node plan.js && node plan.js empty && node retirement.js ;;
-  *) echo "uso: $0 [selftests|crawl|audit|plan|retirement|all]"; exit 2 ;;
+  timer) node timer.js ;;
+  push) node push.js ;;
+  all) node selftests.js && node crawl.js && node audit.js && node plan.js && node plan.js empty && node retirement.js && node timer.js && node push.js ;;
+  *) echo "uso: $0 [selftests|crawl|audit|plan|retirement|timer|push|all]"; exit 2 ;;
 esac
