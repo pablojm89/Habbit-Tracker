@@ -19,8 +19,8 @@ function fixture() {
   let queue = Promise.resolve();
   const ctx = { storage, blockConcurrencyWhile(fn) { const task = queue.then(fn); queue = task.catch(() => {}); return task; } };
   const object = new PushDevice(ctx, env);
-  const request = (method, { invite = false, auth = token, value = { subscription, preferences: prefs }, test = false } = {}) => new Request(`https://push.example.test/devices/${hash(subscription.endpoint)}${test ? "/test" : ""}`, {
-    method, headers: { Origin: "https://app.example.test", Authorization: `Bearer ${auth}`, "Content-Type": "application/json", ...(invite ? { "X-Enrollment": env.ENROLLMENT_TOKEN } : {}) }, ...(method === "PUT" ? { body: JSON.stringify(value) } : {}),
+  const request = (method, { invite = false, auth = token, value = { subscription, preferences: prefs }, test = false, balance = false } = {}) => new Request(`https://push.example.test/devices/${hash(subscription.endpoint)}${test ? "/test" : balance ? "/balance" : ""}`, {
+    method, headers: { Origin: "https://app.example.test", Authorization: `Bearer ${auth}`, "Content-Type": "application/json", ...(invite ? { "X-Enrollment": env.ENROLLMENT_TOKEN } : {}) }, ...(method === "PUT" || balance && method === "POST" ? { body: JSON.stringify(value) } : {}),
   });
   return { storage, object, request, contextEnv: { ...env, DEVICES: { idFromName: (id) => id, get: () => object } } };
 }
@@ -28,7 +28,7 @@ function fixture() {
 test("horarios: validacion, separacion, material y zona", () => {
   assert.deepEqual(preferences(prefs), prefs);
   for (const change of [{ times: [] }, { times: ["02:00"] }, { times: ["11:00", "11:30"] }, { timeZone: "Unknown/Zone" }, { equipment: [] }, { equipment: ["anillas"], kinds: ["movilidad"] }]) assert.throws(() => preferences({ ...prefs, ...change }));
-  assert.equal(eligibleSessions({ ...prefs, equipment: ["suelo"] }).length, 2);
+  assert.equal(eligibleSessions({ ...prefs, equipment: ["suelo"] }).length, 4);
   const first = chooseSession(prefs, "", () => 0);
   assert.notEqual(chooseSession(prefs, first.id, () => 0).id, first.id);
 });
@@ -46,7 +46,7 @@ test("duraciones: 2, 5 o ambas; conserva las suscripciones antiguas", () => {
   for (const durations of [[2], [5], [2, 5]]) {
     const normalized = preferences({ ...prefs, durations });
     const pool = eligibleSessions(normalized);
-    assert.equal(pool.length, durations.length * 4);
+    assert.equal(pool.length, durations.length * 7);
     assert.ok(pool.every((session) => durations.includes(session.durationMinutes) && session.instruction.includes(`${session.durationMinutes} rondas`)));
     assert.equal(new Set(pool.map((session) => session.id)).size, pool.length);
   }
@@ -178,4 +178,26 @@ test("baja durante un envio no resucita una alarma", async () => {
   await deleting;
   assert.equal(await f.storage.get("device"), undefined);
   assert.equal(f.storage.alarm, null);
+});
+
+test("balance autenticado: no cambia horarios, invalido no reemplaza y alarma usa carga", async () => {
+  const f = fixture();
+  await f.object.fetch(f.request("PUT", { invite: true }));
+  const balance = { generatedAt: Date.now(), days: [{ date: new Date().toISOString().slice(0, 10), load: { push: 20, pull: 20, core: 20 }, hard: [] }] };
+  const nextAt = f.storage.alarm;
+  const req = { balance: true, value: { balance } };
+  assert.equal((await worker.fetch(f.request("POST", { ...req, auth: "b".repeat(64) }), f.contextEnv)).status, 401);
+  assert.equal((await worker.fetch(f.request("POST", req), f.contextEnv)).status, 200);
+  assert.equal(f.storage.alarm, nextAt);
+  assert.deepEqual((await f.storage.get("device")).balance, balance);
+  assert.equal((await f.object.fetch(f.request("PUT", { balance: true, invite: true }))).status, 405);
+  assert.equal((await f.object.fetch(f.request("POST", { balance: true, value: { balance: { ...balance, days: [{}] } } }))).status, 400);
+  assert.deepEqual((await f.storage.get("device")).balance, balance);
+  const device = await f.storage.get("device");
+  device.preferences.kinds = ["activacion"];
+  device.nextAt = Date.now() - 10;
+  await f.storage.put("device", device);
+  f.object.send = async (_, session) => { assert.equal(session.exerciseId, "air_squat"); return 201; };
+  await f.object.alarm();
+  assert.ok(f.storage.alarm > Date.now());
 });

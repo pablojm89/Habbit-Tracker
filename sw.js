@@ -1,13 +1,14 @@
-const CACHE_NAME = "bittracker-mobile-20260913-pausas-49";
+const CACHE_NAME = "bittracker-mobile-20260913-pausas-equilibradas-50";
 const LUCIDE_URL = "https://unpkg.com/lucide@1.23.0/dist/umd/lucide.min.js";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=20260913-pausas-49",
-  "./app.js?v=20260913-pausas-49",
-  "./studio-core.js?v=20260913-pausas-49",
-  "./timer-core.js?v=20260913-pausas-49",
-  "./notifications.js?v=20260913-pausas-49",
+  "./styles.css?v=20260913-pausas-equilibradas-50",
+  "./app.js?v=20260913-pausas-equilibradas-50",
+  "./studio-core.js?v=20260913-pausas-equilibradas-50",
+  "./timer-core.js?v=20260913-pausas-equilibradas-50",
+  "./micro-core.js?v=20260913-pausas-equilibradas-50",
+  "./notifications.js?v=20260913-pausas-equilibradas-50",
   "./micro-sessions.json",
   "./push-config.json",
   "./manifest.webmanifest?v=20260627-mobile-01",
@@ -85,6 +86,7 @@ self.addEventListener("fetch", (event) => {
       (url.pathname.endsWith("/app.js") ||
         url.pathname.endsWith("/studio-core.js") ||
         url.pathname.endsWith("/timer-core.js") ||
+        url.pathname.endsWith("/micro-core.js") ||
         url.pathname.endsWith("/notifications.js") ||
         url.pathname.endsWith("/micro-sessions.json") ||
         url.pathname.endsWith("/styles.css") ||

@@ -99,11 +99,13 @@ const check = (value, message) => { assert.ok(value, message); checks += 1; };
       core: Boolean(await caches.match(document.querySelector('script[src*="studio-core.js"]').src)),
       timer: Boolean(await caches.match(document.querySelector('script[src*="timer-core.js"]').src)),
       push: Boolean(await caches.match(document.querySelector('script[src*="notifications.js"]').src)),
+      micro: Boolean(await caches.match(document.querySelector('script[src*="micro-core.js"]').src)),
       current: `bittracker-mobile-${new URL(document.querySelector('script[src*="app.js?v="]').src).searchParams.get("v")}`,
     }));
     check(!cache.keys.includes("bittracker-mobile-20260911-estudio-46"), "La cache anterior se retira al activar la nueva version");
     check(cache.keys.includes(cache.current) && cache.core, "Compatibilidad precacheada para uso sin conexion");
     check(cache.timer && cache.push, "Cronometro y panel push precacheados");
+    check(cache.micro, "Motor de equilibrio precacheado para sugerencias offline");
     await offline.setOffline(true);
     await offlinePage.goto(`${url}&offline=1`);
     check(await offlinePage.locator(".app-shell").isVisible(), "El enlace antiguo tambien abre la app habitual sin conexion");

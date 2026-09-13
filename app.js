@@ -3578,6 +3578,30 @@ function runDenseSelfTests() {
     const restored = normalizeState(JSON.parse(JSON.stringify({ settings }))).settings.microBreaks;
     return restored.durations.join(",") === "2" && restored.equipment[0] === "anillas";
   });
+  test("pausas: series por esfuerzo agrupan dominadas con y sin lastre, sin comparar tonelaje", () => {
+    state.denseTrainingEntries = [
+      { exercise_id: "pull_up", date: "2026-09-13", scheme: "5D", total_reps: 25, target_total_reps: 25, effort: "VE", tonnage_kg: 1000 },
+      { exercise_id: "weighted_pull_up", date: "2026-09-13", scheme: "5D3", total_reps: 15, target_total_reps: 15, effort: "H", tonnage_kg: 9000 },
+    ];
+    const day = denseMicroBalanceSnapshot(Date.parse("2026-09-13T12:00:00Z"), "Europe/Madrid").days[0];
+    return day.load.pull === 9 && day.load.vertical_pull === 9 && day.hard.includes("pull");
+  });
+  test("pausas: solo trabajo real de 7 dias, incluidas las caidas y las correcciones", () => {
+    const base = { exercise_id: "floor_push_up", date: "2026-09-13", scheme: "5D", total_reps: 10, target_total_reps: 20, effort: "N" };
+    state.denseTrainingEntries = [base, { ...base, deleted_at: "2026-09-13" }, { ...base, date: "2026-09-14" }, { ...base, date: "2026-09-06" }, { ...base, total_reps: 0 }, { exercise_id: "straight_handstand", date: base.date, scheme: "5D", hold_rounds: [0, 0], total_hold_seconds: 100, target_total_hold_seconds: 100 }];
+    const days = denseMicroBalanceSnapshot(Date.parse("2026-09-13T12:00:00Z"), "Europe/Madrid").days;
+    return days.length === 1 && days[0].load.push === 2.5 && days[0].hard.length === 0;
+  });
+  test("pausas: toes to bar duro protege tambien el tiron, y el resumen no incluye marcas", () => {
+    state.denseTrainingEntries = [{ id: "marca-privada", exercise_id: "toes_to_bar_kip", date: "2026-09-13", scheme: "2D", total_reps: 4, effort: "H", notes: "nota privada", bodyweight_kg: 80 }];
+    const snapshot = denseMicroBalanceSnapshot(Date.parse("2026-09-13T12:00:00Z"), "Europe/Madrid");
+    return snapshot.days[0].hard.includes("pull") && snapshot.days[0].hard.includes("core") && snapshot.days[0].load.core === 2.8 && !JSON.stringify(snapshot).includes("privada") && !JSON.stringify(snapshot).includes("bodyweight");
+  });
+  test("pausas: handstand cuenta como empuje usando segundos reales y no solo la categoria skills", () => {
+    state.denseTrainingEntries = [{ exercise_id: "straight_handstand", date: "2026-09-13", scheme: "5D", hold_rounds: [10, 10, 10, 10, 0], total_hold_seconds: 110, target_total_hold_seconds: 100, effort: "H" }];
+    const day = denseMicroBalanceSnapshot(Date.parse("2026-09-13T12:00:00Z"), "Europe/Madrid").days[0];
+    return day.load.push === 2.8 && day.hard.includes("push");
+  });
 
   state.denseTrainingEntries = savedEntries;
   denseNeighborCache = null;
@@ -4471,6 +4495,7 @@ function denseTrainingFormMarkup(defaults, { includePicker = false, modal = fals
         ${field("Peso corporal kg", "bodyweightKg", defaults.bodyweightKg, "number")}
         <input type="hidden" name="exerciseId" value="${escapeAttr(defaults.exerciseId)}" />
         <input type="hidden" name="nature" value="${escapeAttr(nature)}" />
+        ${!denseSupportsHold(activeExercise) && defaults.timerSessionId ? `<input type="hidden" name="timerSessionId" value="${escapeAttr(defaults.timerSessionId)}">` : ""}
         <fieldset class="scheme-picker-field is-full">
           <legend>${isMax ? "Serie única al fallo" : strength ? "Series × reps" : modal ? "Esquema realizado" : "Esquema Dense"}</legend>
           <div class="scheme-option-grid">
@@ -6004,9 +6029,9 @@ function renderQuickTimerModalBody() {
       <button class="text-button timer-wide-button ${quickTimerState.metronome ? "is-hot" : ""}" type="button" data-action="quick-timer-metronome">
         <i data-lucide="music"></i>${quickTimerState.metronome ? "Metrónomo activo" : "Usar metrónomo"}
       </button>
-      <button class="text-button timer-wide-button" type="button" data-action="apply-timer-hold">
+      ${quickTimerState.microSession?.repsPerRound ? `<button class="text-button timer-wide-button" type="button" data-micro-action="review" ${frame.complete ? "" : "disabled"}><i data-lucide="clipboard-check"></i>${quickTimerState.appliedEntryId ? "Editar registro" : "Registrar reps realizadas"}</button>` : `<button class="text-button timer-wide-button" type="button" data-action="apply-timer-hold">
         <i data-lucide="clipboard-check"></i>${quickTimerState.appliedEntryId ? "Editar registro" : "Revisar y guardar"}
-      </button>
+      </button>`}
     </div>
   `;
   patchQuickTimerReadout();
@@ -6129,6 +6154,8 @@ function patchQuickTimerReadout() {
   }
   const save = body.querySelector("[data-action='apply-timer-hold']");
   if (save) save.disabled = !quickTimerState.context || !quickTimerState.roundResults.some(Boolean) || quickTimerState.rounds !== denseSchemeMinutes(quickTimerState.scheme);
+  const microSave = nodes.modalBody.querySelector('[data-micro-action="review"]');
+  if (microSave) microSave.disabled = !frame.complete;
   const start = body.querySelector("[data-action='quick-timer-start']");
   if (start) start.disabled = frame.complete;
   const status = body.querySelector("[data-timer-status]");
@@ -6199,6 +6226,7 @@ function resetQuickTimer(renderBody = true) {
   quickTimerState.interrupted = false;
   quickTimerState.roundResults = [];
   quickTimerState.microSession = null;
+  quickTimerState.microDate = null;
   quickTimerState.remainingSeconds = quickTimerTotalSeconds();
   quickTimerState.currentRound = 1;
   saveQuickTimerDraft();
@@ -7251,6 +7279,11 @@ function saveDenseTrainingForm(form) {
     toast("Ejercicio Dense no válido");
     return;
   }
+  if (denseSetModalContext.timerResult?.kind === "reps" && !state.settings.denseDraftEntryId && data.totalReps?.trim() === "") {
+    toast("Introduce las reps que has realizado antes de guardar.");
+    form.elements.totalReps.focus();
+    return;
+  }
 
   // Modality chosen in the form (allowedNatures) drives how the entry is
   // computed; falls back to the exercise default if the value is unexpected.
@@ -7287,6 +7320,9 @@ function saveDenseTrainingForm(form) {
   const holdRounds = !isMax && denseSupportsHold(activeExercise) ? denseReadHoldRounds(form, rounds, holdSecondsPerRound) : null;
   const totalHoldSeconds = holdRounds ? holdRounds.reduce((sum, seconds) => sum + seconds, 0) : positiveNumber(data.totalHoldSeconds) || targetTotalHoldSeconds;
   const usesHold = isometric || Boolean(holdSecondsPerRound && rounds);
+  const editingEntryId = state.settings.denseDraftEntryId || "";
+  const existingEntry = editingEntryId ? getDenseEntries().find((entry) => entry.id === editingEntryId) : null;
+  const isMicro = denseSetModalContext.timerResult?.kind === "reps" || existingEntry?.source === "micro_break";
   // Modo Fuerza: dejarse una o dos reps en la última serie es normal (se repite
   // la carga). Solo cuenta como fallo el chip "fallo" o quedarse por debajo del
   // 80 % de las reps planificadas.
@@ -7294,9 +7330,7 @@ function saveDenseTrainingForm(form) {
   const failed =
     !isMax &&
     (data.effort === "fallo" || (usesHold && holdRounds && totalHoldSeconds < targetTotalHoldSeconds) ||
-      (!usesHold && targetTotalReps > 0 && totalReps > 0 && totalReps < (strength ? targetTotalReps * 0.8 : targetTotalReps)));
-  const editingEntryId = state.settings.denseDraftEntryId || "";
-  const existingEntry = editingEntryId ? getDenseEntries().find((entry) => entry.id === editingEntryId) : null;
+      (!isMicro && !usesHold && targetTotalReps > 0 && totalReps > 0 && totalReps < (strength ? targetTotalReps * 0.8 : targetTotalReps)));
   const now = new Date().toISOString();
   const raw = {
     id: existingEntry?.id || `dense-${Date.now()}`,
@@ -7357,7 +7391,7 @@ function saveDenseTrainingForm(form) {
     bodyweight_contribution_pct: exercise.bodyweightContributionPct ?? 0,
     tonnage_factor: exercise.tonnageFactor ?? 1,
     reps_per_side: Boolean(exercise.repsPerSide),
-    source: "manual",
+    source: isMicro ? "micro_break" : "manual",
     deleted_at: null,
     ...denseStudioEntryMetadata(data, existingEntry),
   };
@@ -7813,6 +7847,7 @@ function saveState() {
     return;
   }
   scheduleCloudSync("auto");
+  document.dispatchEvent(new Event("bittracker-state-saved"));
 }
 
 function loadCloudConfig() {
@@ -10824,6 +10859,43 @@ function denseEquivalentSets(entry) {
   if (duration) return duration;
   if (entry.rounds) return Number(entry.rounds) || 1;
   return 1;
+}
+
+function denseMicroBalanceSnapshot(now = Date.now(), timeZone = state.settings.microBreaks?.timeZone || "Europe/Madrid") {
+  const current = MicroBreaks.dayKey(now, timeZone);
+  const days = new Map();
+  getDenseEntries().forEach((entry) => {
+    const age = MicroBreaks.daysBetween(entry.date, current);
+    if (entry.deleted_at || !Number.isFinite(age) || age < 0 || age > 6) return;
+    const exercise = findDenseExerciseById(entry.exercise_id);
+    if (!exercise) return;
+    const hold = Array.isArray(entry.hold_rounds) ? entry.hold_rounds.reduce((sum, seconds) => sum + Math.max(0, Number(seconds) || 0), 0) : Number(entry.total_hold_seconds) || 0;
+    const isHold = Array.isArray(entry.hold_rounds) || denseIsIsometric(exercise) || hold > 0;
+    const actual = isHold ? hold : Number(entry.total_reps) || 0;
+    if (!(actual > 0)) return;
+    const target = Number(isHold ? entry.target_total_hold_seconds : entry.target_total_reps) || actual;
+    const effort = denseEntryEffortCode(entry);
+    const units = denseEquivalentSets(entry) * Math.min(1, actual / target) * (denseEffortValues[effort] || 5) / 5;
+    if (!Number.isFinite(units) || units <= 0) return;
+    const profile = densePatternProfile(exercise);
+    const metadata = denseMetaFor(exercise).patterns || {};
+    const groups = [...new Set([
+      ...denseGroupKeys(exercise), ...["core", "mobility"].filter((key) => profile.includes(key)),
+      ...(["vertical_push", "horizontal_push"].some((key) => metadata[key] > 0) ? ["push"] : []),
+      ...(["vertical_pull", "horizontal_pull"].some((key) => metadata[key] > 0) ? ["pull"] : []),
+      ...(Object.keys(metadata).some((key) => key.startsWith("core_") && metadata[key] > 0) ? ["core"] : []),
+    ])];
+    if (!groups.length) return;
+    const day = days.get(entry.date) || { date: entry.date, load: {}, hard: [] };
+    for (const group of groups) day.load[group] = (day.load[group] || 0) + units / groups.length;
+    for (const pattern of ["horizontal_pull", "vertical_pull"].filter((key) => profile.includes(key) || metadata[key] > 0)) day.load[pattern] = (day.load[pattern] || 0) + units;
+    if (denseHardEfforts.has(effort) || effort === "no_llego") {
+      const stress = exercise.family === "toes_to_bar" ? [...groups, "pull"] : groups;
+      day.hard = [...new Set([...day.hard, ...stress])];
+    }
+    days.set(entry.date, day);
+  });
+  return { generatedAt: now, days: [...days.values()].sort((a, b) => a.date.localeCompare(b.date)).map((day) => ({ ...day, load: Object.fromEntries(Object.entries(day.load).map(([key, value]) => [key, Math.min(10000, roundTo(value, 2))])) })) };
 }
 
 function densePatternProfile(exercise) {

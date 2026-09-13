@@ -1,6 +1,7 @@
 import webpush from "web-push";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { preferences, nextSlot, chooseSession } from "./schedule.mjs";
+import MicroBreaks from "../../../micro-core.js";
 
 const json = (value, status = 200) => Response.json(value, { status });
 export const hash = (value) => createHash("sha256").update(value).digest("hex");
@@ -44,7 +45,7 @@ export default {
       if (request.method === "OPTIONS") response = new Response(null, { status: 204 });
       else if (!ready(env)) response = json({ error: "Servicio pendiente de configurar" }, 503);
       else if (path === "/config" && request.method === "GET") response = json({ publicKey: env.VAPID_PUBLIC_KEY });
-      else if (/^\/devices\/[a-f0-9]{64}(\/test)?$/.test(path)) {
+      else if (/^\/devices\/[a-f0-9]{64}(\/(test|balance))?$/.test(path)) {
         const token = request.headers.get("authorization")?.replace(/^Bearer /, "") || "";
         if (!/^[a-f0-9]{64}$/.test(token)) response = json({ error: "Dispositivo no autorizado" }, 401);
         else response = await env.DEVICES.get(env.DEVICES.idFromName(path.split("/")[2])).fetch(request);
@@ -66,22 +67,31 @@ export class PushDevice {
     const token = request.headers.get("authorization")?.slice(7) || "";
     const authorized = device && equal(hash(token), device.tokenHash);
     const enroll = request.headers.get("x-enrollment");
+    const action = new URL(request.url).pathname.split("/")[3] || "";
+    if (action && request.method !== "POST") return json({ error: "Metodo no permitido" }, 405);
     if (request.method === "PUT") {
       if (!authorized && !(enroll && equal(enroll, this.env.ENROLLMENT_TOKEN))) return json({ error: "Codigo de activacion no valido" }, 401);
-      let subscription, prefs;
+      let subscription, prefs, balance;
       try {
         const value = await body(request);
         subscription = validateSubscription(value.subscription);
         prefs = preferences(value.preferences);
+        balance = value.balance === undefined ? device?.balance || null : MicroBreaks.validateBalance(value.balance);
         if (hash(subscription.endpoint) !== new URL(request.url).pathname.split("/")[2]) throw new Error("Dispositivo incorrecto");
       } catch (error) { return json({ error: error.message }, 400); }
-      const next = { subscription, preferences: prefs, tokenHash: hash(token), nextAt: nextSlot(prefs), previousId: device?.previousId || "", lastTest: device?.lastTest || 0 };
+      const next = { subscription, preferences: prefs, balance, tokenHash: hash(token), nextAt: nextSlot(prefs), previousId: device?.previousId || "", lastTest: device?.lastTest || 0 };
       await this.storage.put("device", next);
       await this.storage.setAlarm(next.nextAt);
       return json(this.publicState(next));
     }
     if (!device) return json({ error: "Dispositivo no registrado" }, 404);
     if (!authorized) return json({ error: "Dispositivo no autorizado" }, 401);
+    if (request.method === "POST" && action === "balance") {
+      try { device.balance = MicroBreaks.validateBalance((await body(request)).balance); }
+      catch (error) { return json({ error: error.message }, 400); }
+      await this.storage.put("device", device);
+      return json(this.publicState(device));
+    }
     if (request.method === "GET") return json(this.publicState(device));
     if (request.method === "DELETE") {
       await this.storage.deleteAlarm();
@@ -92,7 +102,8 @@ export class PushDevice {
       if (Date.now() - device.lastTest < 60000) return json({ error: "Espera un minuto antes de otra prueba" }, 429);
       device.lastTest = Date.now();
       await this.storage.put("device", device);
-      const session = chooseSession(device.preferences, device.previousId);
+      const session = chooseSession(device.preferences, device.previousId, Math.random, device.balance);
+      if (!session) return json({ error: "No hay una pausa compatible con la carga reciente. Elige movilidad o descansa." }, 409);
       const status = await this.send(device, session, `test-${device.lastTest}`).catch(() => 503);
       if ([404, 410].includes(status)) {
         await this.storage.deleteAlarm();
@@ -103,7 +114,7 @@ export class PushDevice {
     return json({ error: "Metodo no permitido" }, 405);
   }
 
-  publicState(device) { return { active: true, preferences: device.preferences, nextAt: device.nextAt }; }
+  publicState(device) { return { active: true, preferences: device.preferences, nextAt: device.nextAt, balanceAt: device.balance?.generatedAt || null }; }
 
   async send(device, session, deliveryId) {
     const url = new URL(this.env.APP_URL);
@@ -124,15 +135,15 @@ export class PushDevice {
     const now = Date.now();
     if (device.nextAt > now) { await this.storage.setAlarm(device.nextAt); return; }
     const slot = device.nextAt;
-    const session = chooseSession(device.preferences, device.previousId);
+    const session = chooseSession(device.preferences, device.previousId, Math.random, device.balance, now);
     // Reserve the next alarm first: a crash or a stale retry cannot duplicate this slot.
     // A delivery interrupted after reservation is skipped, never sent hours late.
     device.nextAt = nextSlot(device.preferences, now);
     const fresh = now - slot < 5 * 60000;
-    if (fresh) device.previousId = session.id;
+    if (fresh && session) device.previousId = session.id;
     await this.storage.put("device", device);
     await this.storage.setAlarm(device.nextAt);
-    if (!fresh) return;
+    if (!fresh || !session) return;
     const status = await this.send(device, session, String(slot)).catch(() => 503);
     if ([404, 410].includes(status)) {
       await this.storage.deleteAlarm();

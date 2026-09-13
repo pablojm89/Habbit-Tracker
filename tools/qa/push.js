@@ -11,7 +11,7 @@ const check = (value, message) => { assert.ok(value, message); checks += 1; };
   const browser = await chromium.launch({ executablePath: CHROME });
   try {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: "block" });
-    let configured = false, remote = null, lastPayload, sent = 0, offline = false;
+    let configured = false, remote = null, lastPayload, sent = 0, offline = false, balances = 0, lastBalance;
     await context.route("**/*", async (route) => {
       const url = new URL(route.request().url());
       if (url.pathname.endsWith("/push-config.json")) return route.fulfill({ json: { serviceUrl: configured ? "https://push.example.test" : "" } });
@@ -24,10 +24,16 @@ const check = (value, message) => { assert.ok(value, message); checks += 1; };
         if (method === "PUT") {
           lastPayload = route.request().postDataJSON();
           if (!remote && !route.request().headers()["x-enrollment"]) return route.fulfill({ status: 401, headers, json: { error: "Codigo de activacion no valido" } });
-          remote = { active: true, preferences: lastPayload.preferences, nextAt: Date.now() + 3600000 };
+          remote = { active: true, preferences: lastPayload.preferences, nextAt: Date.now() + 3600000, balanceAt: lastPayload.balance?.generatedAt };
           return route.fulfill({ headers, json: remote });
         }
         if (method === "DELETE") { remote = null; return route.fulfill({ headers, json: { active: false } }); }
+        if (method === "POST" && url.pathname.endsWith("/balance")) {
+          balances += 1;
+          lastBalance = route.request().postDataJSON().balance;
+          remote.balanceAt = lastBalance.generatedAt;
+          return route.fulfill({ headers, json: remote });
+        }
         if (method === "POST") { sent += 1; return route.fulfill({ headers, json: { accepted: true } }); }
         return route.fulfill({ status: remote ? 200 : 404, headers, json: remote || { error: "No registrado" } });
       }
@@ -47,7 +53,7 @@ const check = (value, message) => { assert.ok(value, message); checks += 1; };
     const page = await context.newPage();
     await page.clock.install();
     const errors = [];
-    page.on("pageerror", (error) => errors.push(error.message));
+    page.on("pageerror", (error) => errors.push(error.stack || error.message));
     await page.goto(`${BASE}/index.html?noprompt=1`);
     await page.locator('[data-action="open-micro-breaks"]').click();
     await page.getByText("Servicio push pendiente de configurar", { exact: true }).waitFor();
@@ -88,13 +94,14 @@ const check = (value, message) => { assert.ok(value, message); checks += 1; };
     await page.locator('[data-action="open-micro-breaks"]').click();
     await page.locator('[name="enrollment"]').waitFor();
     await page.locator('[name="enrollment"]').fill("c".repeat(64));
+    await page.locator('[name="durations"][value="2"]').check();
     await page.locator('[name="durations"][value="5"]').uncheck();
     await page.locator('#microPushForm [type="submit"]').click();
     await page.locator('[data-micro-action="test"]').waitFor();
     check(await page.evaluate(() => window.mockPermissionRequests) === 1, "Permiso solo al activar");
     check(lastPayload.preferences.times.join(",") === "11:00,17:00", "Solo los horarios seleccionados llegan al servicio");
     check(lastPayload.preferences.durations.join(",") === "2", "Alta envia solo la duracion seleccionada");
-    check(Object.keys(lastPayload).sort().join(",") === "preferences,subscription", "El historial no sale al emisor push");
+    check(Object.keys(lastPayload).sort().join(",") === "balance,preferences,subscription" && Object.keys(lastPayload.balance).sort().join(",") === "days,generatedAt", "Solo resumen agregado, no historial completo, llega al emisor push");
     const snapshot = await page.evaluate(() => ({ state: JSON.parse(localStorage.getItem("habbit-tracker-v2")), device: JSON.parse(localStorage.getItem("bittracker-push-device-v1")) }));
     check(!JSON.stringify(snapshot.state).includes(snapshot.device.token), "Credencial separada del backup y Sheets");
     check(snapshot.state.settings.microBreaks.durations.join(",") === "2", "Preferencia de dos minutos persiste en el backup");
@@ -107,6 +114,50 @@ const check = (value, message) => { assert.ok(value, message); checks += 1; };
     await page.waitForFunction(() => !microPush.busy);
     check(remote.preferences.times[0] === "10:00", "Editar actualiza horarios del dispositivo");
     check(remote.preferences.durations.join(",") === "2,5", "Editar permite recibir ambas duraciones");
+    await page.locator('[name="equipment"][value="barra"]').check();
+    await page.locator('#microPushForm [type="submit"]').click();
+    await page.waitForFunction(() => !microPush.busy);
+    check(remote.preferences.equipment.includes("barra"), "Barra persiste y llega al servidor");
+    await page.evaluate(() => {
+      const date = MicroBreaks.dayKey(Date.now(), "Europe/Madrid");
+      state.denseTrainingEntries = ["pull_up", "floor_push_up", "toes_to_bar_strict"].map((exercise_id, i) => computeDenseEntry({ id: `seed-${i}`, date, exercise_id, nature: "bodyweight", scheme: "10D", total_reps: 50, target_total_reps: 50, effort: "N", notes: "nota-privada", bodyweight_kg: 80 }));
+      saveState();
+    });
+    await page.clock.fastForward(1000);
+    await page.waitForFunction(() => !microPush.syncing);
+    check(balances > 0 && lastBalance.days[0].load.pull === 10 && !JSON.stringify(lastBalance).includes("nota-privada"), "Guardar entrenamiento sincroniza solo carga agregada");
+    await page.locator('[name="kinds"][value="movilidad"]').uncheck();
+    await page.locator('[data-micro-action="preview"]').click();
+    check(await page.locator('#appModal h2').innerText() === "Sentadillas sin peso", "Entrenar empuje/tiron/core prioriza piernas en la app");
+    await page.evaluate(() => openMicroSession("sentadillas-2min"));
+    await page.locator('[data-micro-action="start"]').click();
+    check(await page.locator('[data-micro-action="review"]').isDisabled(), "No registra una pausa aun no terminada");
+    await page.clock.fastForward(120000);
+    check(await page.evaluate(() => state.denseTrainingEntries.length) === 3, "Terminar el reloj no inventa reps ni marcas");
+    await page.reload();
+    await page.locator('[data-action="open-quick-timer"]').click();
+    check(await page.evaluate(() => quickTimerState.microSession?.id === "sentadillas-2min" && !quickTimerState.running), "Recargar conserva protocolo, fecha y reloj pausado");
+    await page.locator('[data-micro-action="review"]').click();
+    check(await page.locator('[name="totalReps"]').inputValue() === "", "Registro pide reps reales en blanco");
+    await page.locator('#denseTrainingForm [type="submit"]').click();
+    check(await page.locator('#denseTrainingForm').count() === 1 && await page.evaluate(() => state.denseTrainingEntries.length) === 3, "No guarda reps sin introducirlas");
+    await page.locator('[name="totalReps"]').fill("12");
+    await page.locator('#denseTrainingForm [type="submit"]').click();
+    await page.waitForFunction(() => state.denseTrainingEntries.length === 4);
+    const recorded = await page.evaluate(() => state.denseTrainingEntries.find((entry) => entry.source === "micro_break"));
+    check(recorded.total_reps === 12 && recorded.scheme === "2D" && recorded.effort === "E" && !recorded.failed && recorded.timer_session_id, "Pausa comparte historial, esfuerzo real y menos reps no es fallo automatico");
+    check(await page.evaluate(() => normalizeState(JSON.parse(localStorage.getItem("habbit-tracker-v2"))).denseTrainingEntries.some((entry) => entry.source === "micro_break" && entry.total_reps === 12)), "Backup conserva la pausa como marca Dense compartida");
+    check(await page.evaluate(() => denseMicroBalanceSnapshot().days[0].load.legs) === .9, "La pausa registrada cuenta en la siguiente prioridad");
+    await page.evaluate(() => reviewMicroSession());
+    await page.locator('[name="totalReps"]').fill("14");
+    await page.locator('#denseTrainingForm [type="submit"]').click();
+    check(await page.evaluate(() => state.denseTrainingEntries.length) === 4, "Reabrir pausa edita sin duplicar");
+    await page.evaluate(async () => {
+      state.denseTrainingEntries = [{ exercise_id: "pull_up", date: MicroBreaks.dayKey(Date.now(), "Europe/Madrid"), scheme: "5D", total_reps: 10, effort: "H" }];
+      await openMicroSession("toes-to-bar-2min");
+    });
+    check(await page.locator('[data-micro-action="start"]').isDisabled(), "Un enlace push anterior no salta el bloqueo por tiron duro reciente");
+    await page.evaluate(async () => { state.denseTrainingEntries = []; saveState(); await openMicroBreaks(); });
     offline = true;
     await page.locator('[data-micro-action="disable"]').click();
     await page.waitForFunction(() => !microPush.busy);
@@ -126,6 +177,9 @@ const check = (value, message) => { assert.ok(value, message); checks += 1; };
     await page.goto(`${BASE}/index.html?noprompt=1&micro=anillas-remo-2min`);
     await page.locator('[data-micro-action="start"]').waitFor();
     check(await page.locator('[data-micro-action="start"]').innerText() === "Iniciar 2 minutos", "Enlace push corto conserva dos minutos");
+    await page.evaluate(async () => { state.settings.microBreaks.equipment = ["suelo"]; await openMicroSession("toes-to-bar"); });
+    check(await page.locator('[data-micro-action="start"]').isDisabled(), "No inicia TTB sin barra seleccionada");
+    check(errors.length === 0, `Sin errores nuevos JS: ${errors.join(", ")}`);
     console.log(`PUSH: ${checks} checks OK (proveedor y permisos simulados)`);
   } finally { await browser.close(); }
 })().catch((error) => { console.error(error); process.exitCode = 1; });

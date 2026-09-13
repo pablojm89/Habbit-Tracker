@@ -1,5 +1,6 @@
 import { DateTime } from "luxon";
 import sessions from "../../../micro-sessions.json" with { type: "json" };
+import MicroBreaks from "../../../micro-core.js";
 
 export function preferences(value) {
   if (!value || !DateTime.now().setZone(value.timeZone).isValid) throw new Error("Zona horaria no valida");
@@ -7,7 +8,7 @@ export function preferences(value) {
   if (!times.length || times.length > 4 || times.some((time) => typeof time !== "string" || !/^(0[8-9]|1[0-9]|2[01]):[0-5][0-9]$/.test(time))) throw new Error("Elige de 1 a 4 horas entre las 08:00 y las 21:59");
   const minutes = times.map((time) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3)));
   if (minutes.some((time, i) => i > 0 && time - minutes[i - 1] < 60)) throw new Error("Separa los avisos al menos una hora");
-  const equipment = ["suelo", "anillas"].filter((item) => value.equipment?.includes(item));
+  const equipment = ["suelo", "anillas", "barra"].filter((item) => value.equipment?.includes(item));
   const kinds = ["movilidad", "activacion"].filter((item) => value.kinds?.includes(item));
   const durations = value.durations === undefined ? [5] : value.durations;
   if (!Array.isArray(durations) || !durations.length || durations.some((minutes) => ![2, 5].includes(minutes))) throw new Error("Elige pausas de 2 minutos, de 5 o ambas");
@@ -17,7 +18,7 @@ export function preferences(value) {
 }
 
 export function eligibleSessions(prefs) {
-  return sessions.filter((session) => (prefs.durations || [5]).includes(session.durationMinutes) && prefs.kinds.includes(session.kind) && session.equipment.every((item) => prefs.equipment.includes(item)));
+  return MicroBreaks.eligible(sessions, prefs);
 }
 
 export function nextSlot(prefs, now = Date.now()) {
@@ -32,10 +33,6 @@ export function nextSlot(prefs, now = Date.now()) {
   throw new Error("No hay un horario valido");
 }
 
-export function chooseSession(prefs, previousId = "", random = Math.random) {
-  const all = eligibleSessions(prefs);
-  const previousExercise = sessions.find((session) => session.id === previousId)?.exerciseId;
-  const fresh = all.filter((session) => session.exerciseId !== previousExercise);
-  const options = fresh.length ? fresh : all;
-  return options[Math.floor(random() * options.length)];
+export function chooseSession(prefs, previousId = "", random = Math.random, balance = null, now = Date.now()) {
+  return MicroBreaks.choose(sessions, prefs, balance, previousId, random, now);
 }

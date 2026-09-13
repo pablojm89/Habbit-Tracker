@@ -61,6 +61,7 @@ function saveQuickTimerDraft() {
       scheme: q.scheme, rounds: q.rounds, roundSeconds: q.roundSeconds, holdSeconds: q.holdSeconds,
       preparationSeconds: q.preparationSeconds, elapsedMs: q.elapsedMs, roundResults: q.roundResults,
       context: q.context, sessionId: q.sessionId, appliedEntryId: q.appliedEntryId,
+      microSession: q.microSession || null, microDate: q.microDate || null,
     }));
     q.draftSaveFailed = false;
   } catch {
@@ -87,6 +88,8 @@ function restoreQuickTimerDraft() {
       }),
       context: saved.context?.exerciseId && findDenseExerciseById(saved.context.exerciseId) ? saved.context : null,
       sessionId: String(saved.sessionId), appliedEntryId: saved.appliedEntryId || "", running: false,
+      microSession: saved.microSession && [2, 5].includes(saved.microSession.durationMinutes) && saved.microSession.durationMinutes === rounds && findDenseExerciseById(saved.microSession.exerciseId) ? saved.microSession : null,
+      microDate: /^\d{4}-\d{2}-\d{2}$/.test(saved.microDate || "") ? saved.microDate : dateKey(new Date()),
     });
     quickTimerState.remainingSeconds = denseTimerFrame(quickTimerState, quickTimerState.elapsedMs).remaining;
   } catch { /* An unreadable timer draft never blocks the training log. */ }
@@ -196,5 +199,6 @@ function denseRecordedHoldPace(entry) {
 function denseTimerFormDefaults(defaults) {
   const result = denseSetModalContext.timerResult;
   if (!result || defaults.exerciseId !== result.exerciseId || defaults.scheme !== result.scheme) return defaults;
+  if (result.kind === "reps") return { ...defaults, totalReps: "", holdSecondsPerRound: "", holdRounds: [], effort: "E", isTest: false, timerSessionId: result.sessionId };
   return { ...defaults, holdSecondsPerRound: result.target, rounds: result.rounds.length, holdRounds: result.rounds, timerSessionId: result.sessionId };
 }

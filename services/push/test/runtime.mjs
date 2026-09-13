@@ -36,6 +36,10 @@ try {
   const saved = await mf.dispatchFetch(url, { headers });
   assert.equal(saved.status, 200);
   assert.deepEqual((await saved.json()).preferences.durations, [2]);
+  const balance = { generatedAt: Date.now(), days: [] };
+  const updated = await mf.dispatchFetch(`${url}/balance`, { method: "POST", headers, body: JSON.stringify({ balance }) });
+  assert.equal(updated.status, 200, await updated.clone().text());
+  assert.equal((await updated.json()).balanceAt, balance.generatedAt);
   const sending = await mf.dispatchFetch(`${url}/test`, { method: "POST", headers });
   assert.equal(sending.status, 200, await sending.clone().text());
   assert.equal(deliveries, 1);

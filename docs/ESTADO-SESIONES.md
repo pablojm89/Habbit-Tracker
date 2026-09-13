@@ -8,8 +8,8 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 > App: PWA de entrenamiento (Dense training). Vanilla JS sin build: `app.js` (~9000
 > líneas), `styles.css`, `index.html`, `sw.js`. Sincroniza a Google Sheets vía Apps Script.
 > Modo training-only (`TRAINING_ONLY = true`). Cache busting: string `?v=…` en `index.html`
-> **y** `sw.js` a la vez. **Última versión local: `20260913-pausas-49`.**
-> Publicada en GitHub: `20260911-clasica-47`; v48 y v49 pendientes de push del usuario.
+> **y** `sw.js` a la vez. **Última versión local: `20260913-pausas-equilibradas-50`.**
+> Última remota comprobada: `20260911-clasica-47`; v48 a v50 pendientes de push del usuario.
 
 ## Cómo trabajar aquí (imprescindible)
 
@@ -19,7 +19,7 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 - **QA en un comando**: `tools/qa/run.sh` (o `selftests` / `crawl` / `audit` / `plan` / `retirement` / `timer` / `push`). Los
   scripts viven ya en el repo (`tools/qa/`), no en el scratchpad de la sesión.
   `plan.js` audita 1.612 combinaciones proposición → tarjeta → formulario (con y sin historial).
-- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **113 asserts**.
+- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **117 asserts**.
   Correr siempre tras tocar el motor.
 - **Simulación de entrenamiento** (nueva herramienta de QA): 6 semanas × 4 días con un
   atleta sintético que sigue las sugerencias reales de la app vía Playwright+Chromium
@@ -60,6 +60,35 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
   fail-closed, LockService, hojas de transferencias. Auto-restore al arrancar vacío.
 
 ## Trabajo reciente por tema (con commits)
+
+### Pausas según carga reciente y biblioteca de calistenia (13 sep 2026)
+- Ocho ejercicios, dieciséis protocolos de 2/5 min: remos, tirón asistido,
+  dominadas, flexiones, toes to bar estrictos, sentadillas sin peso y las dos
+  movilidades anteriores. Barra opcional; dominadas con barra o anillas altas.
+- `micro-core.js`, compartido por PWA y Worker, prioriza patrones menos trabajados
+  en 7 días. `denseMicroBalanceSnapshot()` deriva series/rondas ponderadas por
+  esfuerzo y fracción real completada, incluidas caídas isométricas y handstand.
+  No compara tonelaje entre ejercicios ni afirma medir recuperación real.
+- Bloquea activación de grupos con H/VH/fallo hoy o ayer; toes to bar comparte
+  restricción con tirón. Subprioridad horizontal/vertical y sorteo por grupo antes
+  de ejercicio/duración. Movilidad separada (25% cuando ambas clases disponibles).
+  Ver fórmula, tolerancias, ejemplos y límites en [crono-push.md](crono-push.md).
+- Panel con reparto de carga; **Otra pausa** y preferencias locales sin emisor.
+  Tras terminar una pausa de reps: formulario Dense con reps reales en blanco,
+  esfuerzo editable, `source: micro_break` y `timer_session_id`. Menos reps no
+  implica fallo automático en estas pausas. Reabrir edita, no duplica. El registro
+  usa el historial/backup/Sheets normal; recibir push o agotar tiempo no guarda nada.
+- Emisor preparado para resumen agregado de hasta siete días, sin notas, pesos
+  ni marcas completas. `POST /devices/:id/balance` autenticado no cambia horarios.
+  Sync al guardar/abrir/volver con conexión; resumen de más de 48 h se ignora y se
+  vuelve a rotación sin carga conocida. La app cerrada no envía nuevos entrenamientos.
+- +4 self-tests (117); pruebas de carga, fechas, equipo, no sesgo por catálogo,
+  fatiga compartida, envío agregado, registro/edición y borrador tras recarga.
+  Backend: 20 tests. La configuración push sigue vacía: sin infraestructura,
+  suscripciones reales, cargos, acceso a datos reales ni publicación en GitHub.
+- Verificado: 117/117 self-tests, crawl/auditoría sin incidencias, 3.224 checks de
+  plan, 34 de retirada/offline, 33 del crono y 51 de pausas/push. Build y runtime
+  Worker+SQLite locales correctos. Capturas 320/390/1280 px revisadas sin desbordes.
 
 ### Pausas de 2 minutos e inventario funcional (13 sep 2026)
 - Se añaden duraciones 2/5 minutos, seleccionables por separado o ambas en la

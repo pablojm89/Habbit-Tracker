@@ -7944,5 +7944,12 @@ body[data-density="compact"] .workout-set-summary .set-load {
 .micro-status { margin: 0; font-size: .9rem; line-height: 1.5; color: var(--muted); overflow-wrap: anywhere; }
 .micro-session, .micro-protocol { line-height: 1.6; }
 .micro-protocol { margin: 0; font-size: .95rem; }
+.micro-balance { display: grid; gap: 6px; padding-block: 14px; border-block: 1px solid var(--line); font-size: .85rem; }
+.micro-balance-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: 8px 0; }
+.micro-balance-grid > div { min-width: 0; }
+.micro-balance-grid dt { color: var(--muted); }
+.micro-balance-grid dd { margin: 4px 0; font-size: 1.35rem; font-weight: 700; }
+.micro-balance-grid small { display: block; min-height: 2.6em; color: var(--muted); overflow-wrap: anywhere; }
+.micro-reason { color: var(--cyan); font-size: .85rem; }
 .modal-card[data-modal-kind="micro-breaks"], .modal-card[data-modal-kind="micro-session"] { max-height: 94dvh; overflow: hidden; background: #141414; backdrop-filter: none; }
 .modal-card[data-modal-kind="micro-breaks"] .modal-body { overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; min-height: 0; }
