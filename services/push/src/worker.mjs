@@ -108,7 +108,7 @@ export class PushDevice {
   async send(device, session, deliveryId) {
     const url = new URL(this.env.APP_URL);
     url.searchParams.set("micro", session.id);
-    const payload = JSON.stringify({ title: `5 min: ${session.title}`, body: session.instruction, url: url.href, tag: `micro-${deliveryId}` });
+    const payload = JSON.stringify({ title: `${session.durationMinutes} min: ${session.title}`, body: session.instruction, url: url.href, tag: `micro-${deliveryId}` });
     const details = webpush.generateRequestDetails(device.subscription, payload, {
       TTL: 300, urgency: "normal", topic: hash(deliveryId).slice(0, 32),
       vapidDetails: { subject: this.env.VAPID_SUBJECT, publicKey: this.env.VAPID_PUBLIC_KEY, privateKey: this.env.VAPID_PRIVATE_KEY },

@@ -13,14 +13,15 @@ test("service worker: push visible, ruta confinada y click sin duplicar ventana"
   listeners.push({ data: { json: () => ({ title: "5 minutos", url: "https://evil.test/?micro=anillas-remo", tag: "micro-test-1" }) }, waitUntil });
   await task;
   assert.equal(shown[0][1].data.url, self.registration.scope);
-  listeners.push({ data: { json: () => ({ url: "https://app.test/Habbit-Tracker/?micro=anillas-remo&evil=1" }) }, waitUntil });
+  listeners.push({ data: { json: () => ({ title: "2 min: Remo suave", url: "https://app.test/Habbit-Tracker/?micro=anillas-remo-2min&evil=1" }) }, waitUntil });
   await task;
-  assert.equal(shown[1][1].data.url, "https://app.test/Habbit-Tracker/?micro=anillas-remo");
+  assert.equal(shown[1][0], "2 min: Remo suave");
+  assert.equal(shown[1][1].data.url, "https://app.test/Habbit-Tracker/?micro=anillas-remo-2min");
   windows = [{ url: self.registration.scope, focus: async () => { focused += 1; }, postMessage: (message) => messages.push(message) }];
   listeners.notificationclick({ notification: { close() {}, data: shown[1][1].data }, waitUntil });
   await task;
   assert.equal(focused, 1);
-  assert.equal(messages[0].id, "anillas-remo");
+  assert.equal(messages[0].id, "anillas-remo-2min");
   assert.equal(opened.length, 0);
   windows = [];
   listeners.notificationclick({ notification: { close() {}, data: shown[1][1].data }, waitUntil });

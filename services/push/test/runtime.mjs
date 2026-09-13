@@ -29,11 +29,13 @@ try {
   const key = createECDH("prime256v1"); key.generateKeys();
   const subscription = { endpoint: "https://web.push.apple.com/local-runtime-test", keys: { p256dh: key.getPublicKey().toString("base64url"), auth: randomBytes(16).toString("base64url") } };
   const url = `https://push.test/devices/${hash(subscription.endpoint)}`;
-  const body = { subscription, preferences: { times: ["11:00", "17:00"], timeZone: "Europe/Madrid", equipment: ["suelo"], kinds: ["movilidad"] } };
+  const body = { subscription, preferences: { times: ["11:00", "17:00"], timeZone: "Europe/Madrid", equipment: ["suelo"], kinds: ["movilidad"], durations: [2] } };
   const enroll = await mf.dispatchFetch(url, { method: "PUT", headers, body: JSON.stringify(body) });
   assert.equal(enroll.status, 200, await enroll.clone().text());
   assert.ok((await enroll.json()).nextAt > Date.now());
-  assert.equal((await mf.dispatchFetch(url, { headers })).status, 200);
+  const saved = await mf.dispatchFetch(url, { headers });
+  assert.equal(saved.status, 200);
+  assert.deepEqual((await saved.json()).preferences.durations, [2]);
   const sending = await mf.dispatchFetch(`${url}/test`, { method: "POST", headers });
   assert.equal(sending.status, 200, await sending.clone().text());
   assert.equal(deliveries, 1);

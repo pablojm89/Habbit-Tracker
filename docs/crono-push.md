@@ -1,6 +1,6 @@
 # Cronometro y pausas push
 
-Version local: `20260912-crono-push-48`. No cambia la interfaz habitual ni crea otra
+Version local: `20260913-pausas-49`. No cambia la interfaz habitual ni crea otra
 version de la app. No se ha desplegado el emisor ni activado una suscripcion real.
 
 ## Cronometro
@@ -32,19 +32,34 @@ promete sonar con la pantalla bloqueada; no es una app nativa de Apple Watch.
 [Web Audio](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API/Best_practices)
 y [Screen Wake Lock](https://developer.mozilla.org/en-US/docs/Web/API/Screen_Wake_Lock_API).
 
-## Pausas de cinco minutos
+## Pausas de dos y cinco minutos
 
 - Campana junto al cronometro, en Workout. `notifications.js` gestiona el permiso,
   suscripcion, horarios, prueba y baja. No pide permiso al abrir el panel.
+- Duraciones: casillas **2 minutos** y **5 minutos**; se puede elegir una o ambas.
+  `state.settings.microBreaks.durations` guarda `[2]`, `[5]` o `[2, 5]` al guardar
+  preferencias con el emisor. Sin emisor se pueden probar ambas desde el panel,
+  pero **Una pausa ahora** no persiste las preferencias ni activa notificaciones.
+  Instalaciones nuevas proponen ambas; preferencias antiguas sin este campo
+  conservan 5 minutos hasta que se cambien, tambien en el servidor.
 - Entre 1 y 4 avisos diarios, de 08:00 a 21:59, separados al menos una hora. El
   formulario propone 11:00 y 17:00 (Europe/Madrid), pero no activa nada por defecto.
-  Son horarios elegidos, no horas aleatorias; la seleccion de ejercicio si varia.
-- Material inicial: suelo y anillas. Cuatro protocolos suaves en
-  `micro-sessions.json`, filtrados por material/tipo y evitando repeticion inmediata
-  cuando hay alternativas. No hay ejercicios maximos ni registro automatico.
+  Son horarios elegidos, no horas aleatorias; todos los dias, sin selector de
+  dias de la semana. La seleccion de ejercicio y duracion permitida si varia.
+- Material inicial: suelo y anillas. Cuatro protocolos con dos duraciones cada uno
+  en `micro-sessions.json`: ocho entradas, no ocho ejercicios diferentes.
+  Se filtran por material, tipo y duracion. El emisor evita repetir ejercicio en
+  avisos consecutivos cuando hay alternativas, aunque cambie la duracion. El boton
+  manual elige al azar sin memoria de la propuesta anterior.
+- Cada pausa es un solo ejercicio repetido durante 2 o 5 rondas de un minuto.
+  El reloj arranca en 2:00 o 5:00; no mezcla ejercicios ni adapta la dosis al usuario.
+  Estas pausas usan el crono por minutos: los 20 s/40 s de movilidad estan escritos
+  en el protocolo, pero todavia no tienen avisos de fase propios.
 - **Una pausa ahora** y su reloj funcionan sin emisor. Abrir el push lleva al
   protocolo mediante `?micro=<id>`. Si ya hay un formulario/reloj abierto, no lo
   sustituye: avisa de que hay una pausa disponible en la campana.
+  Los enlaces anteriores conservan cinco minutos; las variantes cortas usan ids
+  con sufijo `-2min`. La notificacion indica la duracion de su protocolo.
 - Preferencias compartidas: `state.settings.microBreaks`. Credencial y dispositivo:
   `bittracker-push-device-v1`, solo local, fuera de snapshots y Sheets. Cada movil
   debe activar sus push; cambiar horarios afecta solo a ese dispositivo.
@@ -52,11 +67,36 @@ y [Screen Wake Lock](https://developer.mozilla.org/en-US/docs/Web/API/Screen_Wak
   permiso desde el boton de activacion, con iOS/iPadOS 16.4 o posterior.
   [Documentacion de WebKit](https://webkit.org/blog/13878/web-push-for-web-apps-on-ios-and-ipados/).
 
+### Catalogo actual
+
+| Protocolo | Trabajo al inicio de cada minuto | Total en 2 min | Total en 5 min |
+| --- | --- | --- | --- |
+| Remo suave en anillas | 5 repeticiones faciles, cuerpo bastante vertical | 10 reps | 25 reps |
+| Tiron en anillas con pies apoyados | 4 repeticiones asistidas con los pies | 8 reps | 20 reps |
+| Apertura suave de cadera en cuadrupedia | 20 s suaves y 40 s fuera de la postura | 40 s de aguante | 100 s de aguante |
+| Pancake suave | 20 s suaves y 40 s de descanso | 40 s de aguante | 100 s de aguante |
+
+Tras las repeticiones se descansa el resto del minuto; en movilidad se evita forzar
+el rango. Son dosis fijas orientativas, no calculadas desde marcas o fatiga.
+
+### Aun no implementado
+
+- Personalizacion por entrenamiento del dia, fatiga, molestias o nivel.
+- Mas material, zonas de movilidad, editor, favoritos o exclusiones por ejercicio.
+- Historial propio de pausas, marcar hecha/omitida, rachas o estadisticas.
+- Posponer 10/30 minutos, dias laborables/fines de semana, ventanas aleatorias.
+- Avisos de cada tramo de trabajo/descanso en las pausas o un circuito mixto.
+- Entrega push real: falta desplegar y configurar el emisor y probar el iPhone.
+
+Las pausas no crean marcas Dense ni alteran PRs, cargas o fatiga del motor.
+Propuestas para la siguiente iteracion, todavia no construidas: biblioteca elegida
+por Pablo, filtro por entrenamiento/fatiga y registro ligero separado de Dense.
+
 ## Emisor Pendiente De Activar
 
 `services/push/` contiene un Cloudflare Worker con un Durable Object SQLite por
 suscripcion. Usa `luxon` para zonas/cambios de hora y `web-push` para cifrado y VAPID.
-No recibe entrenamientos: solo suscripcion, horarios, material, tipos de pausa y
+No recibe entrenamientos: solo suscripcion, horarios, material, tipos/duraciones de pausa y
 hash del token del dispositivo. No se han creado recursos ni cargos en Cloudflare.
 
 Requiere cuenta/autorizacion de Pablo, Node 22+ y configurar:
@@ -104,12 +144,14 @@ indica que no esta activo. No son avisos del calendario ni automatizaciones de C
 
 ## Verificacion
 
-- `tools/qa/run.sh all`: 111 self-tests, crawl/auditoria, plan dos pasadas,
+- `tools/qa/run.sh all`: 113 self-tests, crawl/auditoria, plan dos pasadas,
   retirada de Estudio, timer y push. Capturas a 320/390/1280 px.
 - `tools/qa/run.sh timer` (33 checks): tiempo simulado, caida, rondas automaticas, TUT, cero,
   recarga, edicion sin duplicados y amplitud/duracion de audio renderizado.
-- `tools/qa/run.sh push` (22 checks): permisos y proveedor simulados; no es entrega fisica.
-- `npm test` en `services/push/` (10 tests): horarios/DST, auth, cifrado, alarmas, bajas y SW.
+- `tools/qa/run.sh push` (36 checks): duraciones, fin a 120/300 s, backup, permisos
+  y proveedor simulados; no es entrega fisica.
+- `npm test` en `services/push/` (13 tests): duraciones, horarios/DST, auth, cifrado,
+  enlaces, no repeticion entre duraciones, alarmas, bajas y SW.
 - `npm run test:runtime`: build y Worker real local (Miniflare/workerd), SQLite,
   alta/lectura/baja y cifrado/envio a un proveedor simulado, sin trafico push real.
 - Pendiente antes de afirmar push operativo: despliegue autorizado, prueba cerrada

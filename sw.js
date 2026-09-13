@@ -1,13 +1,13 @@
-const CACHE_NAME = "bittracker-mobile-20260912-crono-push-48";
+const CACHE_NAME = "bittracker-mobile-20260913-pausas-49";
 const LUCIDE_URL = "https://unpkg.com/lucide@1.23.0/dist/umd/lucide.min.js";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=20260912-crono-push-48",
-  "./app.js?v=20260912-crono-push-48",
-  "./studio-core.js?v=20260912-crono-push-48",
-  "./timer-core.js?v=20260912-crono-push-48",
-  "./notifications.js?v=20260912-crono-push-48",
+  "./styles.css?v=20260913-pausas-49",
+  "./app.js?v=20260913-pausas-49",
+  "./studio-core.js?v=20260913-pausas-49",
+  "./timer-core.js?v=20260913-pausas-49",
+  "./notifications.js?v=20260913-pausas-49",
   "./micro-sessions.json",
   "./push-config.json",
   "./manifest.webmanifest?v=20260627-mobile-01",
@@ -117,7 +117,7 @@ self.addEventListener("push", (event) => {
   let payload = {};
   try { payload = event.data?.json() || {}; } catch { /* A malformed push still needs a visible notification. */ }
   const url = microNotificationUrl(payload.url);
-  event.waitUntil(self.registration.showNotification(typeof payload.title === "string" ? payload.title.slice(0, 120) : "Pausa de 5 minutos", {
+  event.waitUntil(self.registration.showNotification(typeof payload.title === "string" ? payload.title.slice(0, 120) : "Pausa activa", {
     body: typeof payload.body === "string" ? payload.body.slice(0, 500) : "Tienes una pausa disponible en BitTracker.",
     tag: /^micro-[a-z0-9-]{1,80}$/.test(payload.tag || "") ? payload.tag : "bittracker-micro",
     icon: new URL("./icon.svg", self.registration.scope).href,

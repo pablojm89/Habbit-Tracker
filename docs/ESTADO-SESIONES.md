@@ -8,8 +8,8 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 > App: PWA de entrenamiento (Dense training). Vanilla JS sin build: `app.js` (~9000
 > líneas), `styles.css`, `index.html`, `sw.js`. Sincroniza a Google Sheets vía Apps Script.
 > Modo training-only (`TRAINING_ONLY = true`). Cache busting: string `?v=…` en `index.html`
-> **y** `sw.js` a la vez. **Última versión local: `20260912-crono-push-48`.**
-> Publicada en GitHub: `20260911-clasica-47`; v48 pendiente de push del usuario.
+> **y** `sw.js` a la vez. **Última versión local: `20260913-pausas-49`.**
+> Publicada en GitHub: `20260911-clasica-47`; v48 y v49 pendientes de push del usuario.
 
 ## Cómo trabajar aquí (imprescindible)
 
@@ -19,7 +19,7 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 - **QA en un comando**: `tools/qa/run.sh` (o `selftests` / `crawl` / `audit` / `plan` / `retirement` / `timer` / `push`). Los
   scripts viven ya en el repo (`tools/qa/`), no en el scratchpad de la sesión.
   `plan.js` audita 1.612 combinaciones proposición → tarjeta → formulario (con y sin historial).
-- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **111 asserts**.
+- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **113 asserts**.
   Correr siempre tras tocar el motor.
 - **Simulación de entrenamiento** (nueva herramienta de QA): 6 semanas × 4 días con un
   atleta sintético que sigue las sugerencias reales de la app vía Playwright+Chromium
@@ -60,6 +60,28 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
   fail-closed, LockService, hojas de transferencias. Auto-restore al arrancar vacío.
 
 ## Trabajo reciente por tema (con commits)
+
+### Pausas de 2 minutos e inventario funcional (13 sep 2026)
+- Se añaden duraciones 2/5 minutos, seleccionables por separado o ambas en la
+  campana. El filtro se aplica tanto a **Una pausa ahora** como al emisor push.
+  Cronómetro de 2:00/5:00, instrucciones de 2/5 rondas, títulos y enlaces coherentes.
+- `micro-sessions.json`: los cuatro ejercicios anteriores, cada uno en dos
+  duraciones. Son ocho protocolos, no ocho ejercicios. En el emisor no se repite
+  ejercicio en avisos consecutivos aunque cambie su duración si hay alternativas.
+- `state.settings.microBreaks.durations` conserva la selección en backup/Sheets.
+  Una instalación nueva propone ambas; preferencias anteriores sin el campo
+  mantienen `[5]` hasta editarlas, igual en el servidor. Enlaces antiguos intactos.
+- Se documenta exactamente lo construido, las cuatro dosis y lo que falta en
+  [crono-push.md](crono-push.md): sin adaptación al entrenamiento/fatiga, historial,
+  posponer, días de semana ni avisos 20/40 propios de movilidad. No se han añadido
+  esas mejoras en esta entrega ni se han modificado marcas reales.
+- +2 self-tests (113); pruebas de 120/300 s, selección y persistencia, legado,
+  enlaces, offline, emisor cifrado y runtime local. El proveedor sigue simulado.
+- Verificado: 113/113 self-tests, crawl/auditoría sin incidencias, 3.224 checks de
+  plan, 33 de retirada/offline, 33 del crono, 36 de pausas/push y 13 tests del
+  backend. Build y runtime local correctos; capturas 320/390/1280 px sin desbordes.
+- Emisor aún sin configurar/desplegar: `push-config.json.serviceUrl` continúa
+  vacío. No se han activado push reales ni publicado estos cambios en GitHub.
 
 ### Cronómetro isométrico y preparación de push (12 sep 2026)
 - Avisos más largos y potentes, volumen regulable y prueba de sonido; el metrónomo

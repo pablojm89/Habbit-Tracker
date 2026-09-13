@@ -5,7 +5,7 @@ import webpush from "web-push";
 import worker, { PushDevice, hash, validateSubscription } from "../src/worker.mjs";
 import { preferences, nextSlot, chooseSession, eligibleSessions } from "../src/schedule.mjs";
 
-const prefs = { times: ["11:00", "17:00"], timeZone: "Europe/Madrid", equipment: ["suelo", "anillas"], kinds: ["movilidad", "activacion"] };
+const prefs = { times: ["11:00", "17:00"], timeZone: "Europe/Madrid", equipment: ["suelo", "anillas"], kinds: ["movilidad", "activacion"], durations: [5] };
 const client = createECDH("prime256v1");
 client.generateKeys();
 const subscription = { endpoint: "https://web.push.apple.com/QAtest", keys: { p256dh: client.getPublicKey().toString("base64url"), auth: randomBytes(16).toString("base64url") } };
@@ -38,6 +38,44 @@ test("horarios: Madrid mantiene la hora local en ambos cambios de hora", () => {
   assert.equal(new Date(nextSlot(once, Date.parse("2026-10-24T12:00:00Z"))).toISOString(), "2026-10-25T10:00:00.000Z");
   assert.equal(new Date(nextSlot(once, Date.parse("2026-03-28T12:00:00Z"))).toISOString(), "2026-03-29T09:00:00.000Z");
   assert.equal(nextSlot(prefs, Date.parse("2026-09-12T09:00:00Z")), Date.parse("2026-09-12T15:00:00Z"));
+});
+
+test("duraciones: 2, 5 o ambas; conserva las suscripciones antiguas", () => {
+  assert.deepEqual(preferences({ ...prefs, durations: undefined }).durations, [5]);
+  for (const durations of [[], [3], ["2"], null, 2]) assert.throws(() => preferences({ ...prefs, durations }));
+  for (const durations of [[2], [5], [2, 5]]) {
+    const normalized = preferences({ ...prefs, durations });
+    const pool = eligibleSessions(normalized);
+    assert.equal(pool.length, durations.length * 4);
+    assert.ok(pool.every((session) => durations.includes(session.durationMinutes) && session.instruction.includes(`${session.durationMinutes} rondas`)));
+    assert.equal(new Set(pool.map((session) => session.id)).size, pool.length);
+  }
+  assert.ok(eligibleSessions(prefs).every((session) => !session.id.endsWith("-2min")));
+});
+
+test("azar: cambiar de duracion no repite el mismo ejercicio consecutivamente", () => {
+  const both = { ...prefs, durations: [2, 5] };
+  for (const previous of eligibleSessions(both)) {
+    for (const random of [() => 0, () => .99]) assert.notEqual(chooseSession(both, previous.id, random).exerciseId, previous.exerciseId);
+  }
+});
+
+test("envio: titulo y enlace coinciden con la duracion de la pausa", async (t) => {
+  const original = webpush.generateRequestDetails;
+  const originalFetch = globalThis.fetch;
+  t.after(() => { webpush.generateRequestDetails = original; globalThis.fetch = originalFetch; });
+  let payload;
+  webpush.generateRequestDetails = (sub, value, options) => { payload = JSON.parse(value); return original(sub, value, options); };
+  globalThis.fetch = async () => new Response(null, { status: 201 });
+  for (const minutes of [2, 5]) {
+    const f = fixture();
+    const choice = { ...prefs, durations: [minutes] };
+    const session = chooseSession(choice, "", () => 0);
+    assert.equal(await f.object.send({ subscription }, session, `qa-${minutes}`), 201);
+    assert.equal(payload.title, `${minutes} min: ${session.title}`);
+    assert.equal(new URL(payload.url).searchParams.get("micro"), session.id);
+    assert.ok(payload.body.includes(`${minutes} rondas`));
+  }
 });
 
 test("suscripciones: solo proveedores HTTPS, sin SSRF ni claves invalidas", () => {

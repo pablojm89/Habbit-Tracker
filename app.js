@@ -3568,6 +3568,16 @@ function runDenseSelfTests() {
       return !denseEstimatedMax(denseExerciseById("straight_handstand"), "hold").estimate && /0s TUT/.test(denseEntrySummaryLine(raw));
     } finally { state.denseTrainingEntries = saved; }
   });
+  test("pausas: instalaciones nuevas admiten 2 y 5 minutos, las preferencias antiguas conservan 5", () => {
+    const fresh = normalizeState({}).settings.microBreaks;
+    const legacy = normalizeState({ settings: { microBreaks: { times: ["12:00"] } } }).settings.microBreaks;
+    return fresh.durations.join(",") === "2,5" && legacy.durations.join(",") === "5" && legacy.times[0] === "12:00";
+  });
+  test("pausas: el backup conserva una selección de solo 2 minutos", () => {
+    const settings = { microBreaks: { durations: [2], times: ["10:00"], equipment: ["anillas"], kinds: ["activacion"] } };
+    const restored = normalizeState(JSON.parse(JSON.stringify({ settings }))).settings.microBreaks;
+    return restored.durations.join(",") === "2" && restored.equipment[0] === "anillas";
+  });
 
   state.denseTrainingEntries = savedEntries;
   denseNeighborCache = null;
@@ -4315,7 +4325,7 @@ function renderMesocycle() {
             <span class="workout-score"><strong>${entries.length}</strong><small>sets</small></span>
             <button class="icon-button" type="button" data-action="go-today" title="Hoy" aria-label="Hoy"><i data-lucide="calendar-clock"></i></button>
             <button class="icon-button" type="button" data-action="open-quick-timer" title="Cronómetro" aria-label="Cronómetro"><i data-lucide="timer"></i></button>
-            <button class="icon-button" type="button" data-action="open-micro-breaks" title="Pausas de 5 minutos" aria-label="Pausas de 5 minutos"><i data-lucide="bell"></i></button>
+            <button class="icon-button" type="button" data-action="open-micro-breaks" title="Pausas de 2 y 5 minutos" aria-label="Pausas de 2 y 5 minutos"><i data-lucide="bell"></i></button>
           </div>
         </div>
 
@@ -7611,7 +7621,7 @@ function createInitialState() {
       trainingAnalyticsWindow: "70",
       trainingMode: "workout",
       timerVolume: .85,
-      microBreaks: { times: ["11:00", "17:00"], timeZone: "Europe/Madrid", equipment: ["suelo", "anillas"], kinds: ["movilidad", "activacion"] },
+      microBreaks: { times: ["11:00", "17:00"], timeZone: "Europe/Madrid", equipment: ["suelo", "anillas"], kinds: ["movilidad", "activacion"], durations: [2, 5] },
     },
     habits: habitDefaults,
     records,
@@ -7670,10 +7680,12 @@ function normalizeState(input) {
     trainingMode: "workout",
     workoutPickerTab: "exercises",
     timerVolume: .85,
-    microBreaks: { times: ["11:00", "17:00"], timeZone: "Europe/Madrid", equipment: ["suelo", "anillas"], kinds: ["movilidad", "activacion"] },
+    microBreaks: { times: ["11:00", "17:00"], timeZone: "Europe/Madrid", equipment: ["suelo", "anillas"], kinds: ["movilidad", "activacion"], durations: [2, 5] },
     ...(input.settings || {}),
   };
   merged.habits = (merged.habits?.length ? merged.habits : habitDefaults).map((habit) => ({ ...habit, id: habit.id || slugify(habit.name) }));
+  const pauseSettings = merged.settings.microBreaks || {};
+  merged.settings.microBreaks = { ...pauseSettings, durations: Array.isArray(pauseSettings.durations) ? [2, 5].filter((minutes) => pauseSettings.durations.includes(minutes)) : [5] };
   merged.mesocycle = merged.mesocycle?.weeks ? merged.mesocycle : mesocycleDefault;
   merged.records ||= {};
   merged.dayNotes ||= {};

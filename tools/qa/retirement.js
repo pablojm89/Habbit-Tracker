@@ -115,6 +115,9 @@ const check = (value, message) => { assert.ok(value, message); checks += 1; };
     await offlinePage.locator('[data-micro-action="preview"]').click();
     await offlinePage.locator('[data-micro-action="start"]').waitFor();
     check(await offlinePage.locator('.micro-session').isVisible(), "Protocolos de pausa accesibles sin conexion");
+    await offlinePage.goto(`${BASE}/index.html?noprompt=1&micro=cadera-suave-2min`);
+    await offlinePage.locator('[data-micro-action="start"]').waitFor();
+    check(await offlinePage.locator('[data-micro-action="start"]').innerText() === "Iniciar 2 minutos", "La pausa corta tambien abre sin conexion");
     await offline.close();
     console.log(`RETIREMENT: ${checks} checks OK`);
   } finally { await browser.close(); }

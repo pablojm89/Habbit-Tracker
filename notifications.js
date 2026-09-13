@@ -1,12 +1,12 @@
 const microPush = { serviceUrl: "", publicKey: "", device: null, remote: null, sessions: [], error: "", busy: false, loaded: false };
 
-function microPreferences() {
-  const value = state.settings.microBreaks || {};
+function microPreferences(value = state.settings.microBreaks || {}) {
   return {
     times: Array.isArray(value.times) && value.times.length ? value.times.slice(0, 4) : ["11:00", "17:00"],
     timeZone: value.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone,
     equipment: Array.isArray(value.equipment) ? value.equipment : ["suelo", "anillas"],
     kinds: Array.isArray(value.kinds) ? value.kinds : ["movilidad", "activacion"],
+    durations: Array.isArray(value.durations) ? [2, 5].filter((minutes) => value.durations.includes(minutes)) : [5],
   };
 }
 
@@ -58,7 +58,7 @@ async function loadMicroPush() {
 async function openMicroBreaks() {
   pauseQuickTimer(false);
   nodes.modalEyebrow.textContent = "Durante el dia";
-  nodes.modalTitle.textContent = "Pausas de 5 minutos";
+  nodes.modalTitle.textContent = "Pausas de 2 y 5 minutos";
   nodes.modalCard.dataset.modalKind = "micro-breaks";
   microPush.busy = true;
   microPush.error = "";
@@ -70,7 +70,7 @@ async function openMicroBreaks() {
 }
 
 function renderMicroBreaks() {
-  const prefs = microPush.remote?.preferences || microPreferences();
+  const prefs = microPreferences(microPush.remote?.preferences || state.settings.microBreaks);
   const active = Boolean(microPush.remote?.active);
   const issue = microSupportIssue();
   const enabled = microPush.serviceUrl && microPush.publicKey && !issue && !microPush.busy;
@@ -79,6 +79,7 @@ function renderMicroBreaks() {
   const choice = (name, value, label, checked) => `<label class="micro-check"><input type="checkbox" name="${name}" value="${value}" ${checked ? "checked" : ""}><span>${label}</span></label>`;
   nodes.modalBody.innerHTML = `<form id="microPushForm" class="micro-form">
     <p class="micro-status" role="status">${escapeHtml(status)}</p>
+    <fieldset ${microPush.busy ? "disabled" : ""}><legend>Duracion</legend><div class="micro-choices">${choice("durations", "2", "2 minutos", prefs.durations.includes(2))}${choice("durations", "5", "5 minutos", prefs.durations.includes(5))}</div></fieldset>
     <fieldset ${microPush.busy ? "disabled" : ""}><legend>Horas de aviso</legend>
       <div class="micro-times">${Array.from({ length: 4 }, (_, i) => `<label class="field"><span>Aviso ${i + 1}${i ? " (opcional)" : ""}</span><input type="time" name="time" min="08:00" max="21:59" value="${escapeAttr(prefs.times[i] || "")}" ${i === 0 ? "required" : ""}></label>`).join("")}</div>
       <label class="field"><span>Zona horaria</span><input name="timeZone" value="${escapeAttr(prefs.timeZone)}" required list="microTimeZones"><datalist id="microTimeZones"><option value="Europe/Madrid"><option value="Atlantic/Canary"><option value="${escapeAttr(Intl.DateTimeFormat().resolvedOptions().timeZone)}"></datalist></label>
@@ -95,7 +96,8 @@ function renderMicroBreaks() {
 
 function readMicroPreferences(form) {
   const data = new FormData(form);
-  const prefs = { times: [...new Set(data.getAll("time").filter(Boolean))].sort(), timeZone: String(data.get("timeZone")).trim(), equipment: data.getAll("equipment"), kinds: data.getAll("kinds") };
+  const prefs = { times: [...new Set(data.getAll("time").filter(Boolean))].sort(), timeZone: String(data.get("timeZone")).trim(), equipment: data.getAll("equipment"), kinds: data.getAll("kinds"), durations: data.getAll("durations").map(Number) };
+  if (!prefs.durations.length || prefs.durations.some((minutes) => ![2, 5].includes(minutes))) throw new Error("Elige pausas de 2 minutos, de 5 o ambas.");
   try { new Intl.DateTimeFormat("es", { timeZone: prefs.timeZone }).format(); } catch { throw new Error("Zona horaria no valida."); }
   const minutes = prefs.times.map((value) => Number(value.slice(0, 2)) * 60 + Number(value.slice(3)));
   if (!minutes.length || minutes.some((value, i) => value < 480 || value >= 1320 || i > 0 && value - minutes[i - 1] < 60)) throw new Error("Elige horarios entre las 08:00 y las 21:59, separados una hora.");
@@ -168,14 +170,14 @@ async function openMicroSession(id = "") {
     if (!microPush.sessions.length) microPush.sessions = await fetch("./micro-sessions.json").then((response) => response.json());
     const form = document.querySelector("#microPushForm");
     const prefs = form ? readMicroPreferences(form) : microPreferences();
-    const eligible = microPush.sessions.filter((item) => prefs.kinds.includes(item.kind) && item.equipment.every((gear) => prefs.equipment.includes(gear)));
+    const eligible = microPush.sessions.filter((item) => prefs.durations.includes(item.durationMinutes) && prefs.kinds.includes(item.kind) && item.equipment.every((gear) => prefs.equipment.includes(gear)));
     const session = id ? microPush.sessions.find((item) => item.id === id) : eligible[Math.floor(Math.random() * eligible.length)];
-    if (!session) throw new Error("No hay una pausa compatible con ese material.");
+    if (!session || ![2, 5].includes(session.durationMinutes)) throw new Error("No hay una pausa compatible con esas preferencias.");
     pauseQuickTimer(false);
-    nodes.modalEyebrow.textContent = "5 minutos";
+    nodes.modalEyebrow.textContent = `${session.durationMinutes} minutos`;
     nodes.modalTitle.textContent = session.title;
     nodes.modalCard.dataset.modalKind = "micro-session";
-    nodes.modalBody.innerHTML = `<section class="micro-session"><p>${escapeHtml(session.instruction)}</p><p class="muted">Sin dolor ni esfuerzo maximo. Si molesta, para.</p><button class="text-button is-hot timer-wide-button" data-micro-action="start" data-session="${escapeAttr(session.id)}"><i data-lucide="timer"></i>Iniciar 5 minutos</button></section>`;
+    nodes.modalBody.innerHTML = `<section class="micro-session"><p>${escapeHtml(session.instruction)}</p><p class="muted">Sin dolor ni esfuerzo maximo. Si molesta, para.</p><button class="text-button is-hot timer-wide-button" data-micro-action="start" data-session="${escapeAttr(session.id)}"><i data-lucide="timer"></i>Iniciar ${session.durationMinutes} minutos</button></section>`;
     refreshIcons();
     openModal();
   } catch (error) { toast(error.message); }
@@ -183,11 +185,11 @@ async function openMicroSession(id = "") {
 
 function startMicroSession(id) {
   const session = microPush.sessions.find((item) => item.id === id);
-  if (!session) return;
+  if (!session || ![2, 5].includes(session.durationMinutes)) return;
   restoreQuickTimerDraft();
   if (quickTimerState.roundResults.some(Boolean) && !quickTimerState.appliedEntryId && !confirm("Hay rondas sin guardar. ¿Descartarlas para empezar esta pausa?")) return;
   resetQuickTimer(false);
-  Object.assign(quickTimerState, { scheme: "5D", rounds: 5, roundSeconds: 60, holdSeconds: 0, context: null, microSession: session });
+  Object.assign(quickTimerState, { scheme: `${session.durationMinutes}D`, rounds: session.durationMinutes, roundSeconds: 60, holdSeconds: 0, context: null, microSession: session });
   nodes.modalTitle.textContent = `Cronómetro · ${session.title}`;
   nodes.modalCard.dataset.modalKind = "quick-timer";
   startQuickTimer();
@@ -209,7 +211,7 @@ document.addEventListener("click", (event) => {
 });
 navigator.serviceWorker?.addEventListener("message", (event) => {
   if (event.data?.type !== "open-micro-session") return;
-  if (quickTimerState.running || nodes.modal.open) { toast("Hay una pausa de 5 minutos disponible en la campana."); return; }
+  if (quickTimerState.running || nodes.modal.open) { toast("Hay una pausa disponible en la campana."); return; }
   openMicroSession(event.data.id);
 });
 const initialMicroId = new URL(location.href).searchParams.get("micro");
