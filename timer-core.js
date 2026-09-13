@@ -200,5 +200,5 @@ function denseTimerFormDefaults(defaults) {
   const result = denseSetModalContext.timerResult;
   if (!result || defaults.exerciseId !== result.exerciseId || defaults.scheme !== result.scheme) return defaults;
   if (result.kind === "reps") return { ...defaults, totalReps: "", holdSecondsPerRound: "", holdRounds: [], effort: "E", isTest: false, timerSessionId: result.sessionId };
-  return { ...defaults, holdSecondsPerRound: result.target, rounds: result.rounds.length, holdRounds: result.rounds, timerSessionId: result.sessionId };
+  return { ...defaults, ...(result.microBreak ? { effort: "E", isTest: false } : {}), holdSecondsPerRound: result.target, rounds: result.rounds.length, holdRounds: result.rounds, timerSessionId: result.sessionId };
 }

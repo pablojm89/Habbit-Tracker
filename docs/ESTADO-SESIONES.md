@@ -8,8 +8,8 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 > App: PWA de entrenamiento (Dense training). Vanilla JS sin build: `app.js` (~9000
 > líneas), `styles.css`, `index.html`, `sw.js`. Sincroniza a Google Sheets vía Apps Script.
 > Modo training-only (`TRAINING_ONLY = true`). Cache busting: string `?v=…` en `index.html`
-> **y** `sw.js` a la vez. **Última versión local: `20260913-pausas-equilibradas-50`.**
-> Última remota comprobada: `20260911-clasica-47`; v48 a v50 pendientes de push del usuario.
+> **y** `sw.js` a la vez. **Versión de esta entrega: `20260913-pausas-isometricas-51`.**
+> Publicación solicitada expresamente por Pablo: incluye también las entregas v48-v50.
 
 ## Cómo trabajar aquí (imprescindible)
 
@@ -19,7 +19,7 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 - **QA en un comando**: `tools/qa/run.sh` (o `selftests` / `crawl` / `audit` / `plan` / `retirement` / `timer` / `push`). Los
   scripts viven ya en el repo (`tools/qa/`), no en el scratchpad de la sesión.
   `plan.js` audita 1.612 combinaciones proposición → tarjeta → formulario (con y sin historial).
-- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **117 asserts**.
+- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **119 asserts**.
   Correr siempre tras tocar el motor.
 - **Simulación de entrenamiento** (nueva herramienta de QA): 6 semanas × 4 días con un
   atleta sintético que sigue las sugerencias reales de la app vía Playwright+Chromium
@@ -42,8 +42,8 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
   en `finally`. Las claves sensibles (p.ej. `sessions`) se redactan en la salida del eval.
 - **Convención self-tests**: los de una fase nueva van AL FINAL de `runDenseSelfTests()`
   (si van en medio, sus marcas sintéticas contaminan los tests del motor posteriores).
-- **git push lo hace el usuario.** Commits locales sin subir desde `acbc696` (cierre de
-  sesión, deploy .gs `871b9f4`+`ec652fa`, recovery real `e304ecb`).
+- **git push lo hace el usuario salvo petición expresa.** En esta entrega (13 sep)
+  ha pedido subir los cambios acumulados y añadir front lever/handstand.
 
 ## Sistemas grandes (base sólida)
 
@@ -60,6 +60,28 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
   fail-closed, LockService, hojas de transferencias. Auto-restore al arrancar vacío.
 
 ## Trabajo reciente por tema (con commits)
+
+### Front lever y handstand en las pausas (13 sep 2026)
+- Dos protocolos nuevos en 2/5 minutos: front lever (5 s/ronda iniciales) y
+  handstand (10 s/ronda). Son diez ejercicios base y veinte protocolos en total.
+- Selector de las ocho variantes de front lever y Straight/Straddle Handstand;
+  segundos editables de 1 a 55. `microHoldConfiguration()` mantiene variante,
+  instrucciones y objetivo coherentes sin modificar el catálogo ni otras marcas.
+- Usan el crono isométrico con 5 s de preparación, avisos de fase, **He caído** y
+  segundos reales por ronda. Registro al terminar en el formulario habitual,
+  esfuerzo E editable, sin marcar test, `source: micro_break` y deduplicación por
+  `timer_session_id`. Recarga conserva variante, segundos y fecha real de la pausa.
+- Front lever respeta el trabajo duro de tirón/core y handstand el de empuje.
+  Las variantes no multiplican la probabilidad de recibir una familia de ejercicio.
+- +2 self-tests (119) y pruebas de configuración, caídas, avisos, guardado, edición,
+  recarga, material/fatiga y front lever offline. Capturas 320/390/1280 px revisadas.
+- Verificado: 119/119 self-tests, crawl/auditoría sin incidencias, 3.224 checks de
+  plan, 35 de retirada/offline, 33 del crono, 81 de pausas/push y 21 del backend.
+  Build y runtime Worker+SQLite locales correctos; proveedor push simulado.
+- GitHub Pages sirve `main` desde `/`. Antes de publicar: remoto `c2c8ed8`; la
+  etiqueta `respaldo-pre-estudio-v45` sigue apuntando a `033114a`, sin moverla.
+  Publicación autorizada, sin force-push. No se despliega el emisor de notificaciones:
+  `push-config.json.serviceUrl` sigue vacío y falta la prueba física del iPhone.
 
 ### Pausas según carga reciente y biblioteca de calistenia (13 sep 2026)
 - Ocho ejercicios, dieciséis protocolos de 2/5 min: remos, tirón asistido,

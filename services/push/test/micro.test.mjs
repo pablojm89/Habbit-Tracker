@@ -9,15 +9,25 @@ const prefs = { durations: [2, 5], equipment: ["suelo", "anillas", "barra"], kin
 const summary = (load, hard = [], date = "2026-09-13") => ({ generatedAt: now, days: [{ date, load, hard }] });
 const choose = (balance, random = () => 0, extra = {}) => chooseSession({ ...prefs, ...extra }, "", random, balance, now);
 
-test("catalogo: ocho ejercicios, dos dosis cada uno y equipo real", () => {
-  assert.equal(sessions.length, 16);
-  assert.equal(new Set(sessions.map((s) => s.exerciseId)).size, 8);
+test("catalogo: diez ejercicios base, dos dosis cada uno y equipo real", () => {
+  assert.equal(sessions.length, 20);
+  assert.equal(new Set(sessions.map((s) => s.exerciseId)).size, 10);
   assert.ok(sessions.every((s) => MicroBreaks.keys.includes(s.group) && MicroBreaks.keys.includes(s.pattern) && s.instruction.includes(`${s.durationMinutes} rondas`)));
   const floor = MicroBreaks.eligible(sessions, { ...prefs, equipment: ["suelo"] });
-  assert.deepEqual([...new Set(floor.map((s) => s.exerciseId))].sort(), ["air_squat", "floor_push_up"]);
+  assert.deepEqual([...new Set(floor.map((s) => s.exerciseId))].sort(), ["air_squat", "floor_push_up", "straight_handstand"]);
   const rings = MicroBreaks.eligible(sessions, { ...prefs, equipment: ["anillas"] });
   assert.ok(rings.some((s) => s.exerciseId === "pull_up"));
   assert.ok(!rings.some((s) => s.exerciseId === "toes_to_bar_strict"));
+});
+
+test("isometricos: seleccion por material y esfuerzo de patrones compartidos", () => {
+  const holds = sessions.filter((session) => session.holdSeconds);
+  assert.equal(holds.length, 4);
+  for (const equipment of [["barra"], ["anillas"]]) assert.ok(MicroBreaks.eligible(holds, { ...prefs, equipment }).every((session) => session.variantFamily === "front_lever"));
+  assert.equal(MicroBreaks.choose(holds, prefs, summary({}, ["pull"]), "", () => 0, now).variantFamily, "handstand");
+  assert.equal(MicroBreaks.choose(holds, prefs, summary({}, ["core"]), "", () => 0, now).variantFamily, "handstand");
+  assert.equal(MicroBreaks.choose(holds, prefs, summary({}, ["push"]), "", () => 0, now).variantFamily, "front_lever");
+  assert.equal(MicroBreaks.choose(holds, prefs, summary({}, ["pull", "push"]), "", () => 0, now), null);
 });
 
 test("balance: prioriza el patron menos trabajado entre los disponibles", () => {

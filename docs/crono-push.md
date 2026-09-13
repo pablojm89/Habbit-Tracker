@@ -1,6 +1,6 @@
 # Cronometro y pausas push
 
-Version local: `20260913-pausas-equilibradas-50`. No cambia la interfaz habitual ni crea otra
+Version: `20260913-pausas-isometricas-51`. No cambia la interfaz habitual ni crea otra
 version de la app. No se ha desplegado el emisor ni activado una suscripcion real.
 
 ## Cronometro
@@ -46,14 +46,15 @@ y [Screen Wake Lock](https://developer.mozilla.org/en-US/docs/Web/API/Screen_Wak
   formulario propone 11:00 y 17:00 (Europe/Madrid), pero no activa nada por defecto.
   Son horarios elegidos, no horas aleatorias; todos los dias, sin selector de
   dias de la semana. La seleccion de ejercicio y duracion permitida si varia.
-- Material inicial: suelo y anillas; barra seleccionable. Ocho ejercicios con dos
-  duraciones cada uno en `micro-sessions.json`: dieciseis protocolos. Dominadas
-  admiten barra o anillas altas; toes to bar requiere barra. Se filtran por material,
+- Material inicial: suelo y anillas; barra seleccionable. Diez ejercicios base con
+  dos duraciones cada uno en `micro-sessions.json`: veinte protocolos. Dominadas y
+  front lever admiten barra o anillas; toes to bar requiere barra. Se filtran por material,
   tipo, duracion y carga reciente, igual en la app sin conexion y en el emisor.
 - Cada pausa es un solo ejercicio repetido durante 2 o 5 rondas de un minuto.
-  El reloj arranca en 2:00 o 5:00; no mezcla ejercicios ni adapta la dosis al usuario.
-  Estas pausas usan el crono por minutos: los 20 s/40 s de movilidad estan escritos
-  en el protocolo, pero todavia no tienen avisos de fase propios.
+  El reloj arranca en 2:00 o 5:00; no mezcla ejercicios ni calcula la dosis desde tus
+  maximos. Front lever y handstand anaden 5 s de preparacion y tienen fases de
+  aguante/descanso con avisos. Los 20 s/40 s de movilidad siguen escritos en el
+  protocolo, sin avisos de fase propios.
 - **Una pausa ahora** y su reloj funcionan sin emisor. Abrir el push lleva al
   protocolo mediante `?micro=<id>`. Si ya hay un formulario/reloj abierto, no lo
   sustituye: avisa de que hay una pausa disponible en la campana.
@@ -76,12 +77,21 @@ y [Screen Wake Lock](https://developer.mozilla.org/en-US/docs/Web/API/Screen_Wak
 | Flexiones en suelo | Hasta 5 faciles | Hasta 10 reps | Hasta 25 reps |
 | Toes to bar estrictos | Hasta 2 controlados en barra | Hasta 4 reps | Hasta 10 reps |
 | Sentadillas sin peso | Hasta 8 controladas | Hasta 16 reps | Hasta 40 reps |
+| Front lever | 5 s por defecto, variante y segundos editables | 10 s objetivo | 25 s objetivo |
+| Handstand | 10 s por defecto, variante y segundos editables | 20 s objetivo | 50 s objetivo |
 | Apertura suave de cadera en cuadrupedia | 20 s suaves y 40 s fuera de la postura | 40 s de aguante | 100 s de aguante |
 | Pancake suave | 20 s suaves y 40 s de descanso | 40 s de aguante | 100 s de aguante |
 
 Tras las repeticiones se descansa el resto del minuto; en movilidad se evita forzar
 el rango. Todas las dosis de reps son limites orientativos: reducirlas o cambiar
 de pausa si no salen faciles. La seleccion se adapta; el numero de reps aun no.
+
+Front lever ofrece las ocho variantes del catalogo (Tuck a Full); handstand,
+Straight y Straddle. `microHoldConfiguration()` valida la variante y entre 1 y 55
+segundos enteros por ronda. La instruccion se actualiza al cambiar los controles.
+El selector arranca en Tuck/Straight; no infiere que domines Full ni elige por ti
+una variante dificil. La configuracion elegida queda en el borrador del reloj,
+no modifica el protocolo de los siguientes avisos ni cambia otras marcas.
 
 ### Como se elige la pausa
 
@@ -100,7 +110,8 @@ de pausa si no salen faciles. La seleccion se adapta; el numero de reps aun no.
   varios patrones principales, reparte sus unidades entre ellos. El tonelaje sigue
   disponible en el historial, pero no se comparan kg de dominadas con kg de flexiones.
 - Primero se excluye activacion de patrones con H/VH/fallo hoy o ayer. Toes to bar
-  comparte esta restriccion con tiron. Trabajo duro de anteayer anade 2 unidades al
+  comparte esta restriccion con tiron; front lever con tiron y core, handstand con
+  empuje. Trabajo duro de anteayer anade 2 unidades al
   patron para reducir su prioridad. No es una medicion de recuperacion real.
 - Se sortea entre patrones compatibles a no mas de 1 unidad del menos trabajado;
   dentro del tiron se favorece vertical/horizontal a no mas de 0,5 unidades del menor.
@@ -120,6 +131,12 @@ de pausa si no salen faciles. La seleccion se adapta; el numero de reps aun no.
   Dense habitual, con las reps reales en blanco, esfuerzo E editable y sin marcar
   test. Guardar exige introducirlas. Menos reps en esta pausa flexible no implica
   fallo automatico; el usuario puede indicarlo con el esfuerzo.
+- Front lever/handstand usan el crono isometrico completo: **He caido**, aviso al
+  objetivo y ronda siguiente en su minuto. Tras terminar, **Revisar y guardar**
+  trae los segundos reales y la variante elegida al mismo formulario, sin marcar
+  test y con esfuerzo E editable. Una caida por debajo del objetivo si cuenta como
+  fallo, igual que en el crono habitual; el usuario puede corregir los segundos.
+  Las pausas isometricas requieren terminar el bloque para abrir este registro.
 - Se guarda en `state.denseTrainingEntries`, `source: micro_break`, con
   `timer_session_id` para reabrir/editar sin duplicar. Usa el backup/Sheets y motor
   normales. Ediciones o borrados cambian la siguiente prioridad. El borrador local
@@ -147,7 +164,7 @@ de pausa si no salen faciles. La seleccion se adapta; el numero de reps aun no.
 - Mas piernas/zonas de movilidad, editor, favoritos o exclusiones por ejercicio.
 - Registro rapido de movilidad, pausas parciales, marcar omitida, rachas o estadisticas.
 - Posponer 10/30 minutos, dias laborables/fines de semana, ventanas aleatorias.
-- Avisos de cada tramo de trabajo/descanso en las pausas o un circuito mixto.
+- Avisos de cada tramo de movilidad o un circuito mixto.
 - Entrega push real: falta desplegar y configurar el emisor y probar el iPhone.
 
 ## Emisor Pendiente De Activar
@@ -203,13 +220,14 @@ indica que no esta activo. No son avisos del calendario ni automatizaciones de C
 
 ## Verificacion
 
-- `tools/qa/run.sh all`: 117 self-tests, crawl/auditoria, plan dos pasadas,
+- `tools/qa/run.sh all`: 119 self-tests, crawl/auditoria, plan dos pasadas,
   retirada de Estudio, timer y push. Capturas a 320/390/1280 px.
 - `tools/qa/run.sh timer` (33 checks): tiempo simulado, caida, rondas automaticas, TUT, cero,
   recarga, edicion sin duplicados y amplitud/duracion de audio renderizado.
-- `tools/qa/run.sh push`: duraciones, fin a 120/300 s, backup, prioridades, reps
-  reales y edicion, recarga, resumen agregado, permisos/proveedor simulados.
-- `npm test` en `services/push/` (20 tests): duraciones, horarios/DST, auth, cifrado,
+- `tools/qa/run.sh push` (81 checks): duraciones, fin a 120/300 s (mas 5 s de
+  preparacion en isometricos), backup, prioridades, reps/segundos reales, variantes,
+  caidas, avisos, edicion, recarga, resumen agregado, permisos/proveedor simulados.
+- `npm test` en `services/push/` (21 tests): duraciones, horarios/DST, auth, cifrado,
   enlaces, no repeticion entre duraciones, alarmas, bajas y SW.
   Incluye seleccion por carga, fatiga compartida, resumen caducado, equipo, ventana
   de dias y distribucion por patron sin sesgo por numero de protocolos.

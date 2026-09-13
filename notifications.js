@@ -226,22 +226,36 @@ async function openMicroSession(id = "") {
     nodes.modalEyebrow.textContent = `${session.durationMinutes} minutos`;
     nodes.modalTitle.textContent = session.title;
     nodes.modalCard.dataset.modalKind = "micro-session";
-    nodes.modalBody.innerHTML = `<section class="micro-session"><p class="micro-reason">${escapeHtml(reason)}</p><p>${escapeHtml(session.instruction)}</p><p class="muted">Sin dolor ni esfuerzo maximo. Si molesta, para.</p><button class="text-button is-hot timer-wide-button" data-micro-action="start" data-session="${escapeAttr(session.id)}" ${tired || !compatible ? "disabled" : ""}><i data-lucide="timer"></i>Iniciar ${session.durationMinutes} minutos</button><button class="text-button timer-wide-button" data-micro-action="preview"><i data-lucide="shuffle"></i>Otra pausa</button></section>`;
+    nodes.modalBody.innerHTML = `<section class="micro-session"><p class="micro-reason">${escapeHtml(reason)}</p><p data-micro-instruction>${escapeHtml(session.instruction)}</p>${session.holdSeconds ? `<label class="field"><span>Variante</span><select data-micro-exercise>${denseExerciseCatalog.filter((exercise) => exercise.family === session.variantFamily && denseIsIsometric(exercise)).map((exercise) => `<option value="${escapeAttr(exercise.id)}" ${exercise.id === session.exerciseId ? "selected" : ""}>${escapeHtml(exercise.name)}</option>`).join("")}</select></label><label class="field"><span>Segundos por ronda</span><input data-micro-hold type="number" min="1" max="55" step="1" inputmode="numeric" value="${session.holdSeconds}"></label>` : ""}<p class="muted">Sin dolor ni esfuerzo maximo. Si molesta, para.</p><button class="text-button is-hot timer-wide-button" data-micro-action="start" data-session="${escapeAttr(session.id)}" ${tired || !compatible ? "disabled" : ""}><i data-lucide="timer"></i>Iniciar ${session.durationMinutes} minutos</button><button class="text-button timer-wide-button" data-micro-action="preview"><i data-lucide="shuffle"></i>Otra pausa</button></section>`;
     refreshIcons();
     openModal();
   } catch (error) { toast(error.message); }
 }
 
+function microHoldConfiguration(session, exerciseId = session.exerciseId, holdSeconds = session.holdSeconds) {
+  const exercise = findDenseExerciseById(exerciseId);
+  const seconds = Number(holdSeconds);
+  if (!session.holdSeconds || !exercise || exercise.family !== session.variantFamily || !denseIsIsometric(exercise)) throw new Error("Elige una variante isometrica de este ejercicio.");
+  if (!Number.isInteger(seconds) || seconds < 1 || seconds > 55) throw new Error("Elige entre 1 y 55 segundos por ronda.");
+  const environment = session.variantFamily === "front_lever" ? "Barra o anillas bien fijadas." : "Espacio libre y una salida que controles.";
+  return { ...session, exerciseId: exercise.id, title: exercise.name, holdSeconds: seconds, instruction: `Cada minuto: ${seconds} s de ${exercise.name}. Descansa el resto. ${session.durationMinutes} rondas faciles. ${environment} Si necesitas forzar, cambia de pausa.` };
+}
+
 function startMicroSession(id) {
-  const session = microPush.sessions.find((item) => item.id === id);
+  let session = microPush.sessions.find((item) => item.id === id);
   if (!session || ![2, 5].includes(session.durationMinutes)) return;
+  if (session.holdSeconds) {
+    try { session = microHoldConfiguration(session, document.querySelector("[data-micro-exercise]")?.value || session.exerciseId, document.querySelector("[data-micro-hold]")?.value ?? session.holdSeconds); }
+    catch (error) { toast(error.message); return; }
+  }
   const prefs = microPreferences();
   const work = MicroBreaks.workload(denseMicroBalanceSnapshot(Date.now(), prefs.timeZone), prefs.timeZone);
   if (!MicroBreaks.eligible([session], { ...prefs, durations: [session.durationMinutes], kinds: [session.kind] }).length || session.kind === "activacion" && session.stressGroups.some((group) => work.blocked.has(group))) { openMicroSession(id); return; }
   restoreQuickTimerDraft();
   if (quickTimerState.roundResults.some(Boolean) && !quickTimerState.appliedEntryId && !confirm("Hay rondas sin guardar. ¿Descartarlas para empezar esta pausa?")) return;
   resetQuickTimer(false);
-  Object.assign(quickTimerState, { scheme: `${session.durationMinutes}D`, rounds: session.durationMinutes, roundSeconds: 60, holdSeconds: 0, context: null, microSession: session, microDate: MicroBreaks.dayKey(Date.now(), prefs.timeZone) });
+  const microDate = MicroBreaks.dayKey(Date.now(), prefs.timeZone);
+  Object.assign(quickTimerState, { scheme: `${session.durationMinutes}D`, rounds: session.durationMinutes, roundSeconds: 60, holdSeconds: session.holdSeconds || 0, preparationSeconds: 5, context: session.holdSeconds ? { exerciseId: session.exerciseId, nature: "skill", date: microDate } : null, microSession: session, microDate });
   nodes.modalTitle.textContent = `Cronómetro · ${session.title}`;
   nodes.modalCard.dataset.modalKind = "quick-timer";
   startQuickTimer();
@@ -260,6 +274,16 @@ document.addEventListener("submit", (event) => {
   if (event.target.id !== "microPushForm") return;
   event.preventDefault();
   saveMicroSubscription(event.target);
+});
+document.addEventListener("input", (event) => {
+  if (!event.target.matches("[data-micro-exercise], [data-micro-hold]")) return;
+  const id = document.querySelector('[data-micro-action="start"]')?.dataset.session;
+  const session = microPush.sessions.find((item) => item.id === id);
+  if (!session?.holdSeconds) return;
+  try {
+    const configured = microHoldConfiguration(session, document.querySelector("[data-micro-exercise]").value, document.querySelector("[data-micro-hold]").value);
+    document.querySelector("[data-micro-instruction]").textContent = configured.instruction;
+  } catch { /* Incomplete input is validated when starting the timer. */ }
 });
 document.addEventListener("click", (event) => {
   if (event.target.closest('[data-action="open-micro-breaks"]')) openMicroBreaks();

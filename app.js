@@ -3602,6 +3602,20 @@ function runDenseSelfTests() {
     const day = denseMicroBalanceSnapshot(Date.parse("2026-09-13T12:00:00Z"), "Europe/Madrid").days[0];
     return day.load.push === 2.8 && day.hard.includes("push");
   });
+  test("pausas isometricas: variante y segundos se configuran sin mutar el protocolo", () => {
+    const base = { exerciseId: "front_lever_tuck", variantFamily: "front_lever", holdSeconds: 5, durationMinutes: 2 };
+    const config = microHoldConfiguration(base, "front_lever_full", 12);
+    let rejected = 0;
+    for (const [id, seconds] of [["floor_push_up", 5], ["front_lever_tuck_pull", 5], ["front_lever_tuck", 0], ["front_lever_tuck", 56]]) {
+      try { microHoldConfiguration(base, id, seconds); } catch { rejected += 1; }
+    }
+    return config.exerciseId === "front_lever_full" && config.holdSeconds === 12 && config.instruction.includes("12 s") && base.holdSeconds === 5 && rejected === 4;
+  });
+  test("pausas isometricas: front lever reparte carga entre tiron y core", () => {
+    state.denseTrainingEntries = [{ exercise_id: "front_lever_adv_tuck", date: "2026-09-13", scheme: "2D", hold_rounds: [5, 5], target_total_hold_seconds: 10, effort: "H" }];
+    const day = denseMicroBalanceSnapshot(Date.parse("2026-09-13T12:00:00Z"), "Europe/Madrid").days[0];
+    return day.load.pull === 1.4 && day.load.core === 1.4 && day.hard.includes("pull") && day.hard.includes("core");
+  });
 
   state.denseTrainingEntries = savedEntries;
   denseNeighborCache = null;
@@ -6153,7 +6167,7 @@ function patchQuickTimerReadout() {
     if (results.innerHTML !== html) results.innerHTML = html;
   }
   const save = body.querySelector("[data-action='apply-timer-hold']");
-  if (save) save.disabled = !quickTimerState.context || !quickTimerState.roundResults.some(Boolean) || quickTimerState.rounds !== denseSchemeMinutes(quickTimerState.scheme);
+  if (save) save.disabled = !quickTimerState.context || !quickTimerState.roundResults.some(Boolean) || quickTimerState.rounds !== denseSchemeMinutes(quickTimerState.scheme) || Boolean(quickTimerState.microSession && !frame.complete);
   const microSave = nodes.modalBody.querySelector('[data-micro-action="review"]');
   if (microSave) microSave.disabled = !frame.complete;
   const start = body.querySelector("[data-action='quick-timer-start']");
@@ -6243,9 +6257,10 @@ function applyTimerHoldToDenseForm() {
   pauseQuickTimer(false);
   const context = quickTimerState.context;
   if (!context || !quickTimerState.roundResults.some(Boolean)) return;
+  if (quickTimerState.microSession && !denseTimerFrame(quickTimerState, quickTimerElapsedNow()).complete) return;
   const entry = getDenseEntries().find((item) => item.timer_session_id === quickTimerState.sessionId);
   selectedDate = parseDate(context.date);
-  const result = { exerciseId: context.exerciseId, scheme: quickTimerState.scheme, target: quickTimerState.holdSeconds, rounds: Array.from({ length: quickTimerState.rounds }, (_, i) => quickTimerState.roundResults[i]?.seconds ?? 0), sessionId: quickTimerState.sessionId };
+  const result = { exerciseId: context.exerciseId, scheme: quickTimerState.scheme, target: quickTimerState.holdSeconds, rounds: Array.from({ length: quickTimerState.rounds }, (_, i) => quickTimerState.roundResults[i]?.seconds ?? 0), sessionId: quickTimerState.sessionId, microBreak: Boolean(quickTimerState.microSession) };
   openDenseTrainingModal({ exerciseId: context.exerciseId, entryId: entry?.id || "", planItem: { ...context.planItem, exercise_id: context.exerciseId, nature: context.nature, scheme: quickTimerState.scheme, prescription: { ...context.planItem?.prescription, holdSecondsPerRound: quickTimerState.holdSeconds } }, timerResult: result });
 }
 
@@ -7322,7 +7337,7 @@ function saveDenseTrainingForm(form) {
   const usesHold = isometric || Boolean(holdSecondsPerRound && rounds);
   const editingEntryId = state.settings.denseDraftEntryId || "";
   const existingEntry = editingEntryId ? getDenseEntries().find((entry) => entry.id === editingEntryId) : null;
-  const isMicro = denseSetModalContext.timerResult?.kind === "reps" || existingEntry?.source === "micro_break";
+  const isMicro = denseSetModalContext.timerResult?.kind === "reps" || denseSetModalContext.timerResult?.microBreak || existingEntry?.source === "micro_break";
   // Modo Fuerza: dejarse una o dos reps en la última serie es normal (se repite
   // la carga). Solo cuenta como fallo el chip "fallo" o quedarse por debajo del
   // 80 % de las reps planificadas.

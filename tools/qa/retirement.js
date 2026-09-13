@@ -120,6 +120,9 @@ const check = (value, message) => { assert.ok(value, message); checks += 1; };
     await offlinePage.goto(`${BASE}/index.html?noprompt=1&micro=cadera-suave-2min`);
     await offlinePage.locator('[data-micro-action="start"]').waitFor();
     check(await offlinePage.locator('[data-micro-action="start"]').innerText() === "Iniciar 2 minutos", "La pausa corta tambien abre sin conexion");
+    await offlinePage.goto(`${BASE}/index.html?noprompt=1&micro=front-lever-2min`);
+    await offlinePage.locator('[data-micro-exercise]').waitFor();
+    check(await offlinePage.locator('[data-micro-exercise] option').count() === 8 && await offlinePage.locator('[data-micro-hold]').inputValue() === "5", "Front lever y sus variantes disponibles sin conexion");
     await offline.close();
     console.log(`RETIREMENT: ${checks} checks OK`);
   } finally { await browser.close(); }

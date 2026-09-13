@@ -28,7 +28,7 @@ function fixture() {
 test("horarios: validacion, separacion, material y zona", () => {
   assert.deepEqual(preferences(prefs), prefs);
   for (const change of [{ times: [] }, { times: ["02:00"] }, { times: ["11:00", "11:30"] }, { timeZone: "Unknown/Zone" }, { equipment: [] }, { equipment: ["anillas"], kinds: ["movilidad"] }]) assert.throws(() => preferences({ ...prefs, ...change }));
-  assert.equal(eligibleSessions({ ...prefs, equipment: ["suelo"] }).length, 4);
+  assert.equal(eligibleSessions({ ...prefs, equipment: ["suelo"] }).length, 5);
   const first = chooseSession(prefs, "", () => 0);
   assert.notEqual(chooseSession(prefs, first.id, () => 0).id, first.id);
 });
@@ -46,7 +46,7 @@ test("duraciones: 2, 5 o ambas; conserva las suscripciones antiguas", () => {
   for (const durations of [[2], [5], [2, 5]]) {
     const normalized = preferences({ ...prefs, durations });
     const pool = eligibleSessions(normalized);
-    assert.equal(pool.length, durations.length * 7);
+    assert.equal(pool.length, durations.length * 9);
     assert.ok(pool.every((session) => durations.includes(session.durationMinutes) && session.instruction.includes(`${session.durationMinutes} rondas`)));
     assert.equal(new Set(pool.map((session) => session.id)).size, pool.length);
   }
