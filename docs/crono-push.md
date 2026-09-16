@@ -1,7 +1,8 @@
 # Cronometro y pausas push
 
-Version: `20260913-pausas-isometricas-51`. No cambia la interfaz habitual ni crea otra
-version de la app. No se ha desplegado el emisor ni activado una suscripcion real.
+Version: `20260916-push-conectado-52`. No cambia la interfaz habitual ni crea otra
+version de la app. Emisor desplegado y conectado; pendiente activar y probar una
+suscripcion real en el iPhone.
 
 ## Cronometro
 
@@ -165,21 +166,30 @@ no modifica el protocolo de los siguientes avisos ni cambia otras marcas.
 - Registro rapido de movilidad, pausas parciales, marcar omitida, rachas o estadisticas.
 - Posponer 10/30 minutos, dias laborables/fines de semana, ventanas aleatorias.
 - Avisos de cada tramo de movilidad o un circuito mixto.
-- Entrega push real: falta desplegar y configurar el emisor y probar el iPhone.
+- Entrega push real: falta activar y probar el iPhone con la app cerrada.
 
-## Emisor Pendiente De Activar
+## Emisor Desplegado
 
 `services/push/` contiene un Cloudflare Worker con un Durable Object SQLite por
 suscripcion. Usa `luxon` para zonas/cambios de hora y `web-push` para cifrado y VAPID.
 Recibe suscripcion, preferencias y el resumen agregado de carga descrito arriba,
-ademas del hash del token. No se han creado recursos ni cargos en Cloudflare.
+ademas del hash del token. Desplegado el 16 sep en Workers Free, comprobado en la
+cuenta, sin activar planes de pago. Direccion:
+`https://bittracker-push.bittracker-push.workers.dev`.
+Version activa tras configurar secretos: `13c11711-eb08-4509-946f-f589449f2933`.
 
-Requiere cuenta/autorizacion de Pablo, Node 22+ y configurar:
+Pablo completo la autorizacion OAuth. Las claves estables y el codigo de activacion
+se guardaron fuera del repositorio en `~/.config/bittracker-push/`, con archivos
+0600. `production-secrets.json` contiene las cuatro claves; `codigo-activacion.txt`
+solo el codigo que se introduce en la PWA. Nunca publicar estos archivos. No
+regenerar VAPID al desplegar actualizaciones: invalidaria suscripciones existentes.
+
+Procedimiento para mantenimiento o una instalacion nueva (Node 22+):
 
 1. `npm ci` en `services/push/`; revisar `APP_URL` en `wrangler.jsonc`.
 2. Autorizar Wrangler con `npx wrangler login` y desplegar con `npm run deploy`.
    El servicio responde 503 hasta completar los secretos.
-3. Generar una pareja VAPID con `npx web-push generate-vapid-keys --json` y un codigo
+3. Solo para una instalacion nueva, generar una pareja VAPID y un codigo
    privado de activacion de 32 bytes aleatorios. Conservar las claves estables:
    cambiarlas exige desactivar y volver a suscribir los dispositivos.
 4. Introducir mediante `npx wrangler secret put NOMBRE` los cuatro secretos:
@@ -233,5 +243,10 @@ indica que no esta activo. No son avisos del calendario ni automatizaciones de C
   de dias y distribucion por patron sin sesgo por numero de protocolos.
 - `npm run test:runtime`: build y Worker real local (Miniflare/workerd), SQLite,
   alta/lectura/baja y cifrado/envio a un proveedor simulado, sin trafico push real.
-- Pendiente antes de afirmar push operativo: despliegue autorizado, prueba cerrada
-  en iPhone y un aviso programado. Pendiente: confirmar si "reloj" era Apple Watch.
+- Produccion: clave publica, CORS, origen rechazado, falta de autenticacion y
+  preflight comprobados. La ruta habitual de esta red devolvio un certificado
+  ajeno al dominio; la verificacion paso usando otra IP de Cloudflare con el
+  certificado HTTPS validado. No se desactivo TLS ni se cambiaron DNS del equipo.
+- Pendiente antes de afirmar entrega push operativa: activar el iPhone, prueba con
+  app cerrada y un aviso programado. Si Wi-Fi no conecta, comparar con datos moviles;
+  no ignorar alertas de certificado. Pendiente: confirmar si "reloj" era Apple Watch.

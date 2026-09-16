@@ -1,14 +1,14 @@
-const CACHE_NAME = "bittracker-mobile-20260913-pausas-isometricas-51";
+const CACHE_NAME = "bittracker-mobile-20260916-push-conectado-52";
 const LUCIDE_URL = "https://unpkg.com/lucide@1.23.0/dist/umd/lucide.min.js";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=20260913-pausas-isometricas-51",
-  "./app.js?v=20260913-pausas-isometricas-51",
-  "./studio-core.js?v=20260913-pausas-isometricas-51",
-  "./timer-core.js?v=20260913-pausas-isometricas-51",
-  "./micro-core.js?v=20260913-pausas-isometricas-51",
-  "./notifications.js?v=20260913-pausas-isometricas-51",
+  "./styles.css?v=20260916-push-conectado-52",
+  "./app.js?v=20260916-push-conectado-52",
+  "./studio-core.js?v=20260916-push-conectado-52",
+  "./timer-core.js?v=20260916-push-conectado-52",
+  "./micro-core.js?v=20260916-push-conectado-52",
+  "./notifications.js?v=20260916-push-conectado-52",
   "./micro-sessions.json",
   "./push-config.json",
   "./manifest.webmanifest?v=20260627-mobile-01",

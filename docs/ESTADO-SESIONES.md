@@ -8,8 +8,8 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 > App: PWA de entrenamiento (Dense training). Vanilla JS sin build: `app.js` (~9000
 > líneas), `styles.css`, `index.html`, `sw.js`. Sincroniza a Google Sheets vía Apps Script.
 > Modo training-only (`TRAINING_ONLY = true`). Cache busting: string `?v=…` en `index.html`
-> **y** `sw.js` a la vez. **Versión de esta entrega: `20260913-pausas-isometricas-51`.**
-> Publicación solicitada expresamente por Pablo: incluye también las entregas v48-v50.
+> **y** `sw.js` a la vez. **Versión de esta entrega: `20260916-push-conectado-52`.**
+> Emisor desplegado en Cloudflare Free y conectado; pendiente activar y probar el iPhone.
 
 ## Cómo trabajar aquí (imprescindible)
 
@@ -60,6 +60,27 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
   fail-closed, LockService, hojas de transferencias. Auto-restore al arrancar vacío.
 
 ## Trabajo reciente por tema (con commits)
+
+### Despliegue del emisor push (16 sep 2026)
+- Autorización de Cloudflare completada por Pablo. Plan Workers Free comprobado,
+  sin cambiar facturación. Nuevo Worker `bittracker-push`, Durable Object SQLite
+  `PushDevice`; no existía un emisor anterior con ese nombre.
+- `push-config.json` apunta a `https://bittracker-push.bittracker-push.workers.dev`.
+  Versión activa del Worker tras configurar secretos:
+  `13c11711-eb08-4509-946f-f589449f2933`. Frontend v52; no cambia el historial.
+- VAPID y código de alta estables, fuera de Git, en
+  `~/.config/bittracker-push/` (archivos 0600). No rotar las claves en futuros
+  despliegues. Credenciales de Wrangler cifradas con clave en el llavero de macOS.
+- Verificado: 119/119 self-tests, crawl/auditoría sin incidencias, 3.224 checks de
+  plan, 35 de retirada/offline, 33 del crono y 81 de push; 21 tests del backend
+  y runtime Worker+SQLite. Push de estas pruebas: proveedor simulado.
+- Producción: `/config` entrega solo la clave pública esperada, CORS correcto,
+  origen no permitido 403, dispositivo sin credencial 401, preflight 204.
+  La ruta DNS habitual desde esta red devolvió un certificado ajeno; comprobado
+  por otra IP de Cloudflare con HTTPS validado, sin desactivar TLS ni cambiar DNS.
+- Pendiente: permiso y alta en la PWA del iPhone, prueba con app cerrada y aviso
+  programado. Si falla la conexión desde Wi-Fi, comparar con datos móviles;
+  no dar por confirmada la entrega física ni ignorar avisos de certificado.
 
 ### Front lever y handstand en las pausas (13 sep 2026)
 - Dos protocolos nuevos en 2/5 minutos: front lever (5 s/ronda iniciales) y
