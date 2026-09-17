@@ -33,6 +33,7 @@ case "$WHAT" in
   timer) node timer.js ;;
   push) node push.js ;;
   scroll) node modal-scroll.js ;;
-  all) node selftests.js && node crawl.js && node audit.js && node plan.js && node plan.js empty && node retirement.js && node timer.js && node push.js && node modal-scroll.js ;;
-  *) echo "uso: $0 [selftests|crawl|audit|plan|retirement|timer|push|scroll|all]"; exit 2 ;;
+  strength) node strength.js ;;
+  all) node selftests.js && node crawl.js && node audit.js && node plan.js && node plan.js empty && node retirement.js && node timer.js && node push.js && node modal-scroll.js && node strength.js ;;
+  *) echo "uso: $0 [selftests|crawl|audit|plan|retirement|timer|push|scroll|strength|all]"; exit 2 ;;
 esac

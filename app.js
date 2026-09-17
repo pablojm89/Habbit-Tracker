@@ -3273,14 +3273,14 @@ function runDenseSelfTests() {
     const entry = computeDenseEntry({ scheme: "S3x5", nature: "weighted", external_load_kg: 100, effort: "H", reps_done: [5, 5, 4], bodyweight_kg: 80 });
     return entry.total_reps === 14 && entry.reps_per_set_avg === 4.67 && entry.e1rm_kg > 100 && denseParseRepsDone("5, 5,4").length === 3;
   });
-  test("S: progresión — 5x5 fácil sube ≤+5%; rango 3x8-12 con media 9 pide 10 reps a la misma carga", () => {
+  test("S: progresión — 5x5 fácil sube ≤+5%; rango 10/9/8 pide 9 reps a la misma carga", () => {
     add(computeDenseEntry({ id: "sq1", exercise_id: "back_squat", exercise_name: "Back Squat", nature: "weighted", scheme: "S5x5", date: "2026-07-01", created_at: "2026-07-01T10:00:00Z", external_load_kg: 100, effort: "E", sets: 5, rest_seconds: 180, bodyweight_kg: 80 }));
     const up = denseProgressionSuggestion(denseExerciseById("back_squat"), "normal", "S5x5");
     add(computeDenseEntry({ id: "rw1", exercise_id: "barbell_row", exercise_name: "Remo con barra", nature: "weighted", scheme: "S3x8-12", date: "2026-07-02", created_at: "2026-07-02T10:00:00Z", external_load_kg: 60, effort: "N", reps_done: [10, 9, 8], bodyweight_kg: 80 }));
     const range = denseProgressionSuggestion(denseExerciseById("barbell_row"), "normal", "S3x8-12");
     return (
       up && up.type === "load" && up.externalLoadKg > 100 && up.externalLoadKg <= 105 && up.restSeconds === 180 &&
-      range && range.externalLoadKg === 60 && range.repsPerSet === 10
+      range && range.externalLoadKg === 60 && range.repsPerSet === 9
     );
   });
   test("S: sin marca en S5x5, la banca estima la carga desde su e1RM (Epley, RIR 2) y no mezcla formatos", () => {
@@ -3617,6 +3617,36 @@ function runDenseSelfTests() {
     return day.load.pull === 1.4 && day.load.core === 1.4 && day.hard.includes("pull") && day.hard.includes("core");
   });
 
+  test("fuerza: martillo 3x10 completo propone 3x12 con la misma carga por mancuerna", () => {
+    const exercise = denseExerciseById("db_hammer_curl");
+    const entry = computeDenseEntry({ exercise_id: exercise.id, nature: "weighted", scheme: "S3x10", weight_per_dumbbell_kg: 12.5, external_load_kg: 25, reps_done: [10, 10, 10], effort: "N", rest_seconds: 60 });
+    const next = denseStrengthNextBlock(exercise, entry);
+    return next?.scheme === "S3x12" && next.load === 12.5 && !denseStrengthNextBlock(exercise, { ...entry, failed: true }) && !denseStrengthNextBlock(exercise, entry, "low");
+  });
+  test("fuerza: ciclo 8/10/12 solo sube carga al cerrar las tres series de 12", () => {
+    const exercise = denseExerciseById("db_hammer_curl");
+    const entry = { nature: "weighted", scheme: "S3x12", reps_done: [12, 12, 12], weight_per_dumbbell_kg: 12.5, effort: "E" };
+    const next = denseStrengthNextBlock(exercise, entry);
+    return next?.scheme === "S3x8" && next.load > 12.5 && !denseStrengthNextBlock(exercise, { ...entry, reps_done: [14, 14, 8] });
+  });
+  test("fuerza: cero reps no se convierte en una serie completa ni infla el total", () => {
+    const entry = computeDenseEntry({ nature: "weighted", scheme: "S3x10", external_load_kg: 25, reps_done: [10, 10, 0], total_reps: 30, effort: "N" });
+    return entry.total_reps === 20 && entry.reps_done.length === 3 && !denseStrengthPerformance(entry).complete && denseParseRepsDone("10,10,0")[2] === 0 && denseParseRepsDone("").length === 0;
+  });
+  test("fuerza: cambiar descanso solo cambia la duracion indicada, no carga ni objetivo", () => {
+    const base = { scheme: "S3x8-12", type: "load", loadKey: "weight_per_dumbbell_kg", weightPerDumbbellKg: 12.5, repsPerSet: 11, totalReps: 33 };
+    return [60, 90, 120, 180].every((rest) => {
+      const next = denseStrengthRestSuggestion(base, rest);
+      return next.weightPerDumbbellKg === 12.5 && next.totalReps === 33 && next.title.includes(denseFormatRest(rest));
+    });
+  });
+  test("fuerza: descarga usa carga por mancuerna y no el peso del par", () => {
+    const exercise = denseExerciseById("db_hammer_curl");
+    state.denseTrainingEntries = Array.from({ length: 5 }, (_, i) => computeDenseEntry({ id: `unit-deload-${i}`, exercise_id: exercise.id, nature: "weighted", scheme: "S3x10", date: `2026-09-${10 + i}`, created_at: `2026-09-${10 + i}T12:00:00Z`, weight_per_dumbbell_kg: i ? 12.5 : 20, external_load_kg: i ? 25 : 40, reps_done: [10, 10, 10], effort: i ? "H" : "N" }));
+    const base = { scheme: "S3x10", type: "load", loadKey: "weight_per_dumbbell_kg", weightPerDumbbellKg: 12.5, externalLoadKg: 25, direction: "hold" };
+    const next = denseMaybeDeload(base, exercise);
+    return denseSuggestionLoadValue(base) === 12.5 && next.deload && next.weightPerDumbbellKg === 11.5;
+  });
   state.denseTrainingEntries = savedEntries;
   denseNeighborCache = null;
   rebuildTransferState();
@@ -4493,7 +4523,7 @@ function denseTrainingFormMarkup(defaults, { includePicker = false, modal = fals
   const strength = denseStrengthParts(defaults.scheme);
   const isMax = denseIsMaxScheme(defaults.scheme);
   const readiness = defaults.readiness || "normal";
-  const suggestion = denseProgressionSuggestion(activeExercise, readiness, defaults.scheme);
+  const suggestion = denseStrengthRestSuggestion(denseProgressionSuggestion(activeExercise, readiness, defaults.scheme), Number(defaults.restSeconds));
   return `
     <form id="denseTrainingForm" class="dense-training-form ${modal ? "is-modal-form" : ""}">
       ${includePicker ? denseExercisePicker(defaults) : ""}
@@ -4624,21 +4654,24 @@ function denseRestFieldMarkup(defaults) {
 
 // One numeric box per set (numeric keypad has no comma on iOS). The target
 // reps sit as placeholder: leave a box empty = that set hit the target.
-function denseRepsDoneBoxesHtml(scheme, values = []) {
+function denseRepsDoneBoxesHtml(scheme, values = [], targetReps = 0) {
   const parts = denseStrengthParts(scheme);
   if (!parts) return "";
   return Array.from({ length: parts.sets }, (_, index) => {
     const value = values[index];
-    return `<input type="number" inputmode="numeric" min="0" max="100" step="1" name="repsDone${index + 1}" value="${value ? escapeAttr(String(value)) : ""}" placeholder="${parts.reps}" aria-label="Reps serie ${index + 1}" />`;
+    return `<input type="number" inputmode="numeric" min="0" max="100" step="1" name="repsDone${index + 1}" value="${value !== undefined && value !== "" ? escapeAttr(String(value)) : ""}" placeholder="${denseStrengthTargetReps(scheme, targetReps)}" aria-label="Reps serie ${index + 1}" />`;
   }).join("");
 }
 
 function denseRepsDoneField(defaults) {
   const values = denseParseRepsDone(defaults.repsDone);
+  const parts = denseStrengthParts(defaults.scheme);
+  const target = denseStrengthTargetReps(defaults.scheme, defaults.strengthTargetReps || Number(defaults.totalReps) / parts.sets);
   return `
     <div class="field is-full reps-done-field">
+      <div data-strength-target>${denseStrengthTargetField(defaults.scheme, target)}</div>
       <span>Reps por serie (deja en blanco las que clavaste)</span>
-      <div class="reps-done-grid" data-reps-done>${denseRepsDoneBoxesHtml(defaults.scheme, values)}</div>
+      <div class="reps-done-grid" data-reps-done>${denseRepsDoneBoxesHtml(defaults.scheme, values, target)}</div>
     </div>
   `;
 }
@@ -4650,7 +4683,7 @@ function denseReadRepsDone(form, scheme) {
   if (!parts || !form) return [];
   const boxes = [...form.querySelectorAll("[name^='repsDone']")];
   if (!boxes.some((box) => String(box.value).trim() !== "")) return [];
-  return boxes.map((box) => positiveNumber(box.value) || parts.reps);
+  return boxes.map((box) => box.value.trim() === "" ? denseStrengthFormTarget(form, scheme) : Math.max(0, Number(box.value) || 0));
 }
 
 // Rebuild the boxes when the scheme (sets count) changes, keeping typed values.
@@ -4658,7 +4691,16 @@ function denseSyncRepsDoneBoxes(form, scheme) {
   const grid = form?.querySelector("[data-reps-done]");
   if (!grid) return;
   const current = [...grid.querySelectorAll("input")].map((box) => box.value);
-  grid.innerHTML = denseRepsDoneBoxesHtml(scheme, current);
+  grid.innerHTML = denseRepsDoneBoxesHtml(scheme, current, denseStrengthFormTarget(form, scheme));
+}
+
+function denseStrengthTargetField(scheme, target) {
+  const parts = denseStrengthParts(scheme);
+  return parts?.isRange ? `<label class="field"><span>Objetivo de reps por serie</span><input type="number" name="strengthTargetReps" inputmode="numeric" min="${parts.repsMin}" max="${parts.repsMax}" step="1" value="${denseStrengthTargetReps(scheme, target)}"></label>` : "";
+}
+
+function denseStrengthFormTarget(form, scheme) {
+  return denseStrengthTargetReps(scheme, form?.querySelector("[name='strengthTargetReps']")?.value);
 }
 
 // Recovery only makes sense with wellness input (readiness / session fatigue).
@@ -5701,6 +5743,12 @@ function handleInput(event) {
   }
   if (event.target.matches("#denseTrainingForm [name^='repsDone']")) {
     updateDenseStrengthTotal(event.target.closest("#denseTrainingForm"));
+  }
+  if (event.target.matches("#denseTrainingForm [name='strengthTargetReps']")) {
+    const form = event.target.closest("form");
+    const scheme = form.querySelector("[name='scheme']:checked").value;
+    denseSyncRepsDoneBoxes(form, scheme);
+    updateDenseStrengthTotal(form);
   }
   if (event.target.matches("[data-action-input='quick-timer-rounds']")) {
     setQuickTimerRoundsLive(event.target.value);
@@ -7321,13 +7369,15 @@ function saveDenseTrainingForm(form) {
   const targetRepsPerMin = isometric
     ? 0
     : strength
-      ? strength.reps
+      ? denseStrengthFormTarget(form, scheme)
       : denseIsLoadExercise(activeExercise)
         ? denseDefaultRepsPerSet(activeExercise, scheme) || 0
         : positiveNumber(data.repsPerSet) || denseSchemePrescriptionAverage(scheme) || 0;
-  const targetTotalReps = isometric ? 0 : strength ? strength.sets * strength.reps : denseTotalFromRepsPerSet(targetRepsPerMin, scheme) || 0;
+  const targetTotalReps = isometric ? 0 : strength ? strength.sets * targetRepsPerMin : denseTotalFromRepsPerSet(targetRepsPerMin, scheme) || 0;
   const totalReps = isometric
     ? 0
+    : strength && repsDone.length
+    ? repsDone.reduce((sum, reps) => sum + reps, 0)
     : positiveNumber(data.totalReps) || (strength ? repsDone.reduce((sum, reps) => sum + reps, 0) || strength.sets * strength.reps : 0);
   const rounds = isMax ? 1 : strength ? strength.sets : positiveNumber(data.rounds) || durationMinutes || null;
   const holdSecondsPerRound = positiveNumber(data.holdSecondsPerRound);
@@ -7345,7 +7395,7 @@ function saveDenseTrainingForm(form) {
   const failed =
     !isMax &&
     (data.effort === "fallo" || (usesHold && holdRounds && totalHoldSeconds < targetTotalHoldSeconds) ||
-      (!isMicro && !usesHold && targetTotalReps > 0 && totalReps > 0 && totalReps < (strength ? targetTotalReps * 0.8 : targetTotalReps)));
+      (!isMicro && !usesHold && targetTotalReps > 0 && (totalReps > 0 || (strength && repsDone.length)) && totalReps < (strength ? targetTotalReps * 0.8 : targetTotalReps)));
   const now = new Date().toISOString();
   const raw = {
     id: existingEntry?.id || `dense-${Date.now()}`,
@@ -7371,6 +7421,7 @@ function saveDenseTrainingForm(form) {
     max_hold_seconds: isMax && usesHold ? totalHoldSeconds : null,
     sets: strength ? strength.sets : null,
     reps_done: strength ? repsDone : null,
+    target_reps_per_set: strength ? targetRepsPerMin : null,
     rest_seconds: restSeconds || null,
     duration_minutes: durationMinutes,
     target_reps_per_min: targetRepsPerMin,
@@ -8269,11 +8320,13 @@ function applyDenseFormTargets(form, { resetStaleLoad = false } = {}) {
   const exercise = chosenNature && allowed.includes(chosenNature) ? { ...baseExercise, nature: chosenNature } : baseExercise;
   const scheme = form.querySelector("input[name='scheme']:checked")?.value || denseAllowedSchemes(exercise)[0];
   const readiness = denseFormReadiness(form);
-  const suggestion = denseProgressionSuggestion(exercise, readiness, scheme);
+  const suggestion = denseStrengthRestSuggestion(denseProgressionSuggestion(exercise, readiness, scheme), Number(form.querySelector("[name='restSeconds']:checked")?.value));
   const repsPerSetInput = form.querySelector("[name='repsPerSet']");
   if (repsPerSetInput) repsPerSetInput.value = denseFormTargetRepsPerSet(exercise, scheme, suggestion) || "";
   // Modo Fuerza: total = series × reps objetivo (o las reps reales tecleadas).
   const strength = denseStrengthParts(scheme);
+  const targetField = form.querySelector("[data-strength-target]");
+  if (strength && targetField) targetField.innerHTML = denseStrengthTargetField(scheme, suggestion?.repsPerSet || strength.reps);
   if (strength) denseSyncRepsDoneBoxes(form, scheme);
   const repsDone = strength ? denseReadRepsDone(form, scheme) : [];
   const reps = denseIsMaxScheme(scheme)
@@ -8350,6 +8403,18 @@ function updateDenseSchemeSelection(input) {
   // .scheme-option look and must not be un-highlighted by a scheme change.
   const grid = input.closest(".scheme-option-grid") || form;
   grid.querySelectorAll(".scheme-option").forEach((option) => option.classList.toggle("is-selected", option.contains(input)));
+  if (input.name === "restSeconds") {
+    const exercise = denseExerciseById(form.querySelector("[name='exerciseId']").value);
+    const active = { ...exercise, nature: form.querySelector("[name='nature']").value };
+    const scheme = form.querySelector("[name='scheme']:checked").value;
+    const suggestion = denseStrengthRestSuggestion(denseProgressionSuggestion(active, denseFormReadiness(form), scheme), Number(input.value));
+    const rec = form.querySelector("[data-recommendation]");
+    if (rec) rec.innerHTML = renderDenseProgressionSuggestion(active, suggestion);
+    const summary = form.querySelector(".dense-set-modal-summary > strong");
+    if (summary) summary.textContent = `${denseStrengthSchemeLabel(scheme)} · descanso ${denseFormatRest(Number(input.value))}`;
+    refreshIcons();
+    return;
+  }
   if (input.name !== "scheme") return;
   applyDenseFormTargets(form, { resetStaleLoad: true });
 }
@@ -8387,7 +8452,7 @@ function updateDenseStrengthTotal(form) {
   const totalInput = form.querySelector("[name='totalReps']");
   if (!parts || !totalInput) return;
   const done = denseReadRepsDone(form, scheme);
-  totalInput.value = done.length ? done.reduce((sum, reps) => sum + reps, 0) : parts.sets * parts.reps;
+  totalInput.value = done.length ? done.reduce((sum, reps) => sum + reps, 0) : parts.sets * denseStrengthFormTarget(form, scheme);
 }
 
 // Re-render after a Formato switch (Densidad ↔ Fuerza), keeping the fields
@@ -9243,7 +9308,7 @@ function denseEntryIsPr(entry) {
 }
 
 // Single source of truth for the default scheme of an exercise: the last
-// session's scheme if it's still valid, else a sensible mid-range default
+// session's scheme (or its next completed 3-set block), else a mid-range default
 // (10D bodyweight / 10D5 loaded). Used by BOTH the planned card and the set
 // form so the "Target" shown and the scheme the form opens with always match.
 function denseDefaultScheme(exercise) {
@@ -9252,7 +9317,7 @@ function denseDefaultScheme(exercise) {
   const last = [...getDenseEntries()]
     .filter((entry) => entry.exercise_id === exercise.id && !entry.deleted_at && !denseIsMaxScheme(entry.scheme))
     .sort((a, b) => (b.created_at || b.date || "").localeCompare(a.created_at || a.date || ""))[0];
-  if (last && allowed.includes(last.scheme)) return last.scheme;
+  if (last && allowed.includes(last.scheme)) return denseStrengthNextBlock(exercise, last)?.scheme || last.scheme;
   // Catalog default first (gym basics open in Fuerza: S5x5 / S3x12), then the
   // generic dense mid-range.
   if (exercise.defaultScheme && allowed.includes(exercise.defaultScheme)) return exercise.defaultScheme;
@@ -9419,7 +9484,7 @@ function densePlannedTargetRange(exercise, scheme, src = denseTargetSource(exerc
   if (denseUsesRom(exercise)) return "";
   if (denseIsLoadExercise(exercise)) {
     const suggestion = denseProgressionSuggestion(exercise, "normal", scheme);
-    const load = suggestion && Number(suggestion.assistLoadKg || suggestion.externalLoadKg || suggestion.addedLoadKg || suggestion.weightPerDumbbellKg || 0);
+    const load = denseSuggestionLoadValue(suggestion);
     if (!load) return "";
     const low = denseRoundLoad(load * (1 - src.sigma));
     const high = denseRoundLoad(load * (1 + src.sigma));
@@ -9473,8 +9538,8 @@ function densePlannedTargetValue(exercise, scheme) {
   if (denseIsLoadExercise(exercise)) {
     const suggestion = denseProgressionSuggestion(exercise, "normal", scheme);
     if (suggestion?.type === "assist") return Number(suggestion.assistLoadKg) > 0 ? `−${formatKg(suggestion.assistLoadKg)}` : "OAC";
-    const load = suggestion && (suggestion.externalLoadKg || suggestion.addedLoadKg || suggestion.weightPerDumbbellKg);
-    if (load) return `${suggestion.addedLoadKg ? "+" : ""}${formatKg(load)}`;
+    const load = denseSuggestionLoadValue(suggestion);
+    if (load) return `${suggestion.loadKey === "added_load_kg" ? "+" : ""}${formatKg(load)}${suggestion.loadKey === "weight_per_dumbbell_kg" ? " c/u" : ""}`;
     return "-";
   }
   if (denseUsesRepsPerSet(exercise)) {
@@ -10373,18 +10438,54 @@ function denseEstimatedStrengthSuggestion(exercise, scheme, readiness = "normal"
     addedLoadKg: loadKey === "added_load_kg" ? shown : "",
     weightPerDumbbellKg: loadKey === "weight_per_dumbbell_kg" ? shown : "",
     estimated: true,
-    title: `${denseStrengthSchemeLabel(scheme)} · ${loadKey === "added_load_kg" ? "+" : ""}${formatKg(shown)} · descanso ${denseFormatRest(restSeconds)}`,
+    title: `${denseStrengthSchemeLabel(scheme)} · ${loadKey === "weight_per_dumbbell_kg" ? "2×" : loadKey === "added_load_kg" ? "+" : ""}${formatKg(shown)} · descanso ${denseFormatRest(restSeconds)}`,
     reason: source.cross
       ? `Nivel equivalente a tu ${source.cross.from} (e1RM ≈ ${formatKg(source.e1rm)}, transferencia ${Math.round(source.cross.coefficient * 100)} %); sin marca propia — es un test.`
       : `Estimado desde e1RM ${formatKg(source.e1rm)} (Epley, 2 reps en recámara); falta marca directa en ${denseStrengthSchemeLabel(scheme)}.`,
   };
 }
 
-// Modo Fuerza con historial en el mismo esquema S: progresión lineal clásica.
-// Todas las series hechas y fácil/normal → +2.5% (≈ +2,5 kg en barra); duro →
-// mantener; fallo → −5% con techo en la carga que sostiene el e1RM honesto.
-// Rangos (S3x8-12): doble progresión — llena el rango antes de añadir carga.
-function denseStrengthProgressionSuggestion(exercise, entry, scheme, readiness = "normal") {
+function denseStrengthTargetReps(scheme, value) {
+  const parts = denseStrengthParts(scheme);
+  return parts ? Math.max(parts.repsMin, Math.min(parts.repsMax, Math.round(Number(value) || parts.reps))) : 0;
+}
+
+function denseStrengthPerformance(entry) {
+  const parts = denseStrengthParts(entry.scheme);
+  if (!parts) return { target: 0, minimum: 0, complete: false };
+  const target = denseStrengthTargetReps(entry.scheme, entry.target_reps_per_set || Number(entry.target_total_reps) / parts.sets);
+  const actual = Array.isArray(entry.reps_done) ? entry.reps_done : [];
+  const minimum = actual.length ? Math.min(...actual.map(Number)) : Math.floor(Number(entry.total_reps || 0) / parts.sets);
+  return { target, minimum, complete: (!actual.length || actual.length === parts.sets) && minimum >= target };
+}
+
+function denseStrengthFieldLoad(exercise, entry) {
+  if (exercise.loadPattern === "dumbbell_pair") return entry.weight_per_dumbbell_kg !== undefined && entry.weight_per_dumbbell_kg !== null && entry.weight_per_dumbbell_kg !== "" ? Number(entry.weight_per_dumbbell_kg) : Number(entry.external_load_kg || 0) / 2;
+  return Number(exercise.nature === "weighted_calisthenics" ? entry.added_load_kg ?? 0 : entry.external_load_kg ?? 0);
+}
+
+// Advance compatible three-set blocks from the latest completed mark, not an older max.
+function denseStrengthNextBlock(exercise, entry, readiness = "normal") {
+  if (!entry || !["weighted", "weighted_calisthenics"].includes(exercise.nature) || entry.nature !== exercise.nature ||
+      entry.failed || !["N", "E", "VE"].includes(entry.effort || "N") || readiness === "low" || !denseStrengthPerformance(entry).complete) return null;
+  const scheme = { S3x8: "S3x10", S3x10: "S3x12", S3x12: "S3x8" }[entry.scheme];
+  if (!scheme || !denseAllowedSchemes(exercise).includes(scheme)) return null;
+  const load = denseStrengthFieldLoad(exercise, entry);
+  if (!Number.isFinite(load) || load < 0 || (!load && exercise.nature === "weighted")) return null;
+  return { scheme, load: scheme === "S3x8" ? Math.max(load + 0.5, denseRoundLoad(load * 1.025)) : load };
+}
+
+function denseStrengthRestSuggestion(suggestion, seconds) {
+  const parts = denseStrengthParts(suggestion?.scheme);
+  if (!parts || !seconds) return suggestion;
+  const prefix = suggestion.loadKey === "weight_per_dumbbell_kg" ? "2×" : suggestion.loadKey === "added_load_kg" ? "+" : "";
+  const value = suggestion.type === "load" ? `${prefix}${formatKg(denseSuggestionLoadValue(suggestion))}` : `${suggestion.totalReps} reps`;
+  return { ...suggestion, restSeconds: seconds, title: `${denseStrengthSchemeLabel(suggestion.scheme)}${parts.isRange ? ` (${suggestion.repsPerSet} reps)` : ""} · ${value} · descanso ${denseFormatRest(seconds)}` };
+}
+
+// Fixed schemes use effort-based load steps; compatible 3-set blocks and
+// rep ranges complete their rep progression before increasing load.
+function denseStrengthProgressionSuggestion(exercise, entry, scheme, readiness = "normal", nextBlock = null) {
   const parts = denseStrengthParts(scheme);
   if (!parts) return null;
   const effort = entry.effort || "N";
@@ -10394,6 +10495,17 @@ function denseStrengthProgressionSuggestion(exercise, entry, scheme, readiness =
   const restSeconds = Number(entry.rest_seconds) || exercise.defaultRestSeconds || DENSE_STRENGTH_DEFAULT_REST;
   const base = { entry, scheme, rounds: parts.sets, sets: parts.sets, restSeconds, effort, readiness, step, direction, tone: denseDirectionTone(direction, failed, effort) };
   const label = denseStrengthSchemeLabel(scheme);
+  if (nextBlock) {
+    const loadKey = exercise.loadPattern === "dumbbell_pair" ? "weight_per_dumbbell_kg" : exercise.nature === "weighted_calisthenics" ? "added_load_kg" : "external_load_kg";
+    return denseMaybeDeload({ ...base, type: "load", loadKey, direction: "up", tone: "green", step: 1,
+      repsPerSet: parts.reps, totalReps: parts.sets * parts.reps,
+      externalLoadKg: loadKey === "external_load_kg" ? nextBlock.load : "",
+      addedLoadKg: loadKey === "added_load_kg" ? nextBlock.load : "",
+      weightPerDumbbellKg: loadKey === "weight_per_dumbbell_kg" ? nextBlock.load : "",
+      title: `${label} · ${exercise.loadPattern === "dumbbell_pair" ? "2×" : loadKey === "added_load_kg" ? "+" : ""}${formatKg(nextBlock.load)} · descanso ${denseFormatRest(restSeconds)}`,
+      reason: nextBlock.scheme === "S3x8" ? "Completaste 3×12 con margen: sube un paso de carga y vuelve a 3×8." : `Completaste ${denseStrengthSchemeLabel(entry.scheme)} con margen: aumenta las repeticiones manteniendo la carga.`,
+    }, exercise);
+  }
   if (!denseIsLoadExercise(exercise)) {
     const current = Number(entry.total_reps) || parts.sets * parts.reps;
     const delta = failed ? -parts.sets : step * parts.sets;
@@ -10404,12 +10516,11 @@ function denseStrengthProgressionSuggestion(exercise, entry, scheme, readiness =
     );
   }
   const loadKey = exercise.loadPattern === "dumbbell_pair" ? "weight_per_dumbbell_kg" : exercise.nature === "weighted_calisthenics" ? "added_load_kg" : "external_load_kg";
-  const currentLoad = Number(entry[loadKey] || entry.external_load_kg || entry.added_load_kg || entry.weight_per_dumbbell_kg || 0);
+  const currentLoad = denseStrengthFieldLoad(exercise, entry);
   // Missed a rep or two (24/25) without failing: repeat the load until every
   // set is clean — the classic 5x5 rule — instead of adding or dropping weight.
-  const planned = parts.sets * parts.reps;
-  const done = Number(entry.total_reps) || 0;
-  const missed = !failed && done > 0 && done < planned;
+  const performance = denseStrengthPerformance(entry);
+  const missed = !failed && !performance.complete;
   if (missed) {
     base.direction = "hold";
     base.tone = denseDirectionTone("hold", false, effort);
@@ -10422,16 +10533,31 @@ function denseStrengthProgressionSuggestion(exercise, entry, scheme, readiness =
     const honest = denseRoundLoad(loadKey === "weight_per_dumbbell_kg" ? system / 2 : exercise.nature === "weighted_calisthenics" ? Math.max(0, system - bw) : system);
     if (honest !== "" && honest < nextLoad) nextLoad = honest;
   }
-  let repsTarget = parts.reps;
+  let repsTarget = parts.isRange ? denseStrengthTargetReps(scheme, performance.target) : parts.reps;
   let reason = missed
-    ? `Te falt${planned - done === 1 ? "ó 1 rep" : `aron ${planned - done} reps`}: repite ${loadKey === "added_load_kg" ? "+" : ""}${formatKg(currentLoad)} hasta clavar todas las series.`
+    ? `Te faltaron repeticiones en alguna serie: repite ${loadKey === "added_load_kg" ? "+" : ""}${formatKg(currentLoad)} hasta completar ${parts.sets}×${repsTarget}.`
     : denseProgressionReason(entry, base.direction, readiness);
   if (parts.isRange && !failed && !missed) {
-    const avg = Number(entry.reps_per_set_avg) || parts.repsMin;
-    if (avg < parts.repsMax) {
-      repsTarget = Math.max(parts.repsMin, Math.min(parts.repsMax, Math.floor(avg) + 1));
+    const current = denseStrengthTargetReps(scheme, performance.minimum);
+    const progress = ["N", "E", "VE"].includes(effort) && readiness !== "low";
+    repsTarget = current;
+    if (current < parts.repsMax && progress) {
+      repsTarget = current + 1;
       nextLoad = currentLoad;
       reason = `Doble progresión: sube a ${repsTarget} reps por serie con la misma carga antes de añadir peso.`;
+      base.direction = "up";
+      base.tone = "green";
+    } else if (current >= parts.repsMax && progress) {
+      repsTarget = parts.repsMin;
+      nextLoad = Math.max(currentLoad + 0.5, denseRoundLoad(currentLoad * 1.025));
+      reason = `Completaste todas las series a ${parts.repsMax} reps: sube un paso de carga y vuelve a ${parts.repsMin}.`;
+      base.direction = "up";
+      base.tone = "green";
+    } else if (nextLoad >= currentLoad) {
+      nextLoad = currentLoad;
+      base.direction = "hold";
+      base.tone = "neutral";
+      reason = `Consolida ${parts.sets}×${repsTarget} con la misma carga antes de progresar.`;
     }
   }
   return denseMaybeDeload(
@@ -10444,7 +10570,7 @@ function denseStrengthProgressionSuggestion(exercise, entry, scheme, readiness =
       externalLoadKg: loadKey === "external_load_kg" ? nextLoad : entry.external_load_kg || "",
       addedLoadKg: loadKey === "added_load_kg" ? nextLoad : entry.added_load_kg || "",
       weightPerDumbbellKg: loadKey === "weight_per_dumbbell_kg" ? nextLoad : entry.weight_per_dumbbell_kg || "",
-      title: `${label}${parts.isRange ? ` (${repsTarget} reps)` : ""} · ${loadKey === "added_load_kg" ? "+" : ""}${formatKg(nextLoad)} · descanso ${denseFormatRest(restSeconds)}`,
+      title: `${label}${parts.isRange ? ` (${repsTarget} reps)` : ""} · ${exercise.loadPattern === "dumbbell_pair" ? "2×" : loadKey === "added_load_kg" ? "+" : ""}${formatKg(nextLoad)} · descanso ${denseFormatRest(restSeconds)}`,
       reason,
     },
     exercise,
@@ -10489,6 +10615,7 @@ function denseEstimatedLoadSuggestion(exercise, scheme, readiness = "normal") {
     tone: "neutral",
     type: "load",
     repsPerSet: denseDefaultRepsPerSet(exercise, scheme) || "",
+    loadKey: exercise.loadPattern === "dumbbell_pair" ? "weight_per_dumbbell_kg" : exercise.nature === "weighted_calisthenics" ? "added_load_kg" : "external_load_kg",
     totalReps: denseDefaultTotalReps(exercise, scheme) || "",
     externalLoadKg: exercise.nature === "weighted" && exercise.loadPattern !== "dumbbell_pair" ? load : "",
     addedLoadKg: exercise.nature === "weighted_calisthenics" ? load : "",
@@ -10576,12 +10703,12 @@ function denseMaybeDeload(suggestion, exercise) {
   if (suggestion.direction === "down") return out;
   const scheme = suggestion.scheme;
   if (suggestion.type === "load" && suggestion.loadKey) {
-    const current = Number(suggestion.externalLoadKg || suggestion.addedLoadKg || suggestion.weightPerDumbbellKg || 0);
+    const current = denseSuggestionLoadValue(suggestion);
     const next = denseRoundLoad(current * 0.9);
     if (next !== "") {
       const key = suggestion.loadKey === "external_load_kg" ? "externalLoadKg" : suggestion.loadKey === "added_load_kg" ? "addedLoadKg" : "weightPerDumbbellKg";
       out[key] = next;
-      out.title = `${scheme} · ${key === "addedLoadKg" ? "+" : ""}${formatKg(next)}`;
+      out.title = `${scheme} · ${key === "weightPerDumbbellKg" ? "2×" : key === "addedLoadKg" ? "+" : ""}${formatKg(next)}`;
     }
   } else if (suggestion.type === "assist") {
     const next = denseRoundLoad(Number(suggestion.assistLoadKg || 0) + 2) || 2;
@@ -10602,7 +10729,14 @@ function denseMaybeDeload(suggestion, exercise) {
 }
 
 function denseProgressionSuggestion(exercise, readiness = "normal", schemeFilter = "") {
+  if (!schemeFilter && denseIsStrengthScheme(latestDenseEntryForExercise(exercise.id)?.scheme)) schemeFilter = denseDefaultScheme(exercise);
   if (denseIsMaxScheme(schemeFilter)) return denseMaxSuggestion(exercise, readiness);
+  if (denseIsStrengthScheme(schemeFilter)) {
+    const latest = [...getDenseEntries()].filter((item) => item.exercise_id === exercise.id && !item.deleted_at && item.nature === exercise.nature && denseIsStrengthScheme(item.scheme))
+      .sort((a, b) => (b.created_at || b.date || "").localeCompare(a.created_at || a.date || ""))[0];
+    const next = latest && denseStrengthNextBlock(exercise, latest, readiness);
+    if (next?.scheme === schemeFilter) return denseStrengthProgressionSuggestion(exercise, latest, schemeFilter, readiness, next);
+  }
   // Scheme-aware memory:
   // - load exercises progress from the exact scheme (10D5 does not borrow 10D10)
   // - bodyweight / holds use the dense block (10D) so reps or seconds can move
@@ -10741,6 +10875,11 @@ function denseProgressionSuggestion(exercise, readiness = "normal", schemeFilter
     },
     exercise,
   );
+}
+
+function denseSuggestionLoadValue(suggestion) {
+  const field = { external_load_kg: "externalLoadKg", added_load_kg: "addedLoadKg", weight_per_dumbbell_kg: "weightPerDumbbellKg", assist_load_kg: "assistLoadKg" }[suggestion?.loadKey] || (suggestion?.type === "assist" ? "assistLoadKg" : null);
+  return field ? Number(suggestion[field] ?? 0) : 0;
 }
 
 function denseRoundLoad(value) {
@@ -11698,6 +11837,7 @@ function denseFormDefaults() {
       romCm: draftEntry.rom_cm ?? "",
       restSeconds: draftEntry.rest_seconds || "",
       repsDone: Array.isArray(draftEntry.reps_done) ? draftEntry.reps_done.join(",") : "",
+      strengthTargetReps: draftEntry.target_reps_per_set || Number(draftEntry.target_total_reps) / Number(draftEntry.sets) || draftEntry.reps_per_set_avg,
       isTest: Boolean(draftEntry.is_test),
       readiness: draftEntry.readiness || "normal",
       notes: draftEntry.notes || "",
@@ -11883,8 +12023,8 @@ function computeDenseEntry(raw) {
   const strength = denseStrengthParts(scheme);
   if (strength) {
     const sets = Number(raw.sets) || strength.sets;
-    const repsDone = Array.isArray(raw.reps_done) ? raw.reps_done.map(Number).filter((reps) => reps > 0) : [];
-    const totalRepsS = totalReps || repsDone.reduce((sum, reps) => sum + reps, 0) || sets * strength.reps;
+    const repsDone = Array.isArray(raw.reps_done) ? raw.reps_done.map(Number).filter((reps) => Number.isFinite(reps) && reps >= 0) : [];
+    const totalRepsS = repsDone.length ? repsDone.reduce((sum, reps) => sum + reps, 0) : totalReps || sets * strength.reps;
     const avgReps = repsDone.length ? totalRepsS / repsDone.length : totalRepsS / Math.max(1, sets);
     const restSeconds = Number(raw.rest_seconds) || DENSE_STRENGTH_DEFAULT_REST;
     const e1rmS = denseStrengthE1rm(totalSystemLoad, avgReps, raw.effort);
@@ -12482,8 +12622,9 @@ function denseStrengthSchemeLabel(scheme) {
 function denseParseRepsDone(value) {
   return String(value || "")
     .split(/[,\s;/]+/)
+    .filter((part) => part.trim() !== "")
     .map(Number)
-    .filter((reps) => Number.isFinite(reps) && reps > 0);
+    .filter((reps) => Number.isFinite(reps) && reps >= 0);
 }
 
 // Strength mode fits dynamic work that can carry load or bodyweight — never

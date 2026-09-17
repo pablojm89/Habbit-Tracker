@@ -1,14 +1,14 @@
-const CACHE_NAME = "bittracker-mobile-20260917-scroll-paneles-53";
+const CACHE_NAME = "bittracker-mobile-20260917-progresion-fuerza-54";
 const LUCIDE_URL = "https://unpkg.com/lucide@1.23.0/dist/umd/lucide.min.js";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=20260917-scroll-paneles-53",
-  "./app.js?v=20260917-scroll-paneles-53",
-  "./studio-core.js?v=20260917-scroll-paneles-53",
-  "./timer-core.js?v=20260917-scroll-paneles-53",
-  "./micro-core.js?v=20260917-scroll-paneles-53",
-  "./notifications.js?v=20260917-scroll-paneles-53",
+  "./styles.css?v=20260917-progresion-fuerza-54",
+  "./app.js?v=20260917-progresion-fuerza-54",
+  "./studio-core.js?v=20260917-progresion-fuerza-54",
+  "./timer-core.js?v=20260917-progresion-fuerza-54",
+  "./micro-core.js?v=20260917-progresion-fuerza-54",
+  "./notifications.js?v=20260917-progresion-fuerza-54",
   "./micro-sessions.json",
   "./push-config.json",
   "./manifest.webmanifest?v=20260627-mobile-01",
