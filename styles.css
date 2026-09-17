@@ -7953,3 +7953,41 @@ body[data-density="compact"] .workout-set-summary .set-load {
 .micro-reason { color: var(--cyan); font-size: .85rem; }
 .modal-card[data-modal-kind="micro-breaks"], .modal-card[data-modal-kind="micro-session"] { max-height: 94dvh; overflow: hidden; background: #141414; backdrop-filter: none; }
 .modal-card[data-modal-kind="micro-breaks"] .modal-body { overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; min-height: 0; }
+
+/* El cuerpo debe encogerse dentro del cajon para desplazar, no recortar, sus controles. */
+.modal:has([data-modal-kind="quick-timer"]),
+.modal:has([data-modal-kind="micro-breaks"]),
+.modal:has([data-modal-kind="micro-session"]) {
+  margin: auto;
+  top: env(safe-area-inset-top, 0px);
+  bottom: env(safe-area-inset-bottom, 0px);
+  max-height: calc(100vh - 16px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  max-height: calc(100dvh - 16px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  overflow: hidden;
+}
+
+.modal-card:is([data-modal-kind="quick-timer"], [data-modal-kind="micro-breaks"], [data-modal-kind="micro-session"]) {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 16px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  max-height: calc(100dvh - 16px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  overflow: hidden;
+  -webkit-backdrop-filter: none;
+}
+
+.modal-card:is([data-modal-kind="quick-timer"], [data-modal-kind="micro-breaks"], [data-modal-kind="micro-session"]) .modal-head {
+  position: relative;
+  flex: 0 0 auto;
+  background: #141414;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.modal-card:is([data-modal-kind="quick-timer"], [data-modal-kind="micro-breaks"], [data-modal-kind="micro-session"]) .modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}

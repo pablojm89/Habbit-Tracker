@@ -8,7 +8,7 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 > App: PWA de entrenamiento (Dense training). Vanilla JS sin build: `app.js` (~9000
 > líneas), `styles.css`, `index.html`, `sw.js`. Sincroniza a Google Sheets vía Apps Script.
 > Modo training-only (`TRAINING_ONLY = true`). Cache busting: string `?v=…` en `index.html`
-> **y** `sw.js` a la vez. **Versión de esta entrega: `20260916-push-conectado-52`.**
+> **y** `sw.js` a la vez. **Versión de esta entrega: `20260917-scroll-paneles-53`.**
 > Emisor desplegado en Cloudflare Free y conectado; pendiente activar y probar el iPhone.
 
 ## Cómo trabajar aquí (imprescindible)
@@ -60,6 +60,25 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
   fail-closed, LockService, hojas de transferencias. Auto-restore al arrancar vacío.
 
 ## Trabajo reciente por tema (con commits)
+
+### Scroll de la campana y el cronometro (17 sep 2026)
+- Reproducido el recorte en `micro-breaks`, `quick-timer` y en pausas largas:
+  la tarjeta tenia `max-height`/`overflow:hidden`, pero el cuerpo crecia sin
+  limitarse y no tenia recorrido de scroll. Fallaban 10 de 12 casos en Chromium.
+- CSS acotado a esos tres paneles: tarjeta flex en columna limitada por viewport
+  y areas seguras, cabecera no reducible y cuerpo con `flex:1`, `min-height:0`
+  y desplazamiento vertical. Dialog y tarjeta no desplazan; cabecera sin blur.
+  No cambia el motor, el historial, las credenciales ni el servicio push.
+- `tools/qa/run.sh scroll`, incluido en `all`: 12 casos a 320x568, 390x844,
+  844x390 y 1280x800. Verifica gesto, limites, ultimo control accesible,
+  ausencia de scroll exterior y capturas. Chromium usa gestos tactiles;
+  `QA_ENGINE=webkit` prueba WebKit con rueda, no simula un iPhone fisico.
+- Para instalar el WebKit del harness sin limpiar otros navegadores:
+  `PLAYWRIGHT_SKIP_BROWSER_GC=1 node tools/qa/node_modules/playwright-core/cli.js install webkit`.
+- Cache coordinada v53. Pendiente confirmar el deslizamiento en la PWA del iPhone.
+- Verificado: 119/119 self-tests, crawl/auditoria sin incidencias, 3.224 checks de
+  plan, 35 de retirada, 33 del crono, 81 de push y 12 de scroll en Chromium;
+  otros 12 de scroll en WebKit. Capturas de ambos motores revisadas.
 
 ### Verificacion publica de push (17 sep 2026)
 - GitHub Pages confirma `built` para `4ac5304`; `index.html`, `sw.js` y

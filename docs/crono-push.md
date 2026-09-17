@@ -1,6 +1,6 @@
 # Cronometro y pausas push
 
-Version: `20260916-push-conectado-52`. No cambia la interfaz habitual ni crea otra
+Version: `20260917-scroll-paneles-53`. No cambia la interfaz habitual ni crea otra
 version de la app. Emisor desplegado y conectado; pendiente activar y probar una
 suscripcion real en el iPhone.
 
@@ -230,6 +230,10 @@ indica que no esta activo. No son avisos del calendario ni automatizaciones de C
 
 ## Verificacion
 
+- `tools/qa/run.sh scroll`: regresion de los tres paneles (campana, reloj y pausa),
+  12 combinaciones movil/desktop. Cuerpo limitado dentro de una tarjeta flex,
+  cabecera fija y un unico scroller. Gestos Chromium; `QA_ENGINE=webkit` usa rueda
+  en WebKit. Comprueba controles inferiores accesibles y ausencia de recortes.
 - `tools/qa/run.sh all`: 119 self-tests, crawl/auditoria, plan dos pasadas,
   retirada de Estudio, timer y push. Capturas a 320/390/1280 px.
 - `tools/qa/run.sh timer` (33 checks): tiempo simulado, caida, rondas automaticas, TUT, cero,
