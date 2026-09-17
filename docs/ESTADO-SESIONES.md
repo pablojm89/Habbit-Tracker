@@ -61,6 +61,15 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 
 ## Trabajo reciente por tema (con commits)
 
+### Verificacion publica de push (17 sep 2026)
+- GitHub Pages confirma `built` para `4ac5304`; `index.html`, `sw.js` y
+  `push-config.json` publicos sirven la version 52 y la URL correcta del emisor.
+- El problema de certificado del dia anterior ya no se reproduce: conexion por
+  DNS y HTTPS normales, sin IP alternativa ni excepciones TLS. Verificados clave
+  publica, CORS, origen rechazado 403, falta de autenticacion 401 y preflight 204.
+- Sin cambios de codigo, planes de pago ni altas de dispositivos durante estas
+  comprobaciones. Sigue pendiente la activacion y recepcion real en el iPhone.
+
 ### Despliegue del emisor push (16 sep 2026)
 - Autorización de Cloudflare completada por Pablo. Plan Workers Free comprobado,
   sin cambiar facturación. Nuevo Worker `bittracker-push`, Durable Object SQLite

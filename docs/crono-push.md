@@ -247,6 +247,9 @@ indica que no esta activo. No son avisos del calendario ni automatizaciones de C
   preflight comprobados. La ruta habitual de esta red devolvio un certificado
   ajeno al dominio; la verificacion paso usando otra IP de Cloudflare con el
   certificado HTTPS validado. No se desactivo TLS ni se cambiaron DNS del equipo.
+- El 17 sep se repitieron las comprobaciones por DNS y HTTPS normales y pasaron,
+  sin IP alternativa: el problema anterior no se reproduce. GitHub Pages confirma
+  `built` para `4ac5304`; version 52 y configuracion verificadas en la web publica.
 - Pendiente antes de afirmar entrega push operativa: activar el iPhone, prueba con
   app cerrada y un aviso programado. Si Wi-Fi no conecta, comparar con datos moviles;
   no ignorar alertas de certificado. Pendiente: confirmar si "reloj" era Apple Watch.
