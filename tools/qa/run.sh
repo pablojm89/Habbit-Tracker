@@ -34,6 +34,7 @@ case "$WHAT" in
   push) node push.js ;;
   scroll) node modal-scroll.js ;;
   strength) node strength.js ;;
-  all) node selftests.js && node crawl.js && node audit.js && node plan.js && node plan.js empty && node retirement.js && node timer.js && node push.js && node modal-scroll.js && node strength.js ;;
-  *) echo "uso: $0 [selftests|crawl|audit|plan|retirement|timer|push|scroll|strength|all]"; exit 2 ;;
+  load-bodyweight) node load-bodyweight.js ;;
+  all) node selftests.js && node crawl.js && node audit.js && node plan.js && node plan.js empty && node retirement.js && node timer.js && node push.js && node modal-scroll.js && node strength.js && node load-bodyweight.js ;;
+  *) echo "uso: $0 [selftests|crawl|audit|plan|retirement|timer|push|scroll|strength|load-bodyweight|all]"; exit 2 ;;
 esac

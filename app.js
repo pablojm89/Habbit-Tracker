@@ -3647,6 +3647,41 @@ function runDenseSelfTests() {
     const next = denseMaybeDeload(base, exercise);
     return denseSuggestionLoadValue(base) === 12.5 && next.deload && next.weightPerDumbbellKg === 11.5;
   });
+  test("lastre a corporal: 10D5 completo conserva bloque y cinco reps sin lastre", () => {
+    const exercise = denseExerciseById("chin_up");
+    state.denseTrainingEntries = [computeDenseEntry({ id: "proof", exercise_id: exercise.id, nature: "weighted_calisthenics", scheme: "10D5", added_load_kg: 10, total_reps: 50, effort: "H" })];
+    const next = denseProgressionSuggestion(exercise, "normal", "10D");
+    return next.scheme === "10D" && next.repsPerSet >= 5 && next.totalReps >= 50;
+  });
+  test("lastre a corporal: no traslada fallos, asistencia, variantes ni bloques distintos", () => {
+    const exercise = denseExerciseById("chin_up");
+    const base = { id: "proof", exercise_id: exercise.id, nature: "weighted_calisthenics", scheme: "10D5", added_load_kg: 10, total_reps: 50, effort: "N" };
+    return [{ failed: true }, { total_reps: 40 }, { effort: "fallo" }, { nature: "assisted" }, { studio_variant_id: "pause" }, { scheme: "5D5" }, { added_load_kg: 0 }].every((override) => {
+      state.denseTrainingEntries = [computeDenseEntry({ ...base, ...override })];
+      return !denseLoadedBodyweightEvidence(exercise, "10D");
+    });
+  });
+  test("lastre a corporal: una marca posterior sin lastre tiene prioridad", () => {
+    const exercise = denseExerciseById("chin_up");
+    state.denseTrainingEntries = [
+      computeDenseEntry({ id: "proof", exercise_id: exercise.id, nature: "weighted_calisthenics", scheme: "10D5", added_load_kg: 10, total_reps: 50, created_at: "2026-09-18T12:00:00Z" }),
+      computeDenseEntry({ id: "setback", exercise_id: exercise.id, nature: "bodyweight", scheme: "10D", total_reps: 30, failed: true, created_at: "2026-09-19T12:00:00Z" }),
+    ];
+    return !denseLoadedBodyweightEvidence(exercise, "10D");
+  });
+  test("lastre a corporal: el redondeo de capacidad no resta una repeticion demostrada", () => {
+    const exercise = denseExerciseById("chin_up");
+    state.denseTrainingEntries = [computeDenseEntry({ id: "proof", exercise_id: exercise.id, nature: "weighted_calisthenics", scheme: "10D4", added_load_kg: 10, total_reps: 40 })];
+    return denseLoadedBodyweightEvidence(exercise, "10D")?.rpm === 4 && denseFormTargetRepsPerSet(exercise, "10D", null) >= 4;
+  });
+  test("lastre a corporal: no usa el minimo si el peso actual supera la carga demostrada", () => {
+    const logs = state.bodyweightLogs;
+    try {
+      state.bodyweightLogs = { [dateKey(selectedDate)]: 95 };
+      state.denseTrainingEntries = [computeDenseEntry({ id: "proof", exercise_id: "chin_up", nature: "weighted_calisthenics", scheme: "10D5", bodyweight_kg: 80, added_load_kg: 10, total_reps: 50 })];
+      return !denseLoadedBodyweightEvidence(denseExerciseById("chin_up"), "10D");
+    } finally { state.bodyweightLogs = logs; }
+  });
   state.denseTrainingEntries = savedEntries;
   denseNeighborCache = null;
   rebuildTransferState();
@@ -9430,6 +9465,11 @@ function denseCurveSlopeBias(exerciseId) {
 }
 
 function denseTargetSource(exercise, scheme) {
+  const loadedProof = denseLoadedBodyweightEvidence(exercise, scheme);
+  if (loadedProof) {
+    const sigma = denseEstimateSigma(loadedProof.entry.date);
+    return { kind: "block", label: `Desde ${loadedProof.entry.scheme} con lastre`, cls: "is-blue", icon: "history", sigma, confidence: denseConfidenceLabel(sigma) };
+  }
   const base = denseSchemeBase(scheme);
   const entries = getDenseEntries().filter((entry) => entry.exercise_id === exercise.id && !entry.deleted_at);
   const byRecent = (a, b) => String(b.created_at || b.date || "").localeCompare(String(a.created_at || a.date || ""));
@@ -10071,9 +10111,31 @@ function denseLeverSiblingEstimate(exercise, key) {
   return best;
 }
 
-// Deterministic per-scheme reps/min target for the log form. Keeps the value
-// stable when the user toggles schemes: the suggested scheme restores the
-// progression proposal exactly; other schemes derive from best proven capacity.
+// A completed loaded block is evidence for the same unweighted block, not
+// a promise across durations, variants, later setbacks or increased system load.
+function denseLoadedBodyweightEvidence(exercise, scheme) {
+  if (exercise.nature !== "bodyweight" || denseIsIsometric(exercise) || denseSchemeFormat(scheme) !== "dense") return null;
+  const base = denseSchemeBase(scheme);
+  const minutes = denseSchemeMinutes(base);
+  if (!minutes) return null;
+  const entries = getDenseEntries().filter((entry) => entry.exercise_id === exercise.id && !entry.deleted_at &&
+    !entry.studio_variant_id && denseSchemeFormat(entry.scheme) === "dense" && denseSchemeBase(entry.scheme) === base)
+    .sort((a, b) => String(b.created_at || b.date || "").localeCompare(String(a.created_at || a.date || "")));
+  const currentBw = latestKnownBodyweight(dateKey(selectedDate)) || 0;
+  for (const entry of entries) {
+    if (entry.nature === "bodyweight") return null;
+    if (entry.nature !== "weighted_calisthenics") continue;
+    const target = Number(entry.target_reps_per_min) || denseSchemePrescriptionAverage(entry.scheme);
+    const actual = Number(entry.total_reps) / minutes;
+    if (entry.failed || entry.effort === "fallo" || !(entry.added_load_kg > 0) || !(target > 0) || actual < target ||
+        (Number(entry.duration_minutes) > 0 && Number(entry.duration_minutes) !== minutes)) return null;
+    if (currentBw && entry.bodyweight_kg && currentBw > Number(entry.bodyweight_kg) + Number(entry.added_load_kg)) return null;
+    return { entry, rpm: Math.floor(Math.min(actual, target)) };
+  }
+  return null;
+}
+
+// Keep the proposed target when toggling schemes; otherwise use proven capacity.
 function denseFormTargetRepsPerSet(exercise, scheme, suggestion) {
   if (denseIsLoadExercise(exercise)) return denseDefaultRepsPerSet(exercise, scheme);
   if (suggestion && suggestion.type === "reps" && suggestion.scheme === scheme && suggestion.repsPerSet) {
@@ -10081,16 +10143,17 @@ function denseFormTargetRepsPerSet(exercise, scheme, suggestion) {
   }
   const capacity = denseBestCapacity(exercise.id, "bodyweight_capacity");
   const multiplier = bodyweightMultipliers[denseSchemeBase(scheme)];
-  if (capacity && multiplier) return Math.max(1, Math.round(denseCapRpm(exercise, Math.floor(capacity * multiplier))));
+  const proven = denseLoadedBodyweightEvidence(exercise, scheme)?.rpm || 0;
+  if (capacity && multiplier) return Math.max(proven, 1, Math.round(denseCapRpm(exercise, Math.floor(capacity * multiplier))));
   // A logged max seeds every block through the personal multiplier.
   const maxSeed = denseMaxSeedRpm(exercise, scheme);
-  if (maxSeed) return Math.max(1, Math.round(denseCapRpm(exercise, maxSeed)));
+  if (maxSeed) return Math.max(proven, 1, Math.round(denseCapRpm(exercise, maxSeed)));
   const sibling = denseLeverSiblingEstimate(exercise, "bodyweight_capacity");
   if (sibling && multiplier) {
     const reps = Math.floor(sibling.value * multiplier);
-    if (reps >= 1) return Math.max(1, Math.round(denseCapRpm(exercise, reps)));
+    if (reps >= 1) return Math.max(proven, 1, Math.round(denseCapRpm(exercise, reps)));
   }
-  return denseDefaultRepsPerSet(exercise, scheme);
+  return Math.max(proven, Number(denseDefaultRepsPerSet(exercise, scheme)) || 0);
 }
 
 // A dense round lasts one minute: a hold target can never exceed it (real
@@ -10731,6 +10794,17 @@ function denseMaybeDeload(suggestion, exercise) {
 function denseProgressionSuggestion(exercise, readiness = "normal", schemeFilter = "") {
   if (!schemeFilter && denseIsStrengthScheme(latestDenseEntryForExercise(exercise.id)?.scheme)) schemeFilter = denseDefaultScheme(exercise);
   if (denseIsMaxScheme(schemeFilter)) return denseMaxSuggestion(exercise, readiness);
+  const proofScheme = schemeFilter || denseSchemeBase(latestDenseEntryForExercise(exercise.id)?.scheme || "");
+  const loadedProof = denseLoadedBodyweightEvidence(exercise, proofScheme);
+  if (loadedProof && readiness !== "low") {
+    const repsPerSet = Math.max(loadedProof.rpm, Number(denseFormTargetRepsPerSet(exercise, proofScheme, null)) || 0);
+    return { entry: loadedProof.entry, scheme: proofScheme, rounds: denseSchemeMinutes(proofScheme),
+      effort: loadedProof.entry.effort || "N", readiness, step: 0, direction: "hold", tone: "neutral", type: "reps",
+      repsPerSet, totalReps: denseTotalFromRepsPerSet(repsPerSet, proofScheme),
+      title: `${proofScheme}${repsPerSet} · ${denseTotalFromRepsPerSet(repsPerSet, proofScheme)} reps`,
+      reason: `Ya completaste ${loadedProof.entry.scheme} con +${formatKg(loadedProof.entry.added_load_kg)}: sin lastre, ese bloque sirve como referencia mínima, no como garantía para hoy.`,
+    };
+  }
   if (denseIsStrengthScheme(schemeFilter)) {
     const latest = [...getDenseEntries()].filter((item) => item.exercise_id === exercise.id && !item.deleted_at && item.nature === exercise.nature && denseIsStrengthScheme(item.scheme))
       .sort((a, b) => (b.created_at || b.date || "").localeCompare(a.created_at || a.date || ""))[0];
@@ -10763,6 +10837,9 @@ function denseProgressionSuggestion(exercise, readiness = "normal", schemeFilter
   }
   entry ||= latestDenseEntryForExercise(exercise.id);
   if (!entry) return null;
+  if (exercise.nature === "bodyweight" && entry.nature === "weighted_calisthenics" && denseSchemeFormat(schemeFilter || entry.scheme) === "dense" && denseSchemeFormat(entry.scheme) === "dense") {
+    return denseEstimatedBodySuggestion(exercise, schemeFilter || denseSchemeBase(entry.scheme), readiness);
+  }
   // Never answer a dense form with a strength/max mark (or vice versa): the
   // prefill would talk about another format.
   if (schemeFilter && denseSchemeFormat(schemeFilter) !== denseSchemeFormat(entry.scheme)) return null;
@@ -12339,7 +12416,8 @@ function renderDenseEstimateCards(entry) {
       const inverted = unified ? denseCrossRpm(exercise, scheme, unified) : 0;
       const blended = direct && inverted ? direct * 0.6 + inverted * 0.4 : direct || inverted;
       if (!blended) return "";
-      const rpm = Math.max(1, Math.round(denseCapRpm(exercise, Math.floor(blended))));
+      const proof = denseLoadedBodyweightEvidence(exercise, scheme);
+      const rpm = Math.max(proof?.rpm || 0, Math.max(1, Math.round(denseCapRpm(exercise, Math.floor(blended)))));
       const sigma = clamp(
         denseEstimateSigma(unified?.date || entry.date, {
           cross: !direct,

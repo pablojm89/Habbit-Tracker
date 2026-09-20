@@ -8,7 +8,7 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 > App: PWA de entrenamiento (Dense training). Vanilla JS sin build: `app.js` (~9000
 > líneas), `styles.css`, `index.html`, `sw.js`. Sincroniza a Google Sheets vía Apps Script.
 > Modo training-only (`TRAINING_ONLY = true`). Cache busting: string `?v=…` en `index.html`
-> **y** `sw.js` a la vez. **Versión de esta entrega: `20260917-progresion-fuerza-54`.**
+> **y** `sw.js` a la vez. **Versión de esta entrega: `20260920-lastre-corporal-55`.**
 > Emisor desplegado en Cloudflare Free y conectado; pendiente activar y probar el iPhone.
 
 ## Cómo trabajar aquí (imprescindible)
@@ -19,7 +19,7 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 - **QA en un comando**: `tools/qa/run.sh` (o `selftests` / `crawl` / `audit` / `plan` / `retirement` / `timer` / `push`). Los
   scripts viven ya en el repo (`tools/qa/`), no en el scratchpad de la sesión.
   `plan.js` audita 1.612 combinaciones proposición → tarjeta → formulario (con y sin historial).
-- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **124 asserts**.
+- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **129 asserts**.
   Correr siempre tras tocar el motor.
 - **Simulación de entrenamiento** (nueva herramienta de QA): 6 semanas × 4 días con un
   atleta sintético que sigue las sugerencias reales de la app vía Playwright+Chromium
@@ -60,6 +60,30 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
   fail-closed, LockService, hojas de transferencias. Auto-restore al arrancar vacío.
 
 ## Trabajo reciente por tema (con commits)
+
+### Coherencia lastre a peso corporal (20 sep 2026)
+- Reproducido con dominadas supinas: un 10D5 completado a +10 kg no desplazaba
+  una marca antigua 10D3 sin lastre; formulario proponia 3 rpm (2 tras H/VH).
+  Sin marca corporal anterior, la tarjeta usaba por error el primer esquema
+  permitido (2D) al no reconocer 10D5 entre los esquemas corporales.
+- `denseLoadedBodyweightEvidence`: referencia minima del bloque lastrado
+  completado mas reciente del mismo ejercicio y duracion. Excluye fallos,
+  asistencia, variantes especificas y bloques incompletos; una marca corporal
+  posterior o un intento lastrado posterior fallido impiden aplicar ese minimo.
+  Tampoco lo aplica si el peso corporal actual supera BW+lastre demostrados.
+- Recomendacion normal/fuerte respeta esa referencia y explica el origen;
+  capacidad del formulario y tabla no pierden una rep por redondeo. Readiness
+  bajo conserva la ruta prudente. No es garantia de rendimiento de hoy.
+- Cambio de modalidad conserva el bloque solicitado, no cae en 2D.
+  `denseTargetSource` identifica la marca lastrada usada. No cambia registros
+  persistidos ni calcula reps extra automaticamente por quitar 10 kg.
+- `tools/qa/run.sh load-bodyweight`, incluido en `all`: seis casos N/H/VH con
+  y sin marca corporal antigua, compara propuesta/formulario/tabla y captura
+  movil 390x844. +5 self-tests de evidencia, exclusiones y carga corporal.
+- Cache coordinada v55. Verificado: 129/129 self-tests, crawl/auditoria sin
+  incidencias, 3.224 checks de plan, 35 de retirada, 33 del crono, 81 de push,
+  12 de scroll Chromium, regresiones de fuerza y seis casos lastre/corporal.
+  Captura 390x844 revisada sin desborde horizontal. Sin prueba en iPhone fisico.
 
 ### Progresion de fuerza y curl martillo (17 sep 2026)
 - Caso sintetico 3x10 a 12,5 kg por mancuerna. No se reprodujo una bajada de
