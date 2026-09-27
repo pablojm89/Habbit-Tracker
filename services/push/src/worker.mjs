@@ -119,7 +119,8 @@ export class PushDevice {
   async send(device, session, deliveryId) {
     const url = new URL(this.env.APP_URL);
     url.searchParams.set("micro", session.id);
-    const payload = JSON.stringify({ title: `${session.durationMinutes} min: ${session.title}`, body: session.instruction, url: url.href, tag: `micro-${deliveryId}` });
+    const title = session.kind === "activacion" ? session.title.replace("suave ", "") : session.title;
+    const payload = JSON.stringify({ title: `${session.durationMinutes} min: ${title}`, body: session.kind === "activacion" ? "Tu set de entrenamiento esta listo. Abre para ver el objetivo adaptado a tus marcas y registrar el resultado." : "Tu set de movilidad esta listo para abrir y registrar.", url: url.href, tag: `micro-${deliveryId}` });
     const details = webpush.generateRequestDetails(device.subscription, payload, {
       TTL: 300, urgency: "normal", topic: hash(deliveryId).slice(0, 32),
       vapidDetails: { subject: this.env.VAPID_SUBJECT, publicKey: this.env.VAPID_PUBLIC_KEY, privateKey: this.env.VAPID_PRIVATE_KEY },

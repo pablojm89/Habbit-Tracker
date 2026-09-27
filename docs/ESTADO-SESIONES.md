@@ -8,7 +8,7 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 > App: PWA de entrenamiento (Dense training). Vanilla JS sin build: `app.js` (~9000
 > líneas), `styles.css`, `index.html`, `sw.js`. Sincroniza a Google Sheets vía Apps Script.
 > Modo training-only (`TRAINING_ONLY = true`). Cache busting: string `?v=…` en `index.html`
-> **y** `sw.js` a la vez. **Versión de esta entrega: `20260920-lastre-corporal-55`.**
+> **y** `sw.js` a la vez. **Versión de esta entrega: `20260927-sets-push-56`.**
 > Emisor desplegado en Cloudflare Free y conectado; pendiente activar y probar el iPhone.
 
 ## Cómo trabajar aquí (imprescindible)
@@ -19,7 +19,7 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 - **QA en un comando**: `tools/qa/run.sh` (o `selftests` / `crawl` / `audit` / `plan` / `retirement` / `timer` / `push`). Los
   scripts viven ya en el repo (`tools/qa/`), no en el scratchpad de la sesión.
   `plan.js` audita 1.612 combinaciones proposición → tarjeta → formulario (con y sin historial).
-- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **129 asserts**.
+- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **132 asserts**.
   Correr siempre tras tocar el motor.
 - **Simulación de entrenamiento** (nueva herramienta de QA): 6 semanas × 4 días con un
   atleta sintético que sigue las sugerencias reales de la app vía Playwright+Chromium
@@ -60,6 +60,32 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
   fail-closed, LockService, hojas de transferencias. Auto-restore al arrancar vacío.
 
 ## Trabajo reciente por tema (con commits)
+
+### Avisos que abren sets de entrenamiento (27 sep 2026)
+- `openMicroProposedSet` conecta el enlace push, el mensaje del SW con app
+  abierta y el boton Proponer set directamente con `openDenseTrainingModal`.
+  No inicia el reloj ni guarda entrenamiento al abrir. Si hay un formulario,
+  pregunta antes de reemplazarlo; con crono activo deja el id pendiente.
+- `microProposedPlan` conserva 2D/5D y material, sin prescripciones suaves
+  fijas: el formulario usa la progresion normal desde las marcas. Front lever
+  y handstand recuperan la ultima variante isometrica completada. Sin marcas,
+  se conserva la estimacion/test del motor, no se inventa intensidad maxima.
+- Guardado como `source: notification`, con calculo normal de fallo, volumen
+  y balance; editar conserva el origen. No se reescribe historial previo.
+- El tipo interno `activacion` conserva compatibilidad de preferencias y
+  suscripciones, pero se presenta como Entrenamiento. Movilidad sigue aparte.
+  Revalida material y fatiga hoy/ayer al abrir, incluso desde un aviso antiguo.
+- Emisor: texto de set listo para registrar, sin recetas de reps faciles;
+  el objetivo concreto se resuelve localmente al abrir con las marcas actuales.
+  Los protocolos suaves antiguos siguen disponibles para borradores de reloj.
+- `tools/qa/run.sh proposed-sets`: enlace inicial, mensaje SW, objetivo propio,
+  variante, no autoguardado, registro normal, fatiga y material. Cache v56.
+- Resumen de isometricos corregido: segundos por ronda y tiempo bajo tension,
+  sin reps ni tonelaje ficticios en el formulario.
+- Verificado: 132 self-tests, crawl/auditoria sin incidencias, 3.224 checks de
+  plan, 35 de retirada/offline, 33 del crono, 83 de push, 12 de scroll y
+  regresiones de fuerza, lastre/corporal y sets propuestos. Captura 390x844
+  revisada. Emisor: 21 tests y Worker+SQLite en Miniflare correctos.
 
 ### Coherencia lastre a peso corporal (20 sep 2026)
 - Reproducido con dominadas supinas: un 10D5 completado a +10 kg no desplazaba

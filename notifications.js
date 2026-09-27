@@ -94,7 +94,7 @@ function renderMicroBalance() {
 async function openMicroBreaks() {
   pauseQuickTimer(false);
   nodes.modalEyebrow.textContent = "Durante el dia";
-  nodes.modalTitle.textContent = "Pausas de 2 y 5 minutos";
+  nodes.modalTitle.textContent = "Sets de 2 y 5 minutos";
   nodes.modalCard.dataset.modalKind = "micro-breaks";
   microPush.busy = true;
   microPush.error = "";
@@ -122,12 +122,12 @@ function renderMicroBreaks() {
       <label class="field"><span>Zona horaria</span><input name="timeZone" value="${escapeAttr(prefs.timeZone)}" required list="microTimeZones"><datalist id="microTimeZones"><option value="Europe/Madrid"><option value="Atlantic/Canary"><option value="${escapeAttr(Intl.DateTimeFormat().resolvedOptions().timeZone)}"></datalist></label>
     </fieldset>
     <fieldset ${microPush.busy ? "disabled" : ""}><legend>Material disponible</legend><div class="micro-choices">${choice("equipment", "suelo", "Suelo", prefs.equipment.includes("suelo"))}${choice("equipment", "anillas", "Anillas", prefs.equipment.includes("anillas"))}${choice("equipment", "barra", "Barra", prefs.equipment.includes("barra"))}</div></fieldset>
-    <fieldset ${microPush.busy ? "disabled" : ""}><legend>Tipo de pausa</legend><div class="micro-choices">${choice("kinds", "movilidad", "Movilidad", prefs.kinds.includes("movilidad"))}${choice("kinds", "activacion", "Activacion suave", prefs.kinds.includes("activacion"))}</div></fieldset>
+    <fieldset ${microPush.busy ? "disabled" : ""}><legend>Tipo de trabajo</legend><div class="micro-choices">${choice("kinds", "movilidad", "Movilidad", prefs.kinds.includes("movilidad"))}${choice("kinds", "activacion", "Entrenamiento", prefs.kinds.includes("activacion"))}</div></fieldset>
     ${!active && microPush.serviceUrl ? '<label class="field"><span>Codigo de activacion</span><input name="enrollment" type="password" autocomplete="off" minlength="32"></label>' : ""}
     ${!active ? '<button class="text-button timer-wide-button" type="button" data-micro-action="save-local"><i data-lucide="save"></i>Guardar preferencias</button>' : ""}
     <button class="text-button is-hot timer-wide-button" type="submit" ${enabled ? "" : "disabled"}><i data-lucide="${active ? "save" : "bell-ring"}"></i>${active ? "Guardar preferencias y horarios" : "Activar push"}</button>
     ${microPush.device ? `<div class="micro-actions">${active ? `<button class="text-button" type="button" data-micro-action="test" ${enabled ? "" : "disabled"}><i data-lucide="send"></i>Enviar prueba</button>` : ""}<button class="text-button" type="button" data-micro-action="disable" ${microPush.busy ? "disabled" : ""}><i data-lucide="bell-off"></i>Desactivar</button></div>` : ""}
-    <button class="text-button timer-wide-button" type="button" data-micro-action="preview"><i data-lucide="shuffle"></i>Una pausa ahora</button>
+    <button class="text-button timer-wide-button" type="button" data-micro-action="preview"><i data-lucide="shuffle"></i>Proponer set</button>
   </form>`;
   renderMicroBalance();
   refreshIcons();
@@ -208,6 +208,48 @@ async function microDeviceAction(action) {
   finally { microPush.busy = false; if (nodes.modalCard.dataset.modalKind === "micro-breaks") renderMicroBreaks(); }
 }
 
+function microProposedPlan(session) {
+  let exercise = findDenseExerciseById(session.exerciseId);
+  if (!exercise) throw new Error("Ejercicio no disponible.");
+  if (session.variantFamily) {
+    const last = [...getDenseEntries()].filter((entry) => !entry.deleted_at && !entry.failed && entry.effort !== "fallo" && Number(entry.total_hold_seconds) > 0)
+      .sort((a, b) => String(b.created_at || b.date || "").localeCompare(String(a.created_at || a.date || "")))
+      .map((entry) => findDenseExerciseById(entry.exercise_id)).find((item) => item?.family === session.variantFamily && denseIsIsometric(item));
+    exercise = last || exercise;
+  }
+  const nature = denseIsIsometric(exercise) ? exercise.nature : "bodyweight";
+  return { exercise_id: exercise.id, nature, scheme: `${session.durationMinutes}D`, source: "notification" };
+}
+
+async function openMicroProposedSet(id = "") {
+  try {
+    id ||= microPush.pendingSessionId || "";
+    if (quickTimerState.running) { microPush.pendingSessionId = id; toast("Termina o pausa el cronometro; el set queda pendiente en la campana."); return; }
+    if (nodes.modal.open && nodes.modalCard.dataset.modalKind === "dense-set" && !confirm("¿Cerrar el set sin guardar y abrir la propuesta?")) { microPush.pendingSessionId = id; return; }
+    if (!microPush.sessions.length) microPush.sessions = await fetch("./micro-sessions.json").then((response) => response.json());
+    const form = nodes.modal.open && nodes.modalCard.dataset.modalKind === "micro-breaks" ? document.querySelector("#microPushForm") : null;
+    const prefs = form ? readMicroPreferences(form) : microPreferences();
+    const balance = denseMicroBalanceSnapshot(Date.now(), prefs.timeZone);
+    const work = MicroBreaks.workload(balance, prefs.timeZone);
+    const session = id ? microPush.sessions.find((item) => item.id === id) : MicroBreaks.choose(microPush.sessions, prefs, balance, microPush.previousId);
+    if (!session || ![2, 5].includes(session.durationMinutes)) { microPush.pendingSessionId = ""; throw new Error("No hay un set compatible ahora. Revisa el material o elige movilidad."); }
+    const compatible = MicroBreaks.eligible([session], { ...prefs, durations: [session.durationMinutes], kinds: [session.kind] }).length;
+    if (!compatible || session.kind === "activacion" && session.stressGroups.some((group) => work.blocked.has(group))) {
+      microPush.pendingSessionId = "";
+      throw new Error(!compatible ? "Ese set requiere material no seleccionado." : "Ese set ya no encaja con la fatiga reciente. Pide otra propuesta en la campana.");
+    }
+    if (form) { state.settings.microBreaks = prefs; saveState(); }
+    const plan = microProposedPlan(session);
+    selectedDate = parseDate(MicroBreaks.dayKey(Date.now(), prefs.timeZone));
+    pauseQuickTimer(false);
+    openDenseTrainingModal({ exerciseId: plan.exercise_id, planItem: plan });
+    nodes.modalEyebrow.textContent = session.kind === "movilidad" ? "Movilidad propuesta" : "Set propuesto";
+    microPush.previousId = session.id;
+    microPush.pendingSessionId = "";
+  } catch (error) { toast(error.message); }
+}
+
+// Legacy timer sessions can still be reviewed with their original prescription.
 async function openMicroSession(id = "") {
   try {
     if (!microPush.sessions.length) microPush.sessions = await fetch("./micro-sessions.json").then((response) => response.json());
@@ -290,7 +332,7 @@ document.addEventListener("click", (event) => {
   const target = event.target.closest("[data-micro-action]");
   if (!target) return;
   const action = target.dataset.microAction;
-  if (action === "preview") openMicroSession();
+  if (action === "preview") openMicroProposedSet();
   else if (action === "start") startMicroSession(target.dataset.session);
   else if (action === "review") reviewMicroSession();
   else if (action === "save-local") {
@@ -307,13 +349,12 @@ try {
 } catch { /* Unavailable local storage must not block manual pauses. */ }
 navigator.serviceWorker?.addEventListener("message", (event) => {
   if (event.data?.type !== "open-micro-session") return;
-  if (quickTimerState.running || nodes.modal.open) { toast("Hay una pausa disponible en la campana."); return; }
-  openMicroSession(event.data.id);
+  openMicroProposedSet(event.data.id);
 });
 const initialMicroId = new URL(location.href).searchParams.get("micro");
 if (initialMicroId) {
   const clean = new URL(location.href);
   clean.searchParams.delete("micro");
   history.replaceState(null, "", clean);
-  openMicroSession(initialMicroId);
+  openMicroProposedSet(initialMicroId);
 }

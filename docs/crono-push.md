@@ -1,8 +1,26 @@
 # Cronometro y pausas push
 
-Version: `20260917-scroll-paneles-53`. No cambia la interfaz habitual ni crea otra
+Version: `20260927-sets-push-56`. No cambia la interfaz habitual ni crea otra
 version de la app. Emisor desplegado y conectado; pendiente activar y probar una
 suscripcion real en el iPhone.
+
+## Sets Desde El Aviso (v56)
+
+- Tocar un push o Proponer set abre directamente el formulario habitual con
+  ejercicio, modalidad y bloque 2D/5D. No inicia reloj ni registra nada hasta
+  Guardar set. El reloj del formulario sigue siendo opcional.
+- Entrenamiento sustituye a Activacion suave en los ajustes. Mantiene el valor
+  interno `activacion` para no perder horarios ni suscripciones. El objetivo
+  usa el motor normal y el historial, no las recetas suaves del catalogo antiguo.
+- Front lever/handstand usan la ultima variante isometrica completada; sin
+  historial se mantiene la estimacion inicial y su aviso de sesion test.
+- El emisor elige ejercicio por material y balance. Las reps/segundos se
+  calculan localmente al abrir; no se transmite historial privado al servidor.
+  Se vuelve a comprobar fatiga/material porque un aviso puede haberse quedado viejo.
+- Guardado como `source: notification`, con progreso, fallo y carga normales.
+  Movilidad sigue disponible por separado. Los protocolos descritos abajo se
+  conservan para revisar borradores antiguos de pausas suaves, no son el nuevo
+  recorrido al tocar una notificacion.
 
 ## Cronometro
 

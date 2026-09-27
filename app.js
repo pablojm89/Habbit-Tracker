@@ -3682,6 +3682,19 @@ function runDenseSelfTests() {
       return !denseLoadedBodyweightEvidence(denseExerciseById("chin_up"), "10D");
     } finally { state.bodyweightLogs = logs; }
   });
+  test("sets propuestos: usa el motor normal, sin receta suave ni lastre inventado", () => {
+    const plan = microProposedPlan({ exerciseId: "pull_up", durationMinutes: 5, repsPerRound: 2 });
+    return plan.scheme === "5D" && plan.nature === "bodyweight" && plan.source === "notification" && !plan.prescription;
+  });
+  test("sets propuestos: recupera la ultima variante isometrica completada", () => {
+    state.denseTrainingEntries = [{ exercise_id: "front_lever_adv_tuck", total_hold_seconds: 60, created_at: "2026-09-20" }, { exercise_id: "front_lever_full", total_hold_seconds: 5, failed: true, created_at: "2026-09-21" }];
+    const plan = microProposedPlan({ exerciseId: "front_lever_tuck", variantFamily: "front_lever", durationMinutes: 2 });
+    return plan.exercise_id === "front_lever_adv_tuck" && plan.scheme === "2D";
+  });
+  test("sets propuestos: resumen isometrico muestra segundos, no reps ni tonelaje", () => {
+    const summary = denseSetModalSummary(denseExerciseById("straight_handstand"), { scheme: "5D", holdSecondsPerRound: 18, totalReps: 16 });
+    return summary.includes("18s/ronda") && summary.includes("90s de tiempo") && !summary.includes("kg movidos") && !summary.includes("16 reps");
+  });
   state.denseTrainingEntries = savedEntries;
   denseNeighborCache = null;
   rebuildTransferState();
@@ -4611,6 +4624,9 @@ function denseTrainingFormMarkup(defaults, { includePicker = false, modal = fals
 }
 
 function denseSetModalSummary(exercise, defaults) {
+  const isometric = denseIsIsometric(exercise);
+  const hold = Number(defaults.holdSecondsPerRound) || 0;
+  const totalHold = Number(defaults.totalHoldSeconds) || hold * (denseSchemeMinutes(defaults.scheme) || 1);
   const total = Number(defaults.totalReps || 0);
   const bodyweight = Number(defaults.bodyweightKg || 0);
   // Volumen honesto por modalidad: carga externa × reps en barra/mancuerna,
@@ -4628,13 +4644,13 @@ function denseSetModalSummary(exercise, defaults) {
     ? "MÁX · serie única al fallo"
     : strength
       ? `${denseStrengthSchemeLabel(defaults.scheme)} · descanso ${denseFormatRest(defaults.restSeconds || DENSE_STRENGTH_DEFAULT_REST)}`
-      : `${defaults.scheme} · ${defaults.repsPerSet ? `${defaults.repsPerSet}/min` : "objetivo"}`;
+      : `${defaults.scheme} · ${isometric ? `${hold}s/ronda` : defaults.repsPerSet ? `${defaults.repsPerSet}/min` : "objetivo"}`;
   return `
     <div class="dense-set-modal-summary">
       <span class="mini-tag is-green">${escapeHtml(denseNatureLabel(exercise.nature).split("·")[0].trim())}</span>
       <span class="mini-tag"><i data-lucide="edit-3"></i>${state.settings.denseDraftEntryId ? "editing" : "new"} · ${escapeHtml(formatMonthDay(selectedDate))}</span>
       <strong>${escapeHtml(headline)}</strong>
-      <small>${escapeHtml(total ? `${total} reps · ${volume}` : volume)}</small>
+      <small>${escapeHtml(isometric ? `${totalHold}s de tiempo bajo tension` : total ? `${total} reps · ${volume}` : volume)}</small>
     </div>
   `;
 }
@@ -7492,7 +7508,7 @@ function saveDenseTrainingForm(form) {
     bodyweight_contribution_pct: exercise.bodyweightContributionPct ?? 0,
     tonnage_factor: exercise.tonnageFactor ?? 1,
     reps_per_side: Boolean(exercise.repsPerSide),
-    source: isMicro ? "micro_break" : "manual",
+    source: isMicro ? "micro_break" : denseSetModalContext.planItem?.source === "notification" || existingEntry?.source === "notification" ? "notification" : "manual",
     deleted_at: null,
     ...denseStudioEntryMetadata(data, existingEntry),
   };

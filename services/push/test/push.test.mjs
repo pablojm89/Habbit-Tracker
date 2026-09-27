@@ -72,9 +72,10 @@ test("envio: titulo y enlace coinciden con la duracion de la pausa", async (t) =
     const choice = { ...prefs, durations: [minutes] };
     const session = chooseSession(choice, "", () => 0);
     assert.equal(await f.object.send({ subscription }, session, `qa-${minutes}`), 201);
-    assert.equal(payload.title, `${minutes} min: ${session.title}`);
+    assert.equal(payload.title, `${minutes} min: ${session.title.replace("suave ", "")}`);
     assert.equal(new URL(payload.url).searchParams.get("micro"), session.id);
-    assert.ok(payload.body.includes(`${minutes} rondas`));
+    assert.ok(payload.body.includes("objetivo adaptado a tus marcas"));
+    assert.ok(!payload.body.includes("faciles"));
   }
 });
 
