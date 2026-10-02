@@ -8,7 +8,7 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 > App: PWA de entrenamiento (Dense training). Vanilla JS sin build: `app.js` (~9000
 > líneas), `styles.css`, `index.html`, `sw.js`. Sincroniza a Google Sheets vía Apps Script.
 > Modo training-only (`TRAINING_ONLY = true`). Cache busting: string `?v=…` en `index.html`
-> **y** `sw.js` a la vez. **Versión de esta entrega: `20261002-gemelo-unilateral-57`.**
+> **y** `sw.js` a la vez. **Versión de esta entrega: `20261002-busqueda-etiquetas-58`.**
 > Emisor desplegado en Cloudflare Free y conectado; pendiente activar y probar el iPhone.
 
 ## Cómo trabajar aquí (imprescindible)
@@ -19,7 +19,7 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 - **QA en un comando**: `tools/qa/run.sh` (o `selftests` / `crawl` / `audit` / `plan` / `retirement` / `timer` / `push`). Los
   scripts viven ya en el repo (`tools/qa/`), no en el scratchpad de la sesión.
   `plan.js` audita 1.626 combinaciones proposición → tarjeta → formulario (con y sin historial).
-- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **134 asserts**.
+- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **137 asserts**.
   Correr siempre tras tocar el motor.
 - **Simulación de entrenamiento** (nueva herramienta de QA): 6 semanas × 4 días con un
   atleta sintético que sigue las sugerencias reales de la app vía Playwright+Chromium
@@ -60,6 +60,21 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
   fail-closed, LockService, hojas de transferencias. Auto-restore al arrancar vacío.
 
 ## Trabajo reciente por tema (con commits)
+
+### Busqueda por etiquetas (2 oct 2026)
+- `denseExerciseSearchTags` amplia el indice compartido con musculos relevantes
+  (peso >= 0.5 en metadata existente), sinonimos de movimientos y material.
+  Ejemplos: pecho, biceps, pectorales, dorsales, pino, pantorrilla y combinaciones
+  como pecho mancuernas o biceps anillas. Mantiene normalizacion sin acentos.
+- `applyDenseExerciseSearch` regenera solo resultados: conserva foco/teclado,
+  abre progresiones coincidentes, elimina grupos vacios y actualiza el contador.
+  Tambien recupera resultados al cambiar o borrar una busqueda anterior.
+- Sin cambios de estado, historial, calculos, favoritos ni orden elegido.
+- Tres self-tests nuevos y 18 casos de busqueda en crawl; prueba de interfaz
+  movil con busqueda combinada, grupos, estado vacio y captura a 390x844.
+- Cache coordinada v58. Verificado: 137/137 self-tests, crawl y auditoria sin
+  incidencias, 3.252 casos de plan y todas las regresiones de `run.sh all`.
+  Captura movil revisada, sin desborde horizontal; no probado en iPhone real.
 
 ### Gemelo unilateral Full ROM (2 oct 2026)
 - Nuevo `single_leg_calf_raise_full_rom`, separado de gemelos bilaterales,

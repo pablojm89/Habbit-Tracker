@@ -3705,6 +3705,18 @@ function runDenseSelfTests() {
     const entry = computeDenseEntry({ exercise_id: "single_leg_calf_raise_full_rom", nature: "weighted_calisthenics", scheme: "S3x12", bodyweight_kg: 80, added_load_kg: 10, reps_per_side: true, reps_done: [12, 12, 12], effort: "N" });
     return entry.total_system_load_kg === 90 && entry.total_reps === 36 && entry.reps_per_side;
   });
+  test("busqueda: musculos encuentran nombres distintos y respetan acentos", () => {
+    const matches = (id, query) => denseSearchMatches(denseSearchHaystack(findDenseExerciseById(id)), query);
+    return matches("bench_press", "pecho") && matches("db_hammer_curl", "BÍCEPS") && matches("pec_deck", "pectorales") && matches("single_leg_calf_raise_full_rom", "pantorrilla");
+  });
+  test("busqueda: combina musculo y material con todos los terminos", () => {
+    const matches = (id, query) => denseSearchMatches(denseSearchHaystack(findDenseExerciseById(id)), query);
+    return matches("db_bench_press", "pecho mancuernas") && matches("ring_biceps_curl_45", "biceps anillas") && !matches("bench_press", "pecho mancuernas") && !matches("machine_leg_curl", "curl biceps");
+  });
+  test("busqueda: sinonimos y musculos no incluyen estabilizadores menores", () => {
+    const matches = (id, query) => denseSearchMatches(denseSearchHaystack(findDenseExerciseById(id)), query);
+    return matches("straight_handstand", "pino") && matches("lat_pulldown", "dorsales") && matches("preacher_curl", "biceps") && !matches("bench_press", "biceps") && !matches("chin_up", "abdominales");
+  });
   state.denseTrainingEntries = savedEntries;
   denseNeighborCache = null;
   rebuildTransferState();
@@ -9781,7 +9793,55 @@ function denseSearchMatches(haystack, query) {
 }
 
 function denseSearchHaystack(exercise) {
-  return `${exercise.name} ${exercise.family} ${denseCategoryLabel(exercise.category)} ${exercise.id}`;
+  return `${exercise.name} ${exercise.family} ${denseCategoryLabel(exercise.category)} ${exercise.id} ${denseExerciseSearchTags(exercise).join(" ")}`;
+}
+
+function denseExerciseSearchTags(exercise) {
+  const muscleAliases = {
+    chest: "pecho pectoral pectorales chest",
+    biceps: "bíceps biceps brazos",
+    triceps: "tríceps triceps brazos",
+    lats: "espalda dorsal dorsales lats",
+    upper_back: "espalda trapecio trapecios romboides",
+    front_delt: "hombro hombros deltoides anterior",
+    side_delt: "hombro hombros deltoides lateral",
+    rear_delt: "hombro hombros deltoides posterior",
+    quads: "piernas cuádriceps cuadriceps",
+    glutes_hams: "piernas cadena posterior",
+    calves: "piernas gemelo gemelos pantorrilla pantorrillas sóleo soleo",
+    core_flex: "core abdomen abdominal abdominales abs",
+    core_ext: "core lumbar lumbares",
+    forearms_grip: "antebrazo antebrazos agarre grip",
+    scap: "escápula escapula escapular",
+  };
+  // Only meaningful muscle involvement; tiny stabilizer weights add noise.
+  const tags = Object.entries(denseMetaFor(exercise).muscles || {})
+    .filter(([, weight]) => weight >= 0.5)
+    .map(([muscle]) => muscleAliases[muscle] || muscle);
+  const groups = [
+    ["pushup pushups push up flexión flexiones", /pushup|push_up|ring_push/],
+    ["dominada dominadas pullup pullups chinup chinups", /strict_pull|one_arm_chin/],
+    ["remo remos row rows", /horizontal_pull|\brow\b/],
+    ["fondos dip dips", /strict_dip|machine_dip/],
+    ["curl curls flexión de codo", /elbow_flexion|ring_curl/],
+    ["pino handstand equilibrio", /handstand|hspu/],
+    ["sentadilla sentadillas squat", /squat/],
+    ["peso muerto bisagra glúteos gluteos isquios isquiotibiales femoral femorales", /hinge_weighted|hinge_bodyweight/],
+    ["glúteos gluteos", /hip_thrust|kickback|hip_abduction/],
+    ["isquios isquiotibiales femoral femorales", /leg_curl/],
+    ["aductor aductores", /hip_adduction/],
+    ["mancuerna mancuernas dumbbell dumbbells", /\bdb\b|mancuerna/],
+    ["anilla anillas ring rings", /\bring\b|anillas/],
+    ["polea poleas cable cables", /\bcable\b|polea/],
+    ["barra barbell", /\bbarbell\b/],
+    ["máquina maquina machine", /\bmachine\b/],
+  ];
+  const identity = denseSearchNormalize(`${exercise.id} ${exercise.name}`);
+  const family = exercise.family || "";
+  groups.forEach(([aliases, pattern]) => {
+    if (pattern.test(identity) || pattern.test(exercise.id) || pattern.test(family)) tags.push(aliases);
+  });
+  return tags;
 }
 
 function denseExerciseLibrary({ category = "all", sort = "recent", search = "" } = {}) {
@@ -11907,9 +11967,26 @@ function average(values) {
 }
 
 function applyDenseExerciseSearch(value) {
-  document.querySelectorAll("[data-exercise-card]").forEach((card) => {
-    card.classList.toggle("is-hidden", !denseSearchMatches(card.dataset.search || "", value));
+  const exercises = denseExerciseLibrary({
+    category: state.settings.denseExerciseCategory || "all",
+    sort: state.settings.denseExerciseSort || "recent",
+    search: value,
   });
+  // Replace results only, keeping the focused input and mobile keyboard intact.
+  document.querySelectorAll(".dense-exercise-picker").forEach((picker) => {
+    const list = picker.querySelector(".exercise-picker-list");
+    if (!list) return;
+    if (picker.classList.contains("is-workout-picker")) {
+      list.innerHTML = denseWorkoutPickerListMarkup(exercises, value.trim());
+    } else {
+      list.innerHTML = exercises.length
+        ? exercises.map((exercise) => denseExercisePickCard(exercise, denseFormDefaults().exerciseId)).join("")
+        : `<article class="exercise-pick-empty">No hay ejercicios con ese filtro.</article>`;
+    }
+    const count = picker.querySelector(".picker-meta > span");
+    if (count) count.textContent = `${exercises.length} ejercicio${exercises.length === 1 ? "" : "s"}`;
+  });
+  refreshIcons();
 }
 
 function denseFormDefaults() {

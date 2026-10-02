@@ -3,7 +3,7 @@
 // missing/extra fields, absurd targets and broken flows.
 const fs = require("fs");
 const { chromium } = require("playwright-core");
-const { CHROME, BASE } = require("./env");
+const { CHROME, BASE, SHOTS } = require("./env");
 const FINDINGS = [];
 const flag = (kind, detail) => { FINDINGS.push({ kind, ...detail }); console.log(`⚠ [${kind}]`, JSON.stringify(detail).slice(0, 240)); };
 
@@ -38,9 +38,31 @@ const flag = (kind, detail) => { FINDINGS.push({ kind, ...detail }); console.log
 
   // 1. search
   const searchCases = [["extension", "ring_triceps_extension_45"], ["curl biceps", "ring_biceps_curl_45"], ["l sit", "l_sit"], ["jalón ", "lat_pulldown"], ["dominada  supina", "chin_up"], ["remo barra", "barbell_row"], ["prensa", "leg_press"], ["triceps cuerda", "cable_triceps_pushdown_rope"], ["rumano", "romanian_deadlift"], ["laterales", "db_lateral_raise"]];
+  searchCases.push(["pecho", "bench_press"], ["BÍCEPS", "db_hammer_curl"], ["pecho mancuernas", "db_bench_press"], ["biceps anillas", "ring_biceps_curl_45"], ["pantorrilla unilateral", "single_leg_calf_raise_full_rom"], ["pino", "straight_handstand"], ["pectorales", "pec_deck"], ["dorsales", "lat_pulldown"]);
   const searchResults = await page.evaluate((cases) => cases.map(([query, wantId]) => ({ query, wantId, ok: denseExerciseLibrary({ category: "all", sort: "az", search: query }).some((e) => e.id === wantId) })), searchCases);
   searchResults.forEach((r) => { if (!r.ok) flag("search-miss", r); });
   console.log(`search: ${searchResults.filter((r) => r.ok).length}/${searchResults.length} OK`);
+
+  await page.evaluate(() => openWorkoutExercisePickerModal());
+  const searchInput = page.locator('[data-action-input="dense-exercise-search"]:visible');
+  await searchInput.fill("pecho mancuernas");
+  await page.waitForTimeout(300);
+  const semanticUI = await page.evaluate(() => ({
+    found: Boolean(document.querySelector('[data-exercise-card][data-exercise="db_bench_press"]:not(.is-hidden)')),
+    overflow: nodes.modalBody.scrollWidth > nodes.modalBody.clientWidth + 1,
+    irrelevant: [...document.querySelectorAll("[data-exercise-card]")].some((card) => !denseSearchMatches(card.dataset.search, "pecho mancuernas")),
+    emptyGroups: [...document.querySelectorAll(".exercise-group")].some((group) => !group.querySelector("[data-exercise-card]")),
+  }));
+  if (!semanticUI.found || semanticUI.overflow || semanticUI.irrelevant || semanticUI.emptyGroups) flag("semantic-search-ui", semanticUI);
+  await page.screenshot({ path: `${SHOTS}/semantic-search.png` });
+  await searchInput.fill("biceps anillas");
+  await page.waitForTimeout(200);
+  if (!await page.locator('[data-exercise-card][data-exercise="ring_biceps_curl_45"]').isVisible()) flag("semantic-search-group", { query: "biceps anillas" });
+  await searchInput.fill("zzzzsincoincidencias");
+  if (!await page.locator(".exercise-pick-empty").isVisible()) flag("semantic-search-empty", {});
+  await searchInput.fill("");
+  await page.waitForTimeout(300);
+  await page.evaluate(() => closeModal());
 
   // 2. every exercise × nature (× format for strength-capable)
   const formAudit = await page.evaluate(() => {

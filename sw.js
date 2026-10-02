@@ -1,14 +1,14 @@
-const CACHE_NAME = "bittracker-mobile-20261002-gemelo-unilateral-57";
+const CACHE_NAME = "bittracker-mobile-20261002-busqueda-etiquetas-58";
 const LUCIDE_URL = "https://unpkg.com/lucide@1.23.0/dist/umd/lucide.min.js";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=20261002-gemelo-unilateral-57",
-  "./app.js?v=20261002-gemelo-unilateral-57",
-  "./studio-core.js?v=20261002-gemelo-unilateral-57",
-  "./timer-core.js?v=20261002-gemelo-unilateral-57",
-  "./micro-core.js?v=20261002-gemelo-unilateral-57",
-  "./notifications.js?v=20261002-gemelo-unilateral-57",
+  "./styles.css?v=20261002-busqueda-etiquetas-58",
+  "./app.js?v=20261002-busqueda-etiquetas-58",
+  "./studio-core.js?v=20261002-busqueda-etiquetas-58",
+  "./timer-core.js?v=20261002-busqueda-etiquetas-58",
+  "./micro-core.js?v=20261002-busqueda-etiquetas-58",
+  "./notifications.js?v=20261002-busqueda-etiquetas-58",
   "./micro-sessions.json",
   "./push-config.json",
   "./manifest.webmanifest?v=20260627-mobile-01",
