@@ -36,6 +36,7 @@ case "$WHAT" in
   strength) node strength.js ;;
   load-bodyweight) node load-bodyweight.js ;;
   proposed-sets) node proposed-sets.js ;;
-  all) node selftests.js && node crawl.js && node audit.js && node plan.js && node plan.js empty && node retirement.js && node timer.js && node push.js && node modal-scroll.js && node strength.js && node load-bodyweight.js && node proposed-sets.js ;;
-  *) echo "uso: $0 [selftests|crawl|audit|plan|retirement|timer|push|scroll|strength|load-bodyweight|proposed-sets|all]"; exit 2 ;;
+  calf) node calf.js ;;
+  all) node selftests.js && node crawl.js && node audit.js && node plan.js && node plan.js empty && node retirement.js && node timer.js && node push.js && node modal-scroll.js && node strength.js && node load-bodyweight.js && node proposed-sets.js && node calf.js ;;
+  *) echo "uso: $0 [selftests|crawl|audit|plan|retirement|timer|push|scroll|strength|load-bodyweight|proposed-sets|calf|all]"; exit 2 ;;
 esac

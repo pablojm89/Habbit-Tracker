@@ -8,7 +8,7 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 > App: PWA de entrenamiento (Dense training). Vanilla JS sin build: `app.js` (~9000
 > líneas), `styles.css`, `index.html`, `sw.js`. Sincroniza a Google Sheets vía Apps Script.
 > Modo training-only (`TRAINING_ONLY = true`). Cache busting: string `?v=…` en `index.html`
-> **y** `sw.js` a la vez. **Versión de esta entrega: `20260927-sets-push-56`.**
+> **y** `sw.js` a la vez. **Versión de esta entrega: `20261002-gemelo-unilateral-57`.**
 > Emisor desplegado en Cloudflare Free y conectado; pendiente activar y probar el iPhone.
 
 ## Cómo trabajar aquí (imprescindible)
@@ -18,8 +18,8 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
   en la raíz con las reglas que se cargan siempre.
 - **QA en un comando**: `tools/qa/run.sh` (o `selftests` / `crawl` / `audit` / `plan` / `retirement` / `timer` / `push`). Los
   scripts viven ya en el repo (`tools/qa/`), no en el scratchpad de la sesión.
-  `plan.js` audita 1.612 combinaciones proposición → tarjeta → formulario (con y sin historial).
-- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **132 asserts**.
+  `plan.js` audita 1.626 combinaciones proposición → tarjeta → formulario (con y sin historial).
+- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **134 asserts**.
   Correr siempre tras tocar el motor.
 - **Simulación de entrenamiento** (nueva herramienta de QA): 6 semanas × 4 días con un
   atleta sintético que sigue las sugerencias reales de la app vía Playwright+Chromium
@@ -60,6 +60,20 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
   fail-closed, LockService, hojas de transferencias. Auto-restore al arrancar vacío.
 
 ## Trabajo reciente por tema (con commits)
+
+### Gemelo unilateral Full ROM (2 oct 2026)
+- Nuevo `single_leg_calf_raise_full_rom`, separado de gemelos bilaterales,
+  sentado y en prensa. Categoria piernas, familia calves y metadata propia
+  centrada en gemelos, con patron unilateral.
+- Peso corporal por defecto, modalidad con lastre opcional. `repsPerSide: true`,
+  3x12 y 60 s de descanso iniciales; permite los formatos habituales.
+  Registra las reps por pierna, como los demas ejercicios unilaterales.
+- Dos self-tests de identidad/modalidades y carga de sistema con lastre.
+  Cache coordinada v57; sin cambios en datos existentes ni servicio push.
+- Verificado: 134 self-tests, crawl/auditoria sin incidencias, 3.252 checks de
+  plan y todas las regresiones existentes. `tools/qa/run.sh calf` prueba busqueda,
+  guardado sin/con lastre, edicion sin duplicados, historial bilateral intacto
+  y captura movil 390x844 sin desborde horizontal.
 
 ### Avisos que abren sets de entrenamiento (27 sep 2026)
 - `openMicroProposedSet` conecta el enlace push, el mensaje del SW con app

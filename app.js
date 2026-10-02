@@ -1525,6 +1525,7 @@ const denseExerciseCatalog = [
     { id: "barbell_hip_thrust", name: "Hip thrust con barra", category: "legs", family: "hip_thrust", icon: "arrow-big-up", defaultScheme: "S3x10", defaultRestSeconds: 120 },
     { id: "db_lunge", name: "Zancadas con mancuernas", category: "legs", family: "lunge", loadPattern: "dumbbell_pair", repsPerSide: true, bodyweightContributionPct: 85, icon: "footprints", defaultScheme: "S3x10", defaultRestSeconds: 90 },
     { id: "calf_raise", name: "Elevación de gemelos", category: "legs", family: "calves", allowedNatures: ["weighted", "bodyweight"], bodyweightContributionPct: 100, icon: "footprints", defaultScheme: "S3x12", defaultRestSeconds: 60 },
+    { id: "single_leg_calf_raise_full_rom", name: "Elevación de gemelo unilateral · Full ROM", category: "legs", family: "calves", nature: "bodyweight", allowedNatures: ["bodyweight", "weighted_calisthenics"], repsPerSide: true, bodyweightContributionPct: 100, icon: "footprints", defaultScheme: "S3x12", defaultRestSeconds: 60 },
     // ── Variantes de gimnasio, tanda 2 (sep 2026): presses, hombro, tirón,
     // pierna y core con carga. Todas con id-meta y benchmark propios.
     { id: "decline_bench_press", name: "Press banca declinado con barra", category: "push", family: "bench_press", icon: "dumbbell", defaultScheme: "S5x5", defaultRestSeconds: 180 },
@@ -1844,6 +1845,7 @@ const denseTransferIdMeta = {
   barbell_hip_thrust: { patterns: { hinge: 0.7 }, muscles: { glutes_hams: 0.95 }, specificity: 0.15 },
   db_lunge: { patterns: { squat: 0.7, hinge: 0.2 }, muscles: { quads: 0.8, glutes_hams: 0.7 }, specificity: 0.2 },
   calf_raise: { patterns: { squat: 0.1 }, muscles: { calves: 0.95 }, specificity: 0.05 },
+  single_leg_calf_raise_full_rom: { patterns: { unilateral_leg: 0.1 }, muscles: { calves: 0.95 }, specificity: 0.05 },
   machine_leg_curl: { patterns: { hinge: 0.4 }, muscles: { glutes_hams: 0.9 }, specificity: 0.1 },
   // ── Variantes de gimnasio, tanda 2 (sep 2026) ────────────────────────────
   decline_bench_press: { patterns: { horizontal_push: 1 }, muscles: { chest: 0.9, triceps: 0.6, front_delt: 0.3 }, specificity: 0.2 },
@@ -3694,6 +3696,14 @@ function runDenseSelfTests() {
   test("sets propuestos: resumen isometrico muestra segundos, no reps ni tonelaje", () => {
     const summary = denseSetModalSummary(denseExerciseById("straight_handstand"), { scheme: "5D", holdSecondsPerRound: 18, totalReps: 16 });
     return summary.includes("18s/ronda") && summary.includes("90s de tiempo") && !summary.includes("kg movidos") && !summary.includes("16 reps");
+  });
+  test("gemelo unilateral full ROM: identidad propia, reps por lado y modalidades compatibles", () => {
+    const ex = findDenseExerciseById("single_leg_calf_raise_full_rom");
+    return ex?.repsPerSide && ex.nature === "bodyweight" && ex.family === "calves" && ex.defaultScheme === "S3x12" && ex.allowedNatures.includes("weighted_calisthenics") && denseExerciseCatalog.filter((item) => item.id === ex.id).length === 1 && denseMetaFor(ex).muscles.calves === 0.95;
+  });
+  test("gemelo unilateral full ROM: calculo con lastre suma peso corporal una sola vez", () => {
+    const entry = computeDenseEntry({ exercise_id: "single_leg_calf_raise_full_rom", nature: "weighted_calisthenics", scheme: "S3x12", bodyweight_kg: 80, added_load_kg: 10, reps_per_side: true, reps_done: [12, 12, 12], effort: "N" });
+    return entry.total_system_load_kg === 90 && entry.total_reps === 36 && entry.reps_per_side;
   });
   state.denseTrainingEntries = savedEntries;
   denseNeighborCache = null;
