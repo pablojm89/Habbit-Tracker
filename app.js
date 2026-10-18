@@ -741,6 +741,19 @@ const denseExerciseCatalog = [
     icon: "fold-horizontal",
   },
   {
+    id: "single_leg_back_extension",
+    name: "Extensión de espalda unilateral",
+    category: "legs",
+    family: "posterior_chain",
+    nature: "bodyweight",
+    allowedNatures: ["bodyweight", "weighted_calisthenics"],
+    bodyweightContributionPct: 50,
+    repsPerSide: true,
+    tonnageFactor: 0.85,
+    alpha: 0.12,
+    icon: "fold-horizontal",
+  },
+  {
     id: "clap_push_up",
     name: "Flexiones con palmadas",
     category: "push",
@@ -1822,6 +1835,7 @@ const denseTransferFamilyMeta = {
 const denseTransferIdMeta = {
   bench_press: { patterns: { horizontal_push: 1 }, muscles: { chest: 0.9, triceps: 0.6, front_delt: 0.5 }, specificity: 0.2 },
   back_extension: { patterns: { hinge: 0.7, core_ext: 0.6 }, muscles: { glutes_hams: 0.7, core_ext: 0.8 }, specificity: 0.15 },
+  single_leg_back_extension: { patterns: { hinge: 0.7, core_ext: 0.6 }, muscles: { glutes_hams: 0.8, core_ext: 0.8 }, specificity: 0.25 },
   machine_leg_extension: { patterns: { squat: 0.4 }, muscles: { quads: 0.95 }, specificity: 0.1 },
   lat_pulldown: { patterns: { vertical_pull: 0.6 }, muscles: { lats: 0.9, biceps: 0.5, upper_back: 0.4 }, specificity: 0.1 },
   // ── Básicos de gimnasio (modo Fuerza, sesión gym — 2026) ────────────────
@@ -3716,6 +3730,10 @@ function runDenseSelfTests() {
   test("busqueda: sinonimos y musculos no incluyen estabilizadores menores", () => {
     const matches = (id, query) => denseSearchMatches(denseSearchHaystack(findDenseExerciseById(id)), query);
     return matches("straight_handstand", "pino") && matches("lat_pulldown", "dorsales") && matches("preacher_curl", "biceps") && !matches("bench_press", "biceps") && !matches("chin_up", "abdominales");
+  });
+  test("extension de espalda unilateral: reps por lado, modalidades y metadata propia", () => {
+    const ex = findDenseExerciseById("single_leg_back_extension");
+    return ex?.repsPerSide && ex.nature === "bodyweight" && ex.allowedNatures.includes("weighted_calisthenics") && denseExerciseCatalog.filter((item) => item.id === ex.id).length === 1 && denseMetaFor(ex).muscles.core_ext === 0.8 && denseSearchMatches(denseSearchHaystack(ex), "back extension unilateral");
   });
   state.denseTrainingEntries = savedEntries;
   denseNeighborCache = null;
@@ -9829,6 +9847,7 @@ function denseExerciseSearchTags(exercise) {
     ["peso muerto bisagra glúteos gluteos isquios isquiotibiales femoral femorales", /hinge_weighted|hinge_bodyweight/],
     ["glúteos gluteos", /hip_thrust|kickback|hip_abduction/],
     ["isquios isquiotibiales femoral femorales", /leg_curl/],
+    ["back extension hiperextensión hiperextensiones banco romano máquina maquina glúteos gluteos isquios isquiotibiales", /back_extension/],
     ["aductor aductores", /hip_adduction/],
     ["mancuerna mancuernas dumbbell dumbbells", /\bdb\b|mancuerna/],
     ["anilla anillas ring rings", /\bring\b|anillas/],

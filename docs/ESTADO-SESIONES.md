@@ -8,7 +8,7 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 > App: PWA de entrenamiento (Dense training). Vanilla JS sin build: `app.js` (~9000
 > líneas), `styles.css`, `index.html`, `sw.js`. Sincroniza a Google Sheets vía Apps Script.
 > Modo training-only (`TRAINING_ONLY = true`). Cache busting: string `?v=…` en `index.html`
-> **y** `sw.js` a la vez. **Versión de esta entrega: `20261002-busqueda-etiquetas-58`.**
+> **y** `sw.js` a la vez. **Versión de esta entrega: `20261018-extension-unilateral-59`.**
 > Emisor desplegado en Cloudflare Free y conectado; pendiente activar y probar el iPhone.
 
 ## Cómo trabajar aquí (imprescindible)
@@ -19,7 +19,7 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 - **QA en un comando**: `tools/qa/run.sh` (o `selftests` / `crawl` / `audit` / `plan` / `retirement` / `timer` / `push`). Los
   scripts viven ya en el repo (`tools/qa/`), no en el scratchpad de la sesión.
   `plan.js` audita 1.626 combinaciones proposición → tarjeta → formulario (con y sin historial).
-- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **137 asserts**.
+- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **138 asserts**.
   Correr siempre tras tocar el motor.
 - **Simulación de entrenamiento** (nueva herramienta de QA): 6 semanas × 4 días con un
   atleta sintético que sigue las sugerencias reales de la app vía Playwright+Chromium
@@ -60,6 +60,16 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
   fail-closed, LockService, hojas de transferencias. Auto-restore al arrancar vacío.
 
 ## Trabajo reciente por tema (con commits)
+
+### Extensión de espalda unilateral (18 oct 2026)
+- Nuevo `single_leg_back_extension`: extensión en banco/máquina con muslos apoyados
+  y una sola pierna enganchada bajo la almohadilla del talón/tendón de Aquiles;
+  flexoextensión de cadera y lumbar. Repeticiones por lado, sin peso o con lastre.
+- Familia `posterior_chain`, metadata propia de bisagra y extensión lumbar;
+  contribución corporal estimada del 50%, igual que la variante bilateral.
+- Búsqueda por nombre español, back extension, hiperextensión, banco romano y músculos.
+- Caché `20261018-extension-unilateral-59`; self-tests 138/138.
+- Publicación pendiente: el push lo hace el usuario salvo petición expresa.
 
 ### Busqueda por etiquetas (2 oct 2026)
 - `denseExerciseSearchTags` amplia el indice compartido con musculos relevantes
