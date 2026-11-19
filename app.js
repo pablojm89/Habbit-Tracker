@@ -210,7 +210,7 @@ const bodyweightSchemes = ["2D", "5D", "10D", "20D"];
 // "S5x5" = 5 series de 5 · "S3x8-12" = 3 series en rango 8-12. El e1RM sale
 // de Epley sobre reps + RIR (RIR implícito en el chip de esfuerzo), y cae en el
 // mismo campo e1rm_kg que la densidad — transferencias/analytics no cambian.
-const strengthSchemes = ["S5x5", "S5x3", "S3x5", "S4x6", "S3x8", "S3x10", "S3x12", "S3x8-12", "S3x10-15", "S4x6-10"];
+const strengthSchemes = ["S5x5", "S5x3", "S6x3", "S3x5", "S4x6", "S3x8", "S3x10", "S3x12", "S3x8-12", "S3x10-15", "S4x6-10"];
 const strengthRestOptions = [45, 60, 90, 120, 180, 300];
 const DENSE_STRENGTH_DEFAULT_REST = 180;
 const denseRirByEffort = { VE: 5, E: 4, N: 2, H: 1, VH: 0, fallo: 0, no_llego: 0 };
@@ -1556,6 +1556,7 @@ const denseExerciseCatalog = [
     { id: "landmine_press", name: "Press landmine", category: "push", family: "accessory", repsPerSide: true, icon: "arrow-big-up", defaultScheme: "S3x8", defaultRestSeconds: 120 },
     { id: "cable_lateral_raise", name: "Elevaciones laterales en polea", category: "push", family: "shoulder_isolation", repsPerSide: true, icon: "move-horizontal", defaultScheme: "S3x12", defaultRestSeconds: 60 },
     { id: "db_front_raise", name: "Elevaciones frontales con mancuernas", category: "push", family: "shoulder_isolation", loadPattern: "dumbbell_pair", icon: "arrow-up-from-line", defaultScheme: "S3x12", defaultRestSeconds: 60 },
+    { id: "single_arm_cuban_rotation", name: "Rotación cubana unilateral (Cuban rotation) con mancuerna", category: "pull", family: "shoulder_health", repsPerSide: true, icon: "rotate-cw", defaultScheme: "S3x12", defaultRestSeconds: 60 },
     { id: "rear_delt_fly", name: "Pájaros (deltoides posterior)", category: "pull", family: "shoulder_health", loadPattern: "dumbbell_pair", icon: "arrow-left-to-line", defaultScheme: "S3x12", defaultRestSeconds: 60 },
     { id: "skull_crusher", name: "Press francés (skull crusher)", category: "push", family: "elbow_extension", icon: "arrow-down-to-line", defaultScheme: "S3x10", defaultRestSeconds: 60 },
     { id: "db_overhead_triceps_extension", name: "Extensión de tríceps con mancuerna (dos manos)", category: "push", family: "elbow_extension", icon: "arrow-up-from-line", defaultScheme: "S3x12", defaultRestSeconds: 60 },
@@ -1853,6 +1854,7 @@ const denseTransferIdMeta = {
   barbell_row: { patterns: { horizontal_pull: 1, hinge: 0.3 }, muscles: { upper_back: 0.9, lats: 0.7, biceps: 0.5, core_ext: 0.4 }, specificity: 0.2 },
   db_row: { patterns: { horizontal_pull: 1 }, muscles: { lats: 0.8, upper_back: 0.8, biceps: 0.5 }, specificity: 0.2 },
   seated_cable_row: { patterns: { horizontal_pull: 1 }, muscles: { upper_back: 0.9, lats: 0.7, biceps: 0.5 }, specificity: 0.1 },
+  single_arm_cuban_rotation: { patterns: { horizontal_pull: 0.1 }, muscles: { rear_delt: 0.6, scap: 0.6 }, specificity: 0.65 },
   cable_face_pull: { patterns: { horizontal_pull: 0.5 }, muscles: { upper_back: 0.8, rear_delt: 0.9, scap: 0.5 }, specificity: 0.1 },
   leg_press: { patterns: { squat: 0.8 }, muscles: { quads: 0.9, glutes_hams: 0.5 }, specificity: 0.1 },
   romanian_deadlift: { patterns: { hinge: 1 }, muscles: { glutes_hams: 0.95, core_ext: 0.6, forearms_grip: 0.3 }, specificity: 0.2 },
@@ -3734,6 +3736,14 @@ function runDenseSelfTests() {
   test("extension de espalda unilateral: reps por lado, modalidades y metadata propia", () => {
     const ex = findDenseExerciseById("single_leg_back_extension");
     return ex?.repsPerSide && ex.nature === "bodyweight" && ex.allowedNatures.includes("weighted_calisthenics") && denseExerciseCatalog.filter((item) => item.id === ex.id).length === 1 && denseMetaFor(ex).muscles.core_ext === 0.8 && denseSearchMatches(denseSearchHaystack(ex), "back extension unilateral");
+  });
+  test("rotacion cubana unilateral: carga individual, reps por lado y busqueda", () => {
+    const ex = findDenseExerciseById("single_arm_cuban_rotation");
+    return ex?.repsPerSide && ex.nature === "weighted" && ex.loadPattern !== "dumbbell_pair" && ex.defaultFormat === "strength" && denseMetaFor(ex).specificity === 0.65 && denseSearchMatches(denseSearchHaystack(ex), "cuban rotation unilateral") && denseAllowedSchemes(ex).includes("S6x3");
+  });
+  test("fuerza 6x3: seis series, 18 reps y carga unilateral sin duplicar", () => {
+    const entry = computeDenseEntry({ exercise_id: "single_arm_cuban_rotation", scheme: "S6x3", nature: "weighted", external_load_kg: 5, reps_per_side: true, reps_done: [3, 3, 3, 3, 3, 3], effort: "N", bodyweight_kg: 80 });
+    return strengthSchemes.includes("S6x3") && entry.sets === 6 && entry.total_reps === 18 && entry.tonnage_kg === 90 && entry.reps_per_side && entry.scheme_base === "S";
   });
   state.denseTrainingEntries = savedEntries;
   denseNeighborCache = null;

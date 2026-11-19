@@ -8,7 +8,7 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 > App: PWA de entrenamiento (Dense training). Vanilla JS sin build: `app.js` (~9000
 > líneas), `styles.css`, `index.html`, `sw.js`. Sincroniza a Google Sheets vía Apps Script.
 > Modo training-only (`TRAINING_ONLY = true`). Cache busting: string `?v=…` en `index.html`
-> **y** `sw.js` a la vez. **Versión de esta entrega: `20261018-extension-unilateral-59`.**
+> **y** `sw.js` a la vez. **Versión de esta entrega: `20261119-cuban-fuerza-60`.**
 > Emisor desplegado en Cloudflare Free y conectado; pendiente activar y probar el iPhone.
 
 ## Cómo trabajar aquí (imprescindible)
@@ -19,7 +19,7 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
 - **QA en un comando**: `tools/qa/run.sh` (o `selftests` / `crawl` / `audit` / `plan` / `retirement` / `timer` / `push`). Los
   scripts viven ya en el repo (`tools/qa/`), no en el scratchpad de la sesión.
   `plan.js` audita 1.626 combinaciones proposición → tarjeta → formulario (con y sin historial).
-- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **138 asserts**.
+- **Self-tests**: abrir con `?selftest=1` → `runDenseSelfTests()`. Ahora **140 asserts**.
   Correr siempre tras tocar el motor.
 - **Simulación de entrenamiento** (nueva herramienta de QA): 6 semanas × 4 días con un
   atleta sintético que sigue las sugerencias reales de la app vía Playwright+Chromium
@@ -60,6 +60,16 @@ Documento vivo para no perder contexto entre sesiones. Resume **qué se ha const
   fail-closed, LockService, hojas de transferencias. Auto-restore al arrancar vacío.
 
 ## Trabajo reciente por tema (con commits)
+
+### Rotación cubana unilateral y fuerza 6×3 (19 nov 2026)
+- `single_arm_cuban_rotation`: rotación cubana unilateral con mancuerna, carga
+  individual y repeticiones por lado, familia `shoulder_health` y metadata propia.
+  Se abre en fuerza 3×12 y admite los restantes esquemas de fuerza.
+- `strengthSchemes` incluye `S6x3`: seis series de tres, integrado en planes,
+  formularios, registro y cálculo de repeticiones/tonelaje.
+- 140/140 self-tests; formulario móvil 390×844: seis casillas en 6×3,
+  carga individual y sin desbordamiento horizontal.
+- Caché `20261119-cuban-fuerza-60`.
 
 ### Extensión de espalda unilateral (18 oct 2026)
 - Nuevo `single_leg_back_extension`: extensión en banco/máquina con muslos apoyados

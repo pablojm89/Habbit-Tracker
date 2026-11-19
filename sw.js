@@ -1,14 +1,14 @@
-const CACHE_NAME = "bittracker-mobile-20261018-extension-unilateral-59";
+const CACHE_NAME = "bittracker-mobile-20261119-cuban-fuerza-60";
 const LUCIDE_URL = "https://unpkg.com/lucide@1.23.0/dist/umd/lucide.min.js";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=20261018-extension-unilateral-59",
-  "./app.js?v=20261018-extension-unilateral-59",
-  "./studio-core.js?v=20261018-extension-unilateral-59",
-  "./timer-core.js?v=20261018-extension-unilateral-59",
-  "./micro-core.js?v=20261018-extension-unilateral-59",
-  "./notifications.js?v=20261018-extension-unilateral-59",
+  "./styles.css?v=20261119-cuban-fuerza-60",
+  "./app.js?v=20261119-cuban-fuerza-60",
+  "./studio-core.js?v=20261119-cuban-fuerza-60",
+  "./timer-core.js?v=20261119-cuban-fuerza-60",
+  "./micro-core.js?v=20261119-cuban-fuerza-60",
+  "./notifications.js?v=20261119-cuban-fuerza-60",
   "./micro-sessions.json",
   "./push-config.json",
   "./manifest.webmanifest?v=20260627-mobile-01",
